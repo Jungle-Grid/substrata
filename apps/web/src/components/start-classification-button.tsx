@@ -11,6 +11,10 @@ export function StartClassificationButton({ documentId }: { documentId: string }
 
   return (
     <div className="space-y-3">
+      <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-950">
+        For early validation, please use public datasheets only. Do not upload
+        confidential or proprietary documents.
+      </p>
       <button
         type="button"
         disabled={isPending}

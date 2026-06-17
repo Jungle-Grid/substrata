@@ -21,6 +21,33 @@ def _get_spec(specs: list[ExtractedSpec], name: str) -> ExtractedSpec | None:
     return None
 
 
+def _get_specs(specs: list[ExtractedSpec], names: list[str]) -> list[ExtractedSpec]:
+    return [spec for spec in specs if spec.name in names]
+
+
+def _has_profile(specs: list[ExtractedSpec], profile: str) -> bool:
+    return any(spec.name == "product_profile" and spec.value == profile for spec in specs)
+
+
+def _is_converter_primary_review(specs: list[ExtractedSpec]) -> bool:
+    device_type = (_get_spec(specs, "device_type").value.lower() if _get_spec(specs, "device_type") else "")
+    has_converter_identity = any(marker in device_type for marker in ("adc", "dac", "converter"))
+    has_converter_core_facts = any(
+        _get_spec(specs, name)
+        for name in (
+            "adc_resolution",
+            "sample_rate",
+            "single_channel_sample_rate",
+            "dual_channel_sample_rate",
+            "input_bandwidth",
+            "usable_input_frequency_range",
+            "jesd_interface",
+            "serial_lane_rate",
+        )
+    )
+    return has_converter_identity and has_converter_core_facts
+
+
 def _format_spec(spec: ExtractedSpec) -> str:
     return f"{display_name_for_spec_name(spec.name)}: {spec.value}{f' {spec.unit}' if spec.unit else ''}"
 
@@ -34,7 +61,269 @@ def _candidate_fact_list(specs: list[ExtractedSpec], preferred_names: list[str],
     return facts[:limit]
 
 
-def generate_eccn_candidates(specs: list[ExtractedSpec]) -> tuple[list[ECCNCandidate], list[str], float]:
+SOC_FACT_NAMES = [
+    "product_family",
+    "document_number",
+    "part_number",
+    "processor_architecture",
+    "cpu_core",
+    "cpu_core_count",
+    "realtime_cpu",
+    "gpu",
+    "programmable_logic",
+    "processing_system",
+    "ps_pl_integration",
+    "ethernet_mac",
+    "pcie_interface",
+    "usb_interface",
+    "can_interface",
+    "spi_interface",
+    "i2c_interface",
+    "uart_interface",
+    "jtag_interface",
+    "displayport_interface",
+    "displayport_lane_rate",
+    "secure_boot",
+    "cryptographic_algorithm",
+    "crypto_key_size",
+    "memory_integrity",
+    "peripheral_adc",
+]
+
+SECURITY_FACT_NAMES = [
+    "secure_boot",
+    "security_feature",
+    "cryptographic_algorithm",
+    "crypto_key_size",
+    "key_storage",
+    "secure_element",
+    "tamper_resistance",
+    "certificate_signature",
+]
+
+RF_FACT_NAMES = [
+    "rf_frequency_range",
+    "frequency_range",
+    "rx_channels",
+    "tx_channels",
+    "rf_bandwidth",
+    "bandwidth",
+    "lo_pll_synthesizer",
+    "baseband_interface",
+    "sdr_application",
+    "radar_application",
+    "communications_application",
+    "adc_subcomponent",
+    "dac_subcomponent",
+]
+
+GENERIC_ELECTRONICS_FACT_NAMES = [
+    "device_type",
+    "product_name",
+    "product_family",
+    "digital_interface",
+    "jesd_interface",
+    "pcie_interface",
+    "ethernet_mac",
+    "usb_interface",
+    "clock_speed",
+    "package_type",
+    "power_consumption",
+]
+
+
+def _candidate_specs_by_names(specs: list[ExtractedSpec], names: list[str], limit: int) -> list[ExtractedSpec]:
+    selected: list[ExtractedSpec] = []
+    for name in names:
+        for spec in specs:
+            if spec.name == name and spec not in selected:
+                selected.append(spec)
+                if len(selected) >= limit:
+                    return selected
+    return selected[:limit]
+
+
+def _spec_value(spec: ExtractedSpec | None) -> str | None:
+    if not spec:
+        return None
+    return f"{spec.value}{f' {spec.unit}' if spec.unit else ''}"
+
+
+def _bit_phrase(spec: ExtractedSpec | None) -> str | None:
+    if not spec:
+        return None
+    return f"{spec.value}-bit"
+
+
+def _join_phrases(parts: list[str]) -> str:
+    if not parts:
+        return ""
+    if len(parts) == 1:
+        return parts[0]
+    if len(parts) == 2:
+        return f"{parts[0]} and {parts[1]}"
+    return f"{', '.join(parts[:-1])}, and {parts[-1]}"
+
+
+def _question_phrase(*parts: str | None) -> str:
+    return _join_phrases([part for part in parts if part])
+
+
+def generate_reviewer_questions(
+    extracted_facts: list[ExtractedSpec],
+    candidate_eccn: str,
+    matched_specs: list[ExtractedSpec],
+) -> list[str]:
+    questions: list[str] = []
+    matched_names = {spec.name for spec in matched_specs}
+    is_soc_profile = _has_profile(extracted_facts, "fpga_programmable_logic_soc") or _has_profile(extracted_facts, "mcu_processor_soc")
+    is_rf_profile = _has_profile(extracted_facts, "rf_transceiver")
+    is_crypto_profile = _has_profile(extracted_facts, "crypto_security_device")
+
+    if is_rf_profile:
+        questions.append("Do the RF frequency range, bandwidth, and channel-mode facts require review against current Category 3 electronics thresholds?")
+        questions.append("Are ADC/DAC facts in this document subcomponents of the RF transceiver rather than the primary product identity?")
+        questions.append("Do SDR, radar, or communications application statements indicate specialized review considerations without becoming final end-use determinations?")
+        questions.append("Are there separate security, encryption, or authentication functions that require Category 5 Part 2 analysis?")
+        return questions[:6]
+
+    if is_crypto_profile:
+        questions.append("Is the security or cryptography functionality user-accessible, configurable, or limited to authentication, boot, or key-management support?")
+        questions.append("Do AES, RSA, SHA, elliptic-curve, certificate, signature, or key-storage facts require Category 5 Part 2 analysis?")
+        questions.append("Are mass-market, availability, exception, or exemption facts documented outside this datasheet?")
+        questions.append("Do any hardware performance facts require a separate Category 3 electronics comparison path?")
+        return questions[:6]
+
+    if is_soc_profile:
+        product_family = _get_spec(extracted_facts, "product_family")
+        document_number = _get_spec(extracted_facts, "document_number")
+        has_crypto = any(spec.name in SECURITY_FACT_NAMES for spec in extracted_facts)
+        has_high_speed_io = any(
+            spec.name in {"pcie_interface", "displayport_interface", "displayport_lane_rate", "ethernet_mac"}
+            for spec in extracted_facts
+        )
+        family_label = product_family.value if product_family else "the programmable-logic SoC"
+        doc_label = document_number.value if document_number else "this document"
+        questions.append(
+            f"Is this {doc_label} document a family overview requiring device-specific ordering-code review before a final ECCN can be assigned?"
+        )
+        questions.append(
+            f"Do the {family_label} programmable-logic and processing-system features require review under Category 3 electronics entries?"
+        )
+        if _get_spec(extracted_facts, "cpu_core") or _get_spec(extracted_facts, "realtime_cpu"):
+            questions.append(
+                "Do the Arm Cortex-A53 / Cortex-R5F processing-system facts affect the applicable electronics review path?"
+            )
+        if has_high_speed_io:
+            questions.append(
+                "Are PCIe, DisplayPort, Ethernet, or other high-speed I/O features relevant to narrower control entries?"
+            )
+        if has_crypto:
+            questions.append(
+                "Do secure boot, AES-GCM, SHA-3/384, or RSA 4096 require separate Category 5 Part 2 analysis?"
+            )
+            questions.append(
+                "Is the cryptographic functionality user-accessible, configurable, or limited to boot/authentication functions?"
+            )
+        questions.append(
+            "Does separate product documentation indicate radiation tolerance, space qualification, military design intent, or special-environment qualification?"
+        )
+        return questions[:7]
+
+    adc_resolution = _get_spec(extracted_facts, "adc_resolution")
+    sample_rate = _get_spec(extracted_facts, "sample_rate")
+    single_channel_rate = _get_spec(extracted_facts, "single_channel_sample_rate")
+    dual_channel_rate = _get_spec(extracted_facts, "dual_channel_sample_rate")
+    channel_modes = _get_spec(extracted_facts, "channel_modes")
+    input_bandwidth = _get_spec(extracted_facts, "input_bandwidth")
+    usable_input_range = _get_spec(extracted_facts, "usable_input_frequency_range")
+    jesd_interface = _get_spec(extracted_facts, "jesd_interface")
+    serial_lane_rate = _get_spec(extracted_facts, "serial_lane_rate")
+    lane_count = _get_spec(extracted_facts, "interface_lane_count")
+    application_examples = _get_spec(extracted_facts, "application_examples")
+
+    if adc_resolution and (sample_rate or single_channel_rate or dual_channel_rate):
+        if sample_rate:
+            performance = f"{_bit_phrase(adc_resolution)} ADC resolution and {_spec_value(sample_rate)} sampling performance"
+        else:
+            modes: list[str] = []
+            if single_channel_rate:
+                modes.append(f"{_spec_value(single_channel_rate)} single-channel performance")
+            if dual_channel_rate:
+                modes.append(f"{_spec_value(dual_channel_rate)} dual-channel performance")
+            performance = f"{_bit_phrase(adc_resolution)} ADC resolution and {_join_phrases(modes)}"
+        questions.append(
+            f"Do the {performance} trigger any current Category 3 electronics control thresholds?"
+        )
+
+    if channel_modes and channel_modes.name in matched_names:
+        questions.append(
+            f"Does the {channel_modes.value} configuration affect how the sample-rate claims should be evaluated?"
+        )
+
+    analog_performance = _question_phrase(
+        f"{_spec_value(input_bandwidth)} analog input bandwidth" if input_bandwidth else None,
+        f"{_spec_value(usable_input_range)} usable input frequency range" if usable_input_range else None,
+    )
+    if analog_performance:
+        questions.append(
+            f"Does the {analog_performance} support a narrower Category 3 review path?"
+        )
+
+    interface_performance = _question_phrase(
+        f"{_spec_value(jesd_interface)} interface" if jesd_interface else None,
+        f"{lane_count.value} lanes per channel" if lane_count and lane_count.unit == "lanes per channel" else (f"{_spec_value(lane_count)} lane architecture" if lane_count else None),
+        f"{_spec_value(serial_lane_rate)} lane-rate claim" if serial_lane_rate else None,
+    )
+    if interface_performance:
+        questions.append(
+            f"Are the {interface_performance} relevant to any current controlled interface or converter-output thresholds?"
+        )
+
+    if application_examples:
+        application_terms = [part.strip() for part in application_examples.value.split("/") if part.strip()]
+        if application_terms:
+            questions.append(
+                f"Do the datasheet’s application examples, including {_join_phrases(application_terms[:4])}, suggest any specialized review considerations, while recognizing they are not final end-use determinations?"
+            )
+
+    has_environmental = any(
+        spec.category == "environmental_qualification"
+        for spec in extracted_facts
+    )
+    if not has_environmental:
+        questions.append(
+            "Does any separate product documentation indicate radiation tolerance, space qualification, military design intent, or special-environment qualification not visible in this datasheet?"
+        )
+
+    has_security = any(spec.category == "security_cryptography" for spec in extracted_facts)
+    if not has_security:
+        questions.append(
+            "Does the product include any cryptographic, secure-boot, key-storage, or security functionality not visible in this datasheet?"
+        )
+
+    if candidate_eccn == "3A991":
+        questions = [
+            "What documented reasoning supports excluding the narrower Category 3 review paths before considering a broader general-electronics outcome?"
+        ]
+
+    if candidate_eccn == "EAR99":
+        questions = [
+            "Is the available datasheet evidence sufficient to rule out narrower electronics review paths before considering EAR99?"
+        ]
+
+    deduped: list[str] = []
+    for question in questions:
+        if question not in deduped:
+            deduped.append(question)
+    return deduped[:6]
+
+
+def generate_eccn_candidates(
+    specs: list[ExtractedSpec],
+    *,
+    source_label: str,
+) -> tuple[list[ECCNCandidate], list[str], float]:
     groups = group_specs_for_review(specs)
     missing_points = infer_missing_review_points(specs)
     converter_specs = groups["high_speed_data_converter_facts"]
@@ -44,40 +333,47 @@ def generate_eccn_candidates(specs: list[ExtractedSpec]) -> tuple[list[ECCNCandi
     environmental_specs = groups["radiation_space_military_facts"]
     security_specs = groups["cryptography_security_facts"]
 
-    serial_lane_rate = _get_spec(specs, "serial_lane_rate")
-    sample_rate = _get_spec(specs, "sample_rate")
-    single_channel_rate = _get_spec(specs, "single_channel_sample_rate")
-    dual_channel_rate = _get_spec(specs, "dual_channel_sample_rate")
-    adc_resolution = _get_spec(specs, "adc_resolution")
-    usable_input_range = _get_spec(specs, "usable_input_frequency_range")
-    input_bandwidth = _get_spec(specs, "input_bandwidth")
-    jesd_interface = _get_spec(specs, "jesd_interface")
-    application_examples = _get_spec(specs, "application_examples")
+    is_converter_primary_review = _is_converter_primary_review(specs)
+    category_3a001_specs = []
+    for name in [
+        "adc_resolution",
+        "sample_rate",
+        "single_channel_sample_rate",
+        "dual_channel_sample_rate",
+        "channel_modes",
+        "input_bandwidth",
+        "usable_input_frequency_range",
+        "jesd_interface",
+        "interface_lane_count",
+        "serial_lane_rate",
+        "application_examples",
+        "package_type",
+        "power_consumption",
+        ]:
+        spec = _get_spec(specs, name)
+        if spec and is_converter_primary_review:
+            category_3a001_specs.append(spec)
 
-    high_value_facts = _candidate_fact_list(
-        specs,
-        [
-            "adc_resolution",
-            "single_channel_sample_rate",
-            "dual_channel_sample_rate",
-            "sample_rate",
-            "input_bandwidth",
-            "usable_input_frequency_range",
-            "jesd_interface",
-            "serial_lane_rate",
-            "interface_lane_count",
-            "package_type",
-            "power_consumption",
-        ],
-        8,
-    )
+    high_value_facts = [_format_spec(spec) for spec in category_3a001_specs[:10]]
 
-    has_high_speed_adc = any(
-        spec
-        for spec in (single_channel_rate, dual_channel_rate, sample_rate, serial_lane_rate, input_bandwidth, usable_input_range)
-    )
+    has_high_speed_adc = is_converter_primary_review and bool(category_3a001_specs)
     has_special_environment = bool(environmental_specs)
     has_application_context = bool(app_specs)
+    is_soc_profile = _has_profile(specs, "fpga_programmable_logic_soc") or _has_profile(specs, "mcu_processor_soc")
+    is_rf_profile = _has_profile(specs, "rf_transceiver")
+    is_crypto_profile = _has_profile(specs, "crypto_security_device")
+    is_generic_profile = _has_profile(specs, "generic_electronics")
+    soc_candidate_specs = _candidate_specs_by_names(specs, SOC_FACT_NAMES, 12)
+    rf_candidate_specs = _candidate_specs_by_names(specs, RF_FACT_NAMES, 10)
+    generic_electronics_specs = _candidate_specs_by_names(specs, GENERIC_ELECTRONICS_FACT_NAMES, 8)
+    security_candidate_specs = _candidate_specs_by_names(specs, SECURITY_FACT_NAMES, 8)
+    if not security_candidate_specs:
+        security_candidate_specs = [
+            spec
+            for spec in specs
+            if spec.category in {"security_cryptography", "security", "cryptography"}
+            or any(term in f"{spec.name} {spec.value}".lower() for term in ("secure boot", "aes", "rsa", "sha", "key storage", "certificate", "signature", "hsm", "tpm"))
+        ][:8]
 
     uncertainty_flags = ["limited_regulatory_coverage"]
     if len(high_value_facts) >= 4:
@@ -88,76 +384,303 @@ def generate_eccn_candidates(specs: list[ExtractedSpec]) -> tuple[list[ECCNCandi
         uncertainty_flags.append("requires_engineering_confirmation")
     uncertainty_flags = list(dict.fromkeys(uncertainty_flags))
 
-    category_3a001_citations = []
-    for name in [
-        "adc_resolution",
-        "single_channel_sample_rate",
-        "dual_channel_sample_rate",
-        "input_bandwidth",
-        "usable_input_frequency_range",
-        "jesd_interface",
-        "serial_lane_rate",
-    ]:
-        spec = _get_spec(specs, name)
-        if spec:
-            category_3a001_citations.append(build_document_citation(spec))
-    if not category_3a001_citations and converter_specs:
-        category_3a001_citations.append(build_document_citation(converter_specs[0]))
-    category_3a001_citations.append(
+    category_3a001_citations = [
+        build_document_citation(spec, source=source_label)
+        for spec in category_3a001_specs
+        if spec.name
+        in {
+            "adc_resolution",
+            "sample_rate",
+            "single_channel_sample_rate",
+            "dual_channel_sample_rate",
+            "channel_modes",
+            "input_bandwidth",
+            "usable_input_frequency_range",
+            "jesd_interface",
+            "serial_lane_rate",
+            "application_examples",
+        }
+    ]
+    if not category_3a001_citations and converter_specs and is_converter_primary_review:
+        category_3a001_citations.append(build_document_citation(converter_specs[0], source=source_label))
+    if is_converter_primary_review:
+        category_3a001_citations.append(
         build_regulatory_citation(
             "CCL Category 3 electronics review path",
-            "Category 3 contains electronics review paths for certain converters, integrated circuits, high-speed interfaces, and related components. This draft uses Category 3 as the initial review path because the datasheet contains concrete ADC performance and output-interface facts that should be compared against the current control text by a qualified reviewer.",
-            "The extracted ADC resolution, sample-rate, bandwidth, and interface facts justify a Category 3 electronics review before considering broader fallback outcomes.",
+            "Category 3 contains electronics review paths for certain converters, integrated circuits, high-speed interfaces, and related components. This draft uses Category 3 as the initial review path because the datasheet contains concrete converter and interface facts that should be compared against the current control text by a qualified reviewer.",
+            "The extracted converter resolution, sample-rate, bandwidth, and interface facts justify a Category 3 electronics review before considering broader fallback outcomes.",
         )
+        )
+
+    apply_specs = [
+        _get_spec(specs, "channel_modes"),
+        _get_spec(specs, "adc_resolution"),
+        _get_spec(specs, "sample_rate"),
+        _get_spec(specs, "single_channel_sample_rate"),
+        _get_spec(specs, "dual_channel_sample_rate"),
+        _get_spec(specs, "input_bandwidth"),
+        _get_spec(specs, "usable_input_frequency_range"),
+        _get_spec(specs, "jesd_interface"),
+        _get_spec(specs, "interface_lane_count"),
+        _get_spec(specs, "serial_lane_rate"),
+        _get_spec(specs, "application_examples"),
+    ]
+    apply_summary = ", ".join(_format_spec(spec) for spec in apply_specs if spec and is_converter_primary_review)
+    if not apply_summary:
+        apply_summary = "the extracted converter and interface facts"
+
+    general_facts = _candidate_fact_list(
+        specs,
+        [
+            "product_family",
+            "adc_resolution",
+            "sample_rate",
+            "single_channel_sample_rate",
+            "dual_channel_sample_rate",
+            "input_bandwidth",
+            "jesd_interface",
+            "processor_architecture",
+            "cpu_core",
+            "programmable_logic",
+            "pcie_interface",
+            "displayport_lane_rate",
+        ],
+        4,
+    ) or _candidate_fact_list(specs, ["device_type", "part_number", "package_type"], 3)
+
+    general_apply_text = (
+        "A broader general-electronics outcome could remain relevant only if a qualified reviewer documents why the extracted converter and interface facts do not satisfy any narrower Category 3 entry."
+        if is_converter_primary_review
+        else "A broader general-electronics comparison path remains relevant only as fallback after the programmable-logic/SoC and security review paths are evaluated."
+        if is_soc_profile
+        else "A broader general-electronics review path remains relevant because the current extracted facts identify a semiconductor or compute device but do not by themselves establish a narrower converter-specific control path."
+    )
+    general_not_apply_text = (
+        "The datasheet still contains specific high-speed converter performance and interface facts that should be reviewed against narrower Category 3 electronics entries first."
+        if is_converter_primary_review
+        else "The document contains specific programmable-logic, processing-system, high-speed I/O, and cryptography facts that should be reviewed under narrower paths before relying on a general fallback comparison."
+        if is_soc_profile
+        else "A broader general-electronics comparison may still be too broad if a qualified reviewer finds that the device’s security, processing, interface, or design-intent facts map to a narrower current control entry."
+    )
+    general_missing_information = (
+        [
+            "Documented reasoning for excluding the narrower Category 3 review paths.",
+            *missing_points[:2],
+        ]
+        if is_converter_primary_review
+        else [
+            "Documented reasoning for excluding Category 3 programmable-logic/SoC and Category 5 Part 2 security review paths.",
+            *missing_points[:2],
+        ]
+        if is_soc_profile
+        else [
+            "Documented reasoning for any narrower control entry that could apply to the device’s security, processing, interface, or design-intent facts.",
+            *missing_points[:2],
+        ]
+    )
+    general_uncertainty_flags = list(
+        dict.fromkeys((["multiple_plausible_eccns"] if is_converter_primary_review else []) + uncertainty_flags)
     )
 
-    category_3a001_apply_parts = []
-    if adc_resolution:
-        category_3a001_apply_parts.append(_format_spec(adc_resolution))
-    if single_channel_rate:
-        category_3a001_apply_parts.append(_format_spec(single_channel_rate))
-    if dual_channel_rate:
-        category_3a001_apply_parts.append(_format_spec(dual_channel_rate))
-    if input_bandwidth:
-        category_3a001_apply_parts.append(_format_spec(input_bandwidth))
-    if usable_input_range:
-        category_3a001_apply_parts.append(_format_spec(usable_input_range))
-    if jesd_interface:
-        category_3a001_apply_parts.append(_format_spec(jesd_interface))
-    if serial_lane_rate:
-        category_3a001_apply_parts.append(_format_spec(serial_lane_rate))
+    candidates: list[ECCNCandidate] = []
+    if is_soc_profile and soc_candidate_specs:
+        candidates.append(
+            ECCNCandidate(
+                eccn="Category 3",
+                title="Category 3 electronics / programmable logic / SoC review path",
+                confidence="medium" if len(soc_candidate_specs) >= 6 else "low",
+                matched_technical_facts=[_format_spec(spec) for spec in soc_candidate_specs],
+                regulatory_citations=[
+                    *[
+                        build_document_citation(spec, source=source_label)
+                        for spec in soc_candidate_specs
+                        if spec.name
+                        in {
+                            "product_family",
+                            "processor_architecture",
+                            "cpu_core",
+                            "programmable_logic",
+                            "pcie_interface",
+                            "ethernet_mac",
+                            "displayport_lane_rate",
+                            "secure_boot",
+                        }
+                    ],
+                    build_regulatory_citation(
+                        "CCL Category 3 electronics / SoC review path",
+                        "Category 3 electronics review should be considered for a programmable-logic/SoC family with processing-system, programmable logic, high-speed interface, and security-adjacent architecture facts. This draft does not encode final threshold logic.",
+                        "These facts support Category 3 electronics review before fallback classification.",
+                    ),
+                ],
+                why_it_may_apply=(
+                    "The document identifies a programmable-logic/SoC family with processing system, programmable logic, high-speed interfaces, and security features. These facts support Category 3 electronics review before fallback classification."
+                ),
+                why_it_may_not_apply=(
+                    "The current draft does not encode full CCL thresholds. This is a family overview, so device-specific ordering code and complete specs may be required before any final ECCN assignment."
+                ),
+                missing_information=[
+                    "Device-specific ordering code, speed grade, package, and complete variant-specific programmable-logic resources.",
+                    "Current CCL threshold mapping by a qualified reviewer.",
+                    *missing_points[:2],
+                ],
+                uncertainty_flags=list(dict.fromkeys(["multiple_plausible_eccns", "requires_engineering_confirmation", *uncertainty_flags])),
+                reviewer_questions=[],
+                review_path_id="category_3_programmable_logic_soc",
+            )
+        )
 
-    apply_summary = ", ".join(category_3a001_apply_parts[:7]) if category_3a001_apply_parts else "the extracted converter and interface facts"
+    if is_rf_profile and rf_candidate_specs:
+        candidates.append(
+            ECCNCandidate(
+                eccn="Category 3",
+                title="Category 3 electronics / RF transceiver review path",
+                confidence="medium" if len(rf_candidate_specs) >= 4 else "low",
+                matched_technical_facts=[_format_spec(spec) for spec in rf_candidate_specs],
+                regulatory_citations=[
+                    *[build_document_citation(spec, source=source_label) for spec in rf_candidate_specs[:5]],
+                    build_regulatory_citation(
+                        "CCL Category 3 electronics / RF transceiver review path",
+                        "Category 3 electronics review should be considered for RF transceiver, RF frequency, bandwidth, baseband interface, and converter-subcomponent facts. This draft does not encode final threshold logic.",
+                        "The extracted RF transceiver facts support Category 3 electronics review before fallback classification.",
+                    ),
+                ],
+                why_it_may_apply="The document identifies RF transceiver behavior with source-grounded RF frequency, channel, bandwidth, or interface facts that require electronics review.",
+                why_it_may_not_apply="The current draft does not implement the full CCL threshold analysis, and application language alone is not a final end-use or ECCN determination.",
+                missing_information=[
+                    "Complete RF operating ranges and bandwidth conditions by mode.",
+                    "Reviewer mapping to current Category 3 thresholds.",
+                    *missing_points[:2],
+                ],
+                uncertainty_flags=list(dict.fromkeys(["requires_engineering_confirmation", *uncertainty_flags])),
+                reviewer_questions=[],
+                review_path_id="category_3_rf_transceiver",
+            )
+        )
 
-    candidates = [
-        ECCNCandidate(
-            eccn="3A001",
-            title="Category 3 electronics review path for high-speed ADC components",
-            confidence="medium" if has_high_speed_adc else "low",
-            matched_technical_facts=high_value_facts or ["The datasheet contains ADC performance and interface claims that require Category 3 review."],
-            regulatory_citations=category_3a001_citations,
-            why_it_may_apply=(
-                f"The datasheet identifies {apply_summary}. This is a Category 3 electronics review path, not a final ECCN determination. A qualified reviewer must compare these extracted ADC facts against the relevant current CCL thresholds."
-            ),
-            why_it_may_not_apply=(
-                "The current draft does not encode final legal thresholds or a complete rules engine. A qualified reviewer still needs to map the extracted ADC resolution, sample-rate, bandwidth, frequency-range, and interface facts to the current control text and determine whether a narrower entry is actually triggered."
-            ),
-            missing_information=missing_points + [
-                "A qualified reviewer must map the extracted ADC performance and interface facts to the current CCL thresholds.",
-                "Any omitted security, special-environment, or design-intent details that could narrow or broaden the review path.",
-            ],
-            uncertainty_flags=uncertainty_flags,
-            reviewer_questions=[
-                "Do the 12-bit ADC resolution and 10.4 GSPS / 5.2 GSPS operating modes trigger any current Category 3 review thresholds?",
-                "Does the 8 GHz analog input bandwidth or >10 GHz usable input frequency support a narrower Category 3 review path?",
-                "Are the JESD204C interface and up to 17.16 Gbps lane-rate claims relevant to any current controlled interface thresholds?",
-            ],
-        ),
+    if is_crypto_profile and security_candidate_specs:
+        candidates.append(
+            ECCNCandidate(
+                eccn="Category 5 Part 2",
+                title="Category 5 Part 2 security/cryptography review path",
+                confidence="medium",
+                matched_technical_facts=[_format_spec(spec) for spec in security_candidate_specs],
+                regulatory_citations=[
+                    *[build_document_citation(spec, source=source_label) for spec in security_candidate_specs[:5]],
+                    build_regulatory_citation(
+                        "Category 5 Part 2 security/cryptography review path",
+                        "Security devices and named cryptographic capabilities require separate Category 5 Part 2 analysis by a qualified reviewer.",
+                        "This path captures source-grounded security facts without determining control status, exceptions, or availability.",
+                        source="15 CFR Part 774, Supplement No. 1, Category 5 Part 2",
+                    ),
+                ],
+                why_it_may_apply="The document identifies a security or cryptography-focused device with source-grounded security, key, authentication, or cryptographic facts.",
+                why_it_may_not_apply="The draft does not determine whether the cryptographic functionality is controlled, exempt, mass-market eligible, or otherwise outside Category 5 Part 2.",
+                missing_information=[
+                    "Whether cryptography is user-accessible, configurable, or limited to authentication/boot support.",
+                    "Availability, mass-market, and exception facts for expert review.",
+                    *missing_points[:2],
+                ],
+                uncertainty_flags=list(dict.fromkeys(["requires_engineering_confirmation", "missing_key_specs", *uncertainty_flags])),
+                reviewer_questions=[],
+                review_path_id="category_5_part_2_crypto_security_device",
+            )
+        )
+
+    if (
+        not is_crypto_profile
+        and security_candidate_specs
+        and any(spec.name in {"secure_boot", "cryptographic_algorithm"} for spec in security_candidate_specs)
+    ):
+        candidates.append(
+            ECCNCandidate(
+                eccn="Category 5 Part 2",
+                title="Security/cryptography review path",
+                confidence="medium",
+                matched_technical_facts=[_format_spec(spec) for spec in security_candidate_specs],
+                regulatory_citations=[
+                    *[
+                        build_document_citation(spec, source=source_label)
+                        for spec in security_candidate_specs
+                        if spec.name in {"secure_boot", "cryptographic_algorithm", "crypto_key_size"}
+                    ],
+                    build_regulatory_citation(
+                        "Category 5 Part 2 security/cryptography review path",
+                        "Security and cryptography functions such as secure boot, AES-GCM, SHA-3/384, and RSA 4096 may require separate Category 5 Part 2 analysis by a qualified reviewer.",
+                        "This path captures named security facts without making a final determination about control status, mass-market eligibility, exceptions, or availability.",
+                        source="15 CFR Part 774, Supplement No. 1, Category 5 Part 2",
+                    ),
+                ],
+                why_it_may_apply=(
+                    "The document includes secure boot and named cryptographic functions such as AES-GCM, SHA-3/384, and RSA 4096. These may require separate security/cryptography review."
+                ),
+                why_it_may_not_apply=(
+                    "The draft does not determine whether functionality is controlled, mass-market eligible, exempt, or otherwise not controlled. A qualified reviewer must evaluate actual cryptographic functionality, availability, and applicable exceptions."
+                ),
+                missing_information=[
+                    "Whether crypto is user-accessible.",
+                    "Whether mass-market or license exception treatment applies.",
+                    "Whether implementation details are in a security manual rather than this overview.",
+                ],
+                uncertainty_flags=list(dict.fromkeys(["requires_engineering_confirmation", "missing_key_specs", *uncertainty_flags])),
+                reviewer_questions=[],
+                review_path_id="category_5_part_2_security",
+            )
+        )
+
+    if is_converter_primary_review:
+        candidates.append(
+            ECCNCandidate(
+                eccn="3A001",
+                title="Category 3 electronics review path for high-speed ADC components",
+                confidence="medium" if has_high_speed_adc else "low",
+                matched_technical_facts=high_value_facts or ["The datasheet contains ADC performance and interface claims that require Category 3 review."],
+                regulatory_citations=category_3a001_citations,
+                why_it_may_apply=(
+                    f"The datasheet identifies {apply_summary}. These facts support using Category 3 electronics entries as the initial expert-review path. This is not a final ECCN determination; a qualified reviewer must compare the extracted converter and interface facts against the current CCL thresholds."
+                ),
+                why_it_may_not_apply=(
+                    "The current draft does not encode final legal thresholds or a complete rules engine. A qualified reviewer still needs to map the extracted converter resolution, sample-rate, bandwidth, frequency-range, and interface facts to the current control text and determine whether a narrower entry is actually triggered."
+                ),
+                missing_information=missing_points + [
+                    "A qualified reviewer must map the extracted converter and interface facts to the current CCL thresholds.",
+                    "Any omitted security, special-environment, or design-intent details that could narrow or broaden the review path.",
+                ],
+                uncertainty_flags=uncertainty_flags,
+                reviewer_questions=[],
+                review_path_id="category_3_high_speed_converter",
+            )
+        )
+
+    if (is_generic_profile or generic_electronics_specs) and not is_converter_primary_review and not is_soc_profile and not is_rf_profile and not is_crypto_profile:
+        candidates.append(
+            ECCNCandidate(
+                eccn="Category 3",
+                title="Category 3 electronics review path",
+                confidence="low",
+                matched_technical_facts=[_format_spec(spec) for spec in generic_electronics_specs[:8]],
+                regulatory_citations=[
+                    *[build_document_citation(spec, source=source_label) for spec in generic_electronics_specs[:4]],
+                    build_regulatory_citation(
+                        "CCL Category 3 electronics review path",
+                        "Category 3 electronics review can remain relevant for source-grounded semiconductor performance and interface facts. This draft does not encode final threshold logic.",
+                        "The extracted electronics facts support a Category 3 comparison before broader fallback outcomes.",
+                    ),
+                ],
+                why_it_may_apply="The extracted facts identify electronics performance, package, power, or interface characteristics that may require Category 3 comparison.",
+                why_it_may_not_apply="The currently extracted facts may be too general to trigger a narrower control path, and the memo does not perform final threshold mapping.",
+                missing_information=["Current CCL threshold mapping by a qualified reviewer.", *missing_points[:2]],
+                uncertainty_flags=list(dict.fromkeys(["limited_regulatory_coverage", *uncertainty_flags])),
+                reviewer_questions=[],
+                review_path_id="category_3_generic_electronics",
+            )
+        )
+
+    candidates.append(
         ECCNCandidate(
             eccn="3A991",
             title="General electronics comparison path",
             confidence="low",
-            matched_technical_facts=high_value_facts[:4] or _candidate_fact_list(specs, ["device_type", "part_number", "package_type"], 3),
+            matched_technical_facts=general_facts,
             regulatory_citations=[
                 build_regulatory_citation(
                     "General electronics fallback review",
@@ -166,18 +689,14 @@ def generate_eccn_candidates(specs: list[ExtractedSpec]) -> tuple[list[ECCNCandi
                     source="EAR classification comparison workflow",
                 )
             ],
-            why_it_may_apply="A broader general-electronics outcome could remain relevant only if a qualified reviewer documents why the extracted ADC facts do not satisfy any narrower Category 3 entry.",
-            why_it_may_not_apply="The datasheet still contains specific high-speed ADC performance and interface facts that should be reviewed against narrower Category 3 electronics entries first.",
-            missing_information=[
-                "Documented reasoning for excluding the narrower Category 3 review paths.",
-                *missing_points[:2],
-            ],
-            uncertainty_flags=list(dict.fromkeys(["multiple_plausible_eccns", *uncertainty_flags])),
-            reviewer_questions=[
-                "What documented reasoning supports excluding the narrower Category 3 review paths before considering a broader general-electronics outcome?",
-            ],
+            why_it_may_apply=general_apply_text,
+            why_it_may_not_apply=general_not_apply_text,
+            missing_information=general_missing_information,
+            uncertainty_flags=general_uncertainty_flags,
+            reviewer_questions=[],
+            review_path_id="general_electronics_comparison",
         ),
-    ]
+    )
 
     if not has_high_speed_adc and not has_special_environment and not security_specs and not has_application_context:
         candidates.append(
@@ -201,17 +720,34 @@ def generate_eccn_candidates(specs: list[ExtractedSpec]) -> tuple[list[ECCNCandi
                     "Expert confirmation that no narrower Category 3 or security-related review path is triggered by the available datasheet facts."
                 ],
                 uncertainty_flags=list(dict.fromkeys(["missing_key_specs", *uncertainty_flags])),
-                reviewer_questions=[
-                    "Is the available datasheet evidence sufficient to rule out narrower electronics review paths before considering EAR99?",
-                ],
+                reviewer_questions=[],
+                review_path_id="ear99_possible_outcome",
             )
         )
 
-    if application_examples:
-        for candidate in candidates:
-            if candidate.eccn == "3A001":
-                candidate.matched_technical_facts.append(_format_spec(application_examples))
-                break
+    for candidate in candidates:
+        matched_specs = _get_specs(
+            specs,
+            [
+                "adc_resolution",
+                "sample_rate",
+                "single_channel_sample_rate",
+                "dual_channel_sample_rate",
+                "channel_modes",
+                "input_bandwidth",
+                "usable_input_frequency_range",
+                "jesd_interface",
+                "interface_lane_count",
+                "serial_lane_rate",
+                "application_examples",
+                "package_type",
+                "power_consumption",
+                "device_type",
+                "part_number",
+                *SOC_FACT_NAMES,
+            ],
+        )
+        candidate.reviewer_questions = generate_reviewer_questions(specs, candidate.eccn, matched_specs)
 
     confidence = max(_confidence_score(candidate.confidence) for candidate in candidates)
     return candidates, uncertainty_flags, confidence

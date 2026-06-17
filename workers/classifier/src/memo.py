@@ -18,6 +18,16 @@ def generate_memo(
     generated_at = datetime.now(UTC).replace(microsecond=0).isoformat()
     grouped_specs = group_specs_by_category(specs)
     missing_points = infer_missing_review_points(specs)
+    spec_by_name = {spec.name: spec for spec in specs}
+    profile_summary_lines: list[str] = []
+    if spec_by_name.get("product_profile"):
+        profile_value = spec_by_name["product_profile"].value
+        display_profile = "FPGA / programmable-logic SoC" if profile_value == "fpga_programmable_logic_soc" else profile_value
+        profile_summary_lines.append(f"- Detected product profile: {display_profile}")
+    if spec_by_name.get("profile_confidence"):
+        profile_summary_lines.append(f"- Profile confidence: {spec_by_name['profile_confidence'].value}")
+    if spec_by_name.get("profile_rationale"):
+        profile_summary_lines.append(f"- Profile rationale: {spec_by_name['profile_rationale'].value}")
 
     fact_sections: list[str] = []
     for category, category_specs in grouped_specs.items():
@@ -97,7 +107,7 @@ def generate_memo(
 
     conclusion_lines = [
         "This draft does not make a final ECCN determination.",
-        "The evidence supports reviewing Category 3 electronics entries before considering broader fallback classifications." if any(candidate.eccn == "3A001" for candidate in candidates) else "The current evidence does not close the review path and still requires qualified expert analysis.",
+        "The evidence supports reviewing Category 3 electronics entries before considering broader fallback classifications." if any(candidate.eccn in {"3A001", "Category 3"} for candidate in candidates) else "The current evidence does not close the review path and still requires qualified expert analysis.",
         "A qualified expert should confirm the applicable threshold mapping, any specialized design intent, and the final ECCN.",
     ]
 
@@ -108,7 +118,7 @@ def generate_memo(
 - Document ID: {document_id}
 - File name: {document_metadata.get("fileName", "Unknown")}
 - Generated timestamp: {generated_at}
-- Disclaimer: Draft for expert human review only. This memo is not a final legal or compliance determination.
+{chr(10).join(profile_summary_lines) + chr(10) if profile_summary_lines else ""}- Disclaimer: Draft for expert review only — not a final ECCN determination.
 
 ## 2. Extracted Technical Facts
 {chr(10).join(fact_sections) if fact_sections else "- No technical facts were extracted from the provided datasheet text."}

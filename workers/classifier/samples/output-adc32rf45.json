@@ -1,0 +1,246 @@
+{
+  "document_id": "doc_sample_adc32rf45",
+  "organization_id": "org_demo",
+  "requires_human_review": true,
+  "confidence": 0.63,
+  "uncertainty_flags": [
+    "limited_regulatory_coverage",
+    "multiple_plausible_eccns",
+    "missing_key_specs",
+    "requires_engineering_confirmation"
+  ],
+  "extracted_specs": [
+    {
+      "name": "manufacturer",
+      "value": "Texas Instruments",
+      "unit": null,
+      "source_snippet": "Texas Instruments ADC32RF45",
+      "importance": "Manufacturer identity anchors the review to the vendor\u2019s own part naming, application framing, and qualification language.",
+      "category": "product_identity",
+      "confidence": "high"
+    },
+    {
+      "name": "part_number",
+      "value": "ADC32RF45",
+      "unit": null,
+      "source_snippet": "Texas Instruments ADC32RF45",
+      "importance": "Part number identification ties the memo to the exact component under review and avoids confusion with reference designs or companion parts.",
+      "category": "product_identity",
+      "confidence": "high"
+    },
+    {
+      "name": "device_type",
+      "value": "Analog-to-digital converter (ADC)",
+      "unit": null,
+      "source_snippet": "ADC32RF45 Dual-Channel, 14-Bit, 3.0-GSPS analog-to-digital converter (ADC)",
+      "importance": "Device type frames which technical parameters are most relevant in the initial review path.",
+      "category": "product_identity",
+      "confidence": "high"
+    },
+    {
+      "name": "adc_resolution",
+      "value": "14",
+      "unit": "bits",
+      "source_snippet": "ADC32RF45 Dual-Channel, 14-Bit, 3.0-GSPS analog-to-digital converter (ADC)",
+      "importance": "ADC resolution matters because converter bit depth, especially when paired with sample rate, is often central to the electronics review path.",
+      "category": "converter_performance",
+      "confidence": "high"
+    },
+    {
+      "name": "channel_modes",
+      "value": "dual-channel",
+      "unit": null,
+      "source_snippet": "ADC32RF45 Dual-Channel, 14-Bit, 3.0-GSPS analog-to-digital converter (ADC)",
+      "importance": "Channel modes matter because some converter review questions depend on whether the device operates as a single-channel or dual-channel part.",
+      "category": "converter_performance",
+      "confidence": "high"
+    },
+    {
+      "name": "dual_channel_sample_rate",
+      "value": "3.0",
+      "unit": "GSPS",
+      "source_snippet": "ADC32RF45 Dual-Channel, 14-Bit, 3.0-GSPS analog-to-digital converter (ADC)",
+      "importance": "The dual-channel sample rate helps experts assess the alternate operating mode of the reviewed ADC.",
+      "category": "converter_performance",
+      "confidence": "high"
+    },
+    {
+      "name": "jesd_interface",
+      "value": "JESD204B",
+      "unit": null,
+      "source_snippet": "- Dual-channel RF-sampling ADC with JESD204B serial interface",
+      "importance": "The primary JESD output interface matters because serialized converter output format and revision level are often central to the electronics review path.",
+      "category": "digital_interface",
+      "confidence": "high"
+    },
+    {
+      "name": "serial_lane_rate",
+      "value": "12.5",
+      "unit": "Gbps",
+      "source_snippet": "- 4 Lanes Per Channel at 12.5 Gbps",
+      "importance": "Serial lane rate matters because high-speed converter output interfaces are often part of the Category 3 electronics review path.",
+      "category": "digital_interface",
+      "confidence": "high"
+    },
+    {
+      "name": "interface_lane_count",
+      "value": "4",
+      "unit": "lanes per channel",
+      "source_snippet": "- 4 Lanes Per Channel at 12.5 Gbps",
+      "importance": "Lane count helps experts understand the scale of the serialized output architecture.",
+      "category": "digital_interface",
+      "confidence": "medium"
+    },
+    {
+      "name": "application_examples",
+      "value": "electronic warfare / phased-array radar / radar",
+      "unit": null,
+      "source_snippet": "Applications include phased-array radar and electronic warfare",
+      "importance": "This is application-context language from the datasheet, not a final end-use determination. It may still inform which expert review questions should be asked.",
+      "category": "application_context",
+      "confidence": "medium"
+    },
+    {
+      "name": "package_type",
+      "value": "VQFN",
+      "unit": null,
+      "source_snippet": "- Package: VQFN",
+      "importance": "Package information helps experts identify the physical form factor and deployment context of the reviewed component.",
+      "category": "packaging_lifecycle",
+      "confidence": "medium"
+    },
+    {
+      "name": "power_consumption",
+      "value": "3.2",
+      "unit": "W/Ch",
+      "source_snippet": "- Power consumption: 3.2 W/Ch",
+      "importance": "Power-consumption detail helps reviewers understand the performance density and implementation context of the component.",
+      "category": "packaging_lifecycle",
+      "confidence": "medium"
+    }
+  ],
+  "eccn_candidates": [
+    {
+      "eccn": "3A001",
+      "title": "Category 3 electronics review path for high-speed ADC components",
+      "confidence": "medium",
+      "matched_technical_facts": [
+        "ADC Resolution: 14 bits",
+        "Dual-Channel Sample Rate: 3.0 GSPS",
+        "Channel Modes: dual-channel",
+        "JESD Interface: JESD204B",
+        "Lane Count: 4 lanes per channel",
+        "Serial Lane Rate: 12.5 Gbps",
+        "Application Examples: electronic warfare / phased-array radar / radar",
+        "Package: VQFN",
+        "Power Consumption: 3.2 W/Ch"
+      ],
+      "regulatory_citations": [
+        {
+          "citation_label": "Datasheet evidence \u2014 ADC Resolution",
+          "citation_text": "ADC32RF45 Dual-Channel, 14-Bit, 3.0-GSPS analog-to-digital converter (ADC)",
+          "source": "Uploaded datasheet text",
+          "relevance": "ADC resolution matters because converter bit depth, especially when paired with sample rate, is often central to the electronics review path."
+        },
+        {
+          "citation_label": "Datasheet evidence \u2014 Dual-Channel Sample Rate",
+          "citation_text": "ADC32RF45 Dual-Channel, 14-Bit, 3.0-GSPS analog-to-digital converter (ADC)",
+          "source": "Uploaded datasheet text",
+          "relevance": "The dual-channel sample rate helps experts assess the alternate operating mode of the reviewed ADC."
+        },
+        {
+          "citation_label": "Datasheet evidence \u2014 Channel Modes",
+          "citation_text": "ADC32RF45 Dual-Channel, 14-Bit, 3.0-GSPS analog-to-digital converter (ADC)",
+          "source": "Uploaded datasheet text",
+          "relevance": "Channel modes matter because some converter review questions depend on whether the device operates as a single-channel or dual-channel part."
+        },
+        {
+          "citation_label": "Datasheet evidence \u2014 JESD Interface",
+          "citation_text": "- Dual-channel RF-sampling ADC with JESD204B serial interface",
+          "source": "Uploaded datasheet text",
+          "relevance": "The primary JESD output interface matters because serialized converter output format and revision level are often central to the electronics review path."
+        },
+        {
+          "citation_label": "Datasheet evidence \u2014 Serial Lane Rate",
+          "citation_text": "- 4 Lanes Per Channel at 12.5 Gbps",
+          "source": "Uploaded datasheet text",
+          "relevance": "Serial lane rate matters because high-speed converter output interfaces are often part of the Category 3 electronics review path."
+        },
+        {
+          "citation_label": "Datasheet evidence \u2014 Application Examples",
+          "citation_text": "Applications include phased-array radar and electronic warfare",
+          "source": "Uploaded datasheet text",
+          "relevance": "This is application-context language from the datasheet, not a final end-use determination. It may still inform which expert review questions should be asked."
+        },
+        {
+          "citation_label": "CCL Category 3 electronics review path",
+          "citation_text": "Category 3 contains electronics review paths for certain converters, integrated circuits, high-speed interfaces, and related components. This draft uses Category 3 as the initial review path because the datasheet contains concrete converter and interface facts that should be compared against the current control text by a qualified reviewer.",
+          "source": "15 CFR Part 774, Supplement No. 1, Category 3",
+          "relevance": "The extracted converter resolution, sample-rate, bandwidth, and interface facts justify a Category 3 electronics review before considering broader fallback outcomes."
+        }
+      ],
+      "why_it_may_apply": "The datasheet identifies Channel Modes: dual-channel, ADC Resolution: 14 bits, Dual-Channel Sample Rate: 3.0 GSPS, JESD Interface: JESD204B, Lane Count: 4 lanes per channel, Serial Lane Rate: 12.5 Gbps, Application Examples: electronic warfare / phased-array radar / radar. These facts support using Category 3 electronics entries as the initial expert-review path. This is not a final ECCN determination; a qualified reviewer must compare the extracted converter and interface facts against the current CCL thresholds.",
+      "why_it_may_not_apply": "The current draft does not encode final legal thresholds or a complete rules engine. A qualified reviewer still needs to map the extracted converter resolution, sample-rate, bandwidth, frequency-range, and interface facts to the current control text and determine whether a narrower entry is actually triggered.",
+      "missing_information": [
+        "Special-environment qualification details were not found in the provided datasheet text. Radiation, military, space, or extended-temperature language matters because specialized design intent can affect the review path.",
+        "Security or cryptography features were not found in the provided datasheet text. That matters because embedded cryptographic capability can require a different expert review path.",
+        "A qualified reviewer must map the extracted converter and interface facts to the current CCL thresholds.",
+        "Any omitted security, special-environment, or design-intent details that could narrow or broaden the review path."
+      ],
+      "uncertainty_flags": [
+        "limited_regulatory_coverage",
+        "multiple_plausible_eccns",
+        "missing_key_specs",
+        "requires_engineering_confirmation"
+      ],
+      "reviewer_questions": [
+        "Do the 14-bit ADC resolution and 3.0 GSPS dual-channel performance trigger any current Category 3 electronics control thresholds?",
+        "Does the dual-channel configuration affect how the sample-rate claims should be evaluated?",
+        "Are the JESD204B interface, 4 lanes per channel, and 12.5 Gbps lane-rate claim relevant to any current controlled interface or converter-output thresholds?",
+        "Do the datasheet\u2019s application examples, including electronic warfare, phased-array radar, and radar, suggest any specialized review considerations, while recognizing they are not final end-use determinations?",
+        "Does any separate product documentation indicate radiation tolerance, space qualification, military design intent, or special-environment qualification not visible in this datasheet?",
+        "Does the product include any cryptographic, secure-boot, key-storage, or security functionality not visible in this datasheet?"
+      ]
+    },
+    {
+      "eccn": "3A991",
+      "title": "General electronics comparison path",
+      "confidence": "low",
+      "matched_technical_facts": [
+        "ADC Resolution: 14 bits",
+        "Dual-Channel Sample Rate: 3.0 GSPS",
+        "JESD Interface: JESD204B"
+      ],
+      "regulatory_citations": [
+        {
+          "citation_label": "General electronics fallback review",
+          "citation_text": "A broader general-electronics path should be considered only after the narrower Category 3 electronics review paths are examined and excluded by a qualified reviewer.",
+          "source": "EAR classification comparison workflow",
+          "relevance": "This is a fallback comparison point only. It should not be treated as the likely answer while narrower Category 3 review paths remain open."
+        }
+      ],
+      "why_it_may_apply": "A broader general-electronics outcome could remain relevant only if a qualified reviewer documents why the extracted converter and interface facts do not satisfy any narrower Category 3 entry.",
+      "why_it_may_not_apply": "The datasheet still contains specific high-speed converter performance and interface facts that should be reviewed against narrower Category 3 electronics entries first.",
+      "missing_information": [
+        "Documented reasoning for excluding the narrower Category 3 review paths.",
+        "Special-environment qualification details were not found in the provided datasheet text. Radiation, military, space, or extended-temperature language matters because specialized design intent can affect the review path.",
+        "Security or cryptography features were not found in the provided datasheet text. That matters because embedded cryptographic capability can require a different expert review path."
+      ],
+      "uncertainty_flags": [
+        "multiple_plausible_eccns",
+        "limited_regulatory_coverage",
+        "missing_key_specs",
+        "requires_engineering_confirmation"
+      ],
+      "reviewer_questions": [
+        "What documented reasoning supports excluding the narrower Category 3 review paths before considering a broader general-electronics outcome?"
+      ]
+    }
+  ],
+  "memo_markdown": "# Draft ECCN Review Memo \u2014 Texas Instruments ADC32RF45 Datasheet Sample\n\n## 1. Document Summary\n- Title: Texas Instruments ADC32RF45 Datasheet Sample\n- Document ID: doc_sample_adc32rf45\n- File name: adc32rf45-datasheet.txt\n- Generated timestamp: 2026-06-17T21:54:12+00:00\n- Disclaimer: Draft for expert review only \u2014 not a final ECCN determination.\n\n## 2. Extracted Technical Facts\n### Product identity\n- **Manufacturer**: Texas Instruments\n- Confidence: high\n- Source snippet: \"Texas Instruments ADC32RF45\"\n- Why it matters: Manufacturer identity anchors the review to the vendor\u2019s own part naming, application framing, and qualification language.\n\n- **Part Number**: ADC32RF45\n- Confidence: high\n- Source snippet: \"Texas Instruments ADC32RF45\"\n- Why it matters: Part number identification ties the memo to the exact component under review and avoids confusion with reference designs or companion parts.\n\n- **Device Type**: Analog-to-digital converter (ADC)\n- Confidence: high\n- Source snippet: \"ADC32RF45 Dual-Channel, 14-Bit, 3.0-GSPS analog-to-digital converter (ADC)\"\n- Why it matters: Device type frames which technical parameters are most relevant in the initial review path.\n### Converter/performance specs\n- **ADC Resolution**: 14 bits\n- Confidence: high\n- Source snippet: \"ADC32RF45 Dual-Channel, 14-Bit, 3.0-GSPS analog-to-digital converter (ADC)\"\n- Why it matters: ADC resolution matters because converter bit depth, especially when paired with sample rate, is often central to the electronics review path.\n\n- **Channel Modes**: dual-channel\n- Confidence: high\n- Source snippet: \"ADC32RF45 Dual-Channel, 14-Bit, 3.0-GSPS analog-to-digital converter (ADC)\"\n- Why it matters: Channel modes matter because some converter review questions depend on whether the device operates as a single-channel or dual-channel part.\n\n- **Dual-Channel Sample Rate**: 3.0 GSPS\n- Confidence: high\n- Source snippet: \"ADC32RF45 Dual-Channel, 14-Bit, 3.0-GSPS analog-to-digital converter (ADC)\"\n- Why it matters: The dual-channel sample rate helps experts assess the alternate operating mode of the reviewed ADC.\n### Digital interfaces / high-speed I/O\n- **JESD Interface**: JESD204B\n- Confidence: high\n- Source snippet: \"- Dual-channel RF-sampling ADC with JESD204B serial interface\"\n- Why it matters: The primary JESD output interface matters because serialized converter output format and revision level are often central to the electronics review path.\n\n- **Serial Lane Rate**: 12.5 Gbps\n- Confidence: high\n- Source snippet: \"- 4 Lanes Per Channel at 12.5 Gbps\"\n- Why it matters: Serial lane rate matters because high-speed converter output interfaces are often part of the Category 3 electronics review path.\n\n- **Lane Count**: 4 lanes per channel\n- Confidence: medium\n- Source snippet: \"- 4 Lanes Per Channel at 12.5 Gbps\"\n- Why it matters: Lane count helps experts understand the scale of the serialized output architecture.\n### Application/context language\n- **Application Examples**: electronic warfare / phased-array radar / radar\n- Confidence: medium\n- Source snippet: \"Applications include phased-array radar and electronic warfare\"\n- Why it matters: This is application-context language from the datasheet, not a final end-use determination. It may still inform which expert review questions should be asked.\n### Power/package specs\n- **Package**: VQFN\n- Confidence: medium\n- Source snippet: \"- Package: VQFN\"\n- Why it matters: Package information helps experts identify the physical form factor and deployment context of the reviewed component.\n\n- **Power Consumption**: 3.2 W/Ch\n- Confidence: medium\n- Source snippet: \"- Power consumption: 3.2 W/Ch\"\n- Why it matters: Power-consumption detail helps reviewers understand the performance density and implementation context of the component.\n### Missing/not found facts\n- Special-environment qualification details were not found in the provided datasheet text. Radiation, military, space, or extended-temperature language matters because specialized design intent can affect the review path.\n- Security or cryptography features were not found in the provided datasheet text. That matters because embedded cryptographic capability can require a different expert review path.\n\n## 3. Candidate ECCN Review Paths\n### 3A001 \u2014 Category 3 electronics review path for high-speed ADC components\n- Confidence: medium\n- Why it may apply: The datasheet identifies Channel Modes: dual-channel, ADC Resolution: 14 bits, Dual-Channel Sample Rate: 3.0 GSPS, JESD Interface: JESD204B, Lane Count: 4 lanes per channel, Serial Lane Rate: 12.5 Gbps, Application Examples: electronic warfare / phased-array radar / radar. These facts support using Category 3 electronics entries as the initial expert-review path. This is not a final ECCN determination; a qualified reviewer must compare the extracted converter and interface facts against the current CCL thresholds.\n- Why it may not apply: The current draft does not encode final legal thresholds or a complete rules engine. A qualified reviewer still needs to map the extracted converter resolution, sample-rate, bandwidth, frequency-range, and interface facts to the current control text and determine whether a narrower entry is actually triggered.\n\n#### Matched facts\n- ADC Resolution: 14 bits\n- Dual-Channel Sample Rate: 3.0 GSPS\n- Channel Modes: dual-channel\n- JESD Interface: JESD204B\n- Lane Count: 4 lanes per channel\n- Serial Lane Rate: 12.5 Gbps\n- Application Examples: electronic warfare / phased-array radar / radar\n- Package: VQFN\n- Power Consumption: 3.2 W/Ch\n\n#### Citations\n- **Datasheet evidence \u2014 ADC Resolution**\n- Source: Uploaded datasheet text\n- Citation note: ADC32RF45 Dual-Channel, 14-Bit, 3.0-GSPS analog-to-digital converter (ADC)\n- Relevance: ADC resolution matters because converter bit depth, especially when paired with sample rate, is often central to the electronics review path.\n\n- **Datasheet evidence \u2014 Dual-Channel Sample Rate**\n- Source: Uploaded datasheet text\n- Citation note: ADC32RF45 Dual-Channel, 14-Bit, 3.0-GSPS analog-to-digital converter (ADC)\n- Relevance: The dual-channel sample rate helps experts assess the alternate operating mode of the reviewed ADC.\n\n- **Datasheet evidence \u2014 Channel Modes**\n- Source: Uploaded datasheet text\n- Citation note: ADC32RF45 Dual-Channel, 14-Bit, 3.0-GSPS analog-to-digital converter (ADC)\n- Relevance: Channel modes matter because some converter review questions depend on whether the device operates as a single-channel or dual-channel part.\n\n- **Datasheet evidence \u2014 JESD Interface**\n- Source: Uploaded datasheet text\n- Citation note: - Dual-channel RF-sampling ADC with JESD204B serial interface\n- Relevance: The primary JESD output interface matters because serialized converter output format and revision level are often central to the electronics review path.\n\n- **Datasheet evidence \u2014 Serial Lane Rate**\n- Source: Uploaded datasheet text\n- Citation note: - 4 Lanes Per Channel at 12.5 Gbps\n- Relevance: Serial lane rate matters because high-speed converter output interfaces are often part of the Category 3 electronics review path.\n\n- **Datasheet evidence \u2014 Application Examples**\n- Source: Uploaded datasheet text\n- Citation note: Applications include phased-array radar and electronic warfare\n- Relevance: This is application-context language from the datasheet, not a final end-use determination. It may still inform which expert review questions should be asked.\n\n- **CCL Category 3 electronics review path**\n- Source: 15 CFR Part 774, Supplement No. 1, Category 3\n- Citation note: Category 3 contains electronics review paths for certain converters, integrated circuits, high-speed interfaces, and related components. This draft uses Category 3 as the initial review path because the datasheet contains concrete converter and interface facts that should be compared against the current control text by a qualified reviewer.\n- Relevance: The extracted converter resolution, sample-rate, bandwidth, and interface facts justify a Category 3 electronics review before considering broader fallback outcomes.\n\n#### Missing information\n- Special-environment qualification details were not found in the provided datasheet text. Radiation, military, space, or extended-temperature language matters because specialized design intent can affect the review path.\n- Security or cryptography features were not found in the provided datasheet text. That matters because embedded cryptographic capability can require a different expert review path.\n- A qualified reviewer must map the extracted converter and interface facts to the current CCL thresholds.\n- Any omitted security, special-environment, or design-intent details that could narrow or broaden the review path.\n\n#### Reviewer questions\n- Do the 14-bit ADC resolution and 3.0 GSPS dual-channel performance trigger any current Category 3 electronics control thresholds?\n- Does the dual-channel configuration affect how the sample-rate claims should be evaluated?\n- Are the JESD204B interface, 4 lanes per channel, and 12.5 Gbps lane-rate claim relevant to any current controlled interface or converter-output thresholds?\n- Do the datasheet\u2019s application examples, including electronic warfare, phased-array radar, and radar, suggest any specialized review considerations, while recognizing they are not final end-use determinations?\n- Does any separate product documentation indicate radiation tolerance, space qualification, military design intent, or special-environment qualification not visible in this datasheet?\n- Does the product include any cryptographic, secure-boot, key-storage, or security functionality not visible in this datasheet?\n\n#### Uncertainty flags\n- limited_regulatory_coverage\n- multiple_plausible_eccns\n- missing_key_specs\n- requires_engineering_confirmation\n\n### 3A991 \u2014 General electronics comparison path\n- Confidence: low\n- Why it may apply: A broader general-electronics outcome could remain relevant only if a qualified reviewer documents why the extracted converter and interface facts do not satisfy any narrower Category 3 entry.\n- Why it may not apply: The datasheet still contains specific high-speed converter performance and interface facts that should be reviewed against narrower Category 3 electronics entries first.\n\n#### Matched facts\n- ADC Resolution: 14 bits\n- Dual-Channel Sample Rate: 3.0 GSPS\n- JESD Interface: JESD204B\n\n#### Citations\n- **General electronics fallback review**\n- Source: EAR classification comparison workflow\n- Citation note: A broader general-electronics path should be considered only after the narrower Category 3 electronics review paths are examined and excluded by a qualified reviewer.\n- Relevance: This is a fallback comparison point only. It should not be treated as the likely answer while narrower Category 3 review paths remain open.\n\n#### Missing information\n- Documented reasoning for excluding the narrower Category 3 review paths.\n- Special-environment qualification details were not found in the provided datasheet text. Radiation, military, space, or extended-temperature language matters because specialized design intent can affect the review path.\n- Security or cryptography features were not found in the provided datasheet text. That matters because embedded cryptographic capability can require a different expert review path.\n\n#### Reviewer questions\n- What documented reasoning supports excluding the narrower Category 3 review paths before considering a broader general-electronics outcome?\n\n#### Uncertainty flags\n- multiple_plausible_eccns\n- limited_regulatory_coverage\n- missing_key_specs\n- requires_engineering_confirmation\n\n\n## 4. Key Uncertainties\n- limited regulatory coverage\n- multiple plausible eccns\n- missing key specs\n- requires engineering confirmation\n\n## 5. Reviewer Questions\n- Do the 14-bit ADC resolution and 3.0 GSPS dual-channel performance trigger any current Category 3 electronics control thresholds?\n- Does the dual-channel configuration affect how the sample-rate claims should be evaluated?\n- Are the JESD204B interface, 4 lanes per channel, and 12.5 Gbps lane-rate claim relevant to any current controlled interface or converter-output thresholds?\n- Do the datasheet\u2019s application examples, including electronic warfare, phased-array radar, and radar, suggest any specialized review considerations, while recognizing they are not final end-use determinations?\n- Does any separate product documentation indicate radiation tolerance, space qualification, military design intent, or special-environment qualification not visible in this datasheet?\n- Does the product include any cryptographic, secure-boot, key-storage, or security functionality not visible in this datasheet?\n- What documented reasoning supports excluding the narrower Category 3 review paths before considering a broader general-electronics outcome?\n\n## 6. Draft Conclusion\n- This draft does not make a final ECCN determination.\n- The evidence supports reviewing Category 3 electronics entries before considering broader fallback classifications.\n- A qualified expert should confirm the applicable threshold mapping, any specialized design intent, and the final ECCN.\n\n## 7. Review State\n- Status: pending_review\n- Reviewer: Unassigned\n- Note: No reviewer note recorded yet.\n",
+  "artifacts": {
+    "extracted_text_path": "/home/invinc/code/substrata/workers/classifier/samples/artifacts/doc_sample_adc32rf45-extracted.txt",
+    "structured_output_path": "/home/invinc/code/substrata/workers/classifier/samples/artifacts/doc_sample_adc32rf45-output.json",
+    "memo_path": "/home/invinc/code/substrata/workers/classifier/samples/artifacts/doc_sample_adc32rf45-memo.md"
+  }
+}

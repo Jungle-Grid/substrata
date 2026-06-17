@@ -1,0 +1,23 @@
+DS891 Zynq UltraScale+ MPSoC Overview
+AMD Zynq UltraScale+ MPSoC family overview.
+
+The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic.
+
+Features:
+- 10-bit 200KSPS ADC with up to 17 external inputs.
+- Single Channel (Bit) write capability for all control registers include data output register, direction control.
+- Four 10/100/1000 tri-speed Ethernet MAC.
+- Two master and slave I2C interfaces.
+- PCI Express compliant interface.
+- Supports LVCMOS, LVDS, and SSTL.
+- JTAG Boundary-Scan System Monitor in PL.
+- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO.
+- 1 or 2 lanes of DisplayPort (TX only) at 1.62Gb/s, 2.7Gb/s, or 5.4Gb/s.
+- Supports secure and non-secure boot modes.
+- AXI Coherency Extension instruction and data cache with ECC.
+- 256-bit AES-GCM.
+- SHA-3/384.
+- 4096-bit RSA.
+
+Legal notice:
+CONSEQUENTIAL DAMAGES ARISING FROM THE USE OF ANY INFORMATION CONTAINED HEREIN, EVEN IF AMD IS EXPRESSLY ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.

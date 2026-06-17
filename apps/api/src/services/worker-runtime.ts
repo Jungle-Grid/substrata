@@ -51,6 +51,7 @@ function mapCliOutput(output: WorkerCliOutput): WorkerOutput {
       structuredOutputPath: output.artifacts.structured_output_path,
       memoPath: output.artifacts.memo_path,
     },
+    runMetadata: output.run_metadata ?? null,
   };
 }
 

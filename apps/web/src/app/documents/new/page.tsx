@@ -17,6 +17,10 @@ export default function UploadPage() {
                 preserve the original artifact locally, and create a reviewable
                 document record with extracted text for the classification run.
               </p>
+              <p className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-950">
+                For early validation, please use public datasheets only. Do not
+                upload confidential or proprietary documents.
+              </p>
             </div>
             <DocumentCreateForm />
           </div>

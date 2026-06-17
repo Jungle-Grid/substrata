@@ -22,6 +22,20 @@ function isDevelopment() {
   return process.env.NODE_ENV !== 'production';
 }
 
+function generatedByForWorker(output: Awaited<ReturnType<typeof runLocalWorker>>) {
+  const metadata = output.runMetadata ?? {};
+  const mode = metadata.classificationMode;
+  const provider = metadata.aiProvider;
+  const model = metadata.aiModel;
+  if (mode === 'ai_assisted' && provider === 'gemini' && typeof model === 'string') {
+    return `python_local_worker:gemini:${model}`;
+  }
+  if (mode === 'heuristic_fallback') {
+    return 'python_local_worker:heuristic_fallback';
+  }
+  return 'python_local_worker:heuristic';
+}
+
 export async function createClassificationRun(input: {
   documentId: string;
   organizationId: string;
@@ -81,7 +95,6 @@ export async function createClassificationRun(input: {
       console.log('Classification worker input summary', {
         documentId: document.id,
         inputTextLength: sourceText.length,
-        inputPreview: sourceText.slice(0, 300),
       });
     }
 
@@ -174,7 +187,7 @@ export async function createClassificationRun(input: {
           organizationId: input.organizationId,
           classificationRunId: run.id,
           contentMarkdown: workerOutput.memoMarkdown,
-          generatedBy: 'python_local_worker',
+          generatedBy: generatedByForWorker(workerOutput),
         },
       });
 
@@ -211,7 +224,7 @@ export async function createClassificationRun(input: {
       entityType: 'ReviewMemo',
       entityId: run.id,
       metadata: {
-        generatedBy: 'python_local_worker',
+        generatedBy: generatedByForWorker(workerOutput),
       },
     });
 

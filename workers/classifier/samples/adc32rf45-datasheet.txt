@@ -1,0 +1,18 @@
+Texas Instruments ADC32RF45
+
+ADC32RF45 Dual-Channel, 14-Bit, 3.0-GSPS analog-to-digital converter (ADC).
+
+Key features:
+- Dual-channel RF-sampling ADC with JESD204B serial interface.
+- 4 Lanes Per Channel at 12.5 Gbps.
+- Package: VQFN.
+- Power consumption: 3.2 W/Ch.
+
+Device description:
+The ADC32RF45 is a dual-channel high-speed analog-to-digital converter for direct RF sampling and phased-array radar receivers.
+
+Application examples:
+Applications include phased-array radar and electronic warfare.
+
+Clocking and register notes:
+SEL SYSREF REG MASK NCO SYSREF

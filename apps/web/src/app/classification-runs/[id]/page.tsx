@@ -29,6 +29,7 @@ function toneForConfidence(confidence: string): 'warning' | 'success' | 'default
 }
 
 const factCategoryLabels: Record<string, string> = {
+  profile_detection: 'Profile detection',
   product_identity: 'Product identity',
   converter_performance: 'Converter/performance specs',
   digital_interface: 'Digital interface/output specs',
@@ -69,7 +70,27 @@ const factDisplayLabels: Record<string, string> = {
   package_type: 'Package',
   power_consumption: 'Power Consumption',
   clocking_reference_note: 'Clocking/Reference Design Note',
+  product_profile: 'Detected Product Profile',
+  profile_confidence: 'Profile Confidence',
+  profile_rationale: 'Profile Rationale',
+  document_number: 'Document Number',
+  document_type: 'Document Type',
+  is_family_overview: 'Family Overview',
 };
+
+function runModeLabel(generatedBy?: string | null) {
+  if (generatedBy?.includes(':gemini:')) {
+    return 'AI-assisted extraction';
+  }
+  if (generatedBy?.includes('heuristic_fallback')) {
+    return 'heuristic fallback';
+  }
+  return 'heuristic';
+}
+
+function detectedProfile(specs: ExtractedSpecRecord[]) {
+  return specs.find((spec) => spec.name === 'product_profile')?.value ?? 'Unknown';
+}
 
 function groupSpecs(specs: ExtractedSpecRecord[]) {
   const grouped = new Map<string, ExtractedSpecRecord[]>();
@@ -110,6 +131,7 @@ export default async function ClassificationRunPage({
 
   const latestReview = run.humanReviews[0];
   const groupedSpecs = groupSpecs(run.extractedSpecs);
+  const memoGeneratedBy = run.reviewMemo?.generatedBy ?? null;
   const reviewStatus =
     latestReview?.status === 'approved'
       ? 'reviewed'
@@ -136,8 +158,7 @@ export default async function ClassificationRunPage({
           Draft for expert review
         </p>
         <p className="mt-2 text-sm leading-6 text-amber-950">
-          This review package is evidence-driven draft analysis only. It is not a
-          final legal or compliance determination.
+          Draft for expert review only — not a final ECCN determination.
         </p>
       </Panel>
 
@@ -164,6 +185,16 @@ export default async function ClassificationRunPage({
             <p>
               <span className="font-medium text-ink">Run status:</span>{' '}
               <Badge tone={toneForStatus(run.status)}>{run.status}</Badge>
+            </p>
+            <p>
+              <span className="font-medium text-ink">Worker mode:</span>{' '}
+              <Badge tone={memoGeneratedBy?.includes(':gemini:') ? 'success' : 'warning'}>
+                {runModeLabel(memoGeneratedBy)}
+              </Badge>
+            </p>
+            <p>
+              <span className="font-medium text-ink">Detected profile:</span>{' '}
+              {detectedProfile(run.extractedSpecs)}
             </p>
             <p>
               <span className="font-medium text-ink">Summary:</span>{' '}

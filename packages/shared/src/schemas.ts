@@ -78,6 +78,7 @@ export const workerOutputSchema = z.object({
     structuredOutputPath: z.string(),
     memoPath: z.string(),
   }),
+  runMetadata: z.record(z.string(), z.unknown()).optional().nullable(),
 });
 
 export const workerCliOutputSchema = z.object({
@@ -124,6 +125,7 @@ export const workerCliOutputSchema = z.object({
     structured_output_path: z.string(),
     memo_path: z.string(),
   }),
+  run_metadata: z.record(z.string(), z.unknown()).optional().nullable(),
 });
 
 export type DocumentCreateInput = z.infer<typeof documentCreateSchema>;

@@ -6,13 +6,18 @@ from schemas import ExtractedSpec
 
 CATEGORY_DISPLAY_NAMES = {
     "product_identity": "Product identity",
+    "profile_detection": "Profile detection",
+    "processing_system_cpu": "Processing system / CPU",
+    "programmable_logic_fpga": "Programmable logic / FPGA fabric",
     "converter_performance": "Converter/performance specs",
-    "digital_interface": "Digital interface/output specs",
+    "digital_interface": "Digital interfaces / high-speed I/O",
     "rf_microwave": "RF/input-frequency specs",
     "application_context": "Application/context language",
     "compute_processor": "Compute/processor specs",
-    "environmental_qualification": "Environmental/qualification specs",
     "security_cryptography": "Security/cryptography indicators",
+    "memory_cache_integrity": "Memory/cache integrity",
+    "peripheral_functions": "Peripheral functions",
+    "environmental_qualification": "Environmental/qualification specs",
     "packaging_lifecycle": "Power/package specs",
 }
 
@@ -101,7 +106,7 @@ def group_specs_for_review(specs: list[ExtractedSpec]) -> dict[str, list[Extract
             groups["rf_microwave_facts"].append(spec)
         if spec.category == "application_context":
             groups["application_context_facts"].append(spec)
-        if spec.category == "compute_processor":
+        if spec.category in {"compute_processor", "processing_system_cpu", "programmable_logic_fpga", "memory_cache_integrity", "peripheral_functions"}:
             groups["compute_processor_facts"].append(spec)
         if spec.category == "security_cryptography":
             groups["cryptography_security_facts"].append(spec)
