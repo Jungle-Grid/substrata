@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: substrata-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: substrata
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - substrata-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  substrata-postgres-data:
+

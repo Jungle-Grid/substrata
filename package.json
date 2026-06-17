@@ -1,0 +1,30 @@
+{
+  "name": "substrata",
+  "private": true,
+  "packageManager": "pnpm@10.12.4",
+  "scripts": {
+    "dev": "concurrently -k -n api,web \"corepack pnpm dev:api\" \"corepack pnpm dev:web\"",
+    "dev:web": "corepack pnpm --filter @substrata/web dev",
+    "dev:api": "corepack pnpm --filter @substrata/api dev",
+    "build": "corepack pnpm -r build",
+    "lint": "corepack pnpm -r lint",
+    "typecheck": "corepack pnpm -r typecheck",
+    "db:generate": "corepack pnpm --filter @substrata/db prisma:generate",
+    "db:migrate": "corepack pnpm --filter @substrata/db prisma:migrate",
+    "db:studio": "corepack pnpm --filter @substrata/db prisma:studio",
+    "db:seed": "corepack pnpm --filter @substrata/db seed",
+    "worker:sample": "python3 workers/classifier/src/main.py workers/classifier/samples/sample-input.json",
+    "worker:run-sample": "corepack pnpm worker:sample",
+    "worker:validate-sample": "node scripts/validate-worker-output.mjs workers/classifier/samples/output-sample.json --min-specs=8",
+    "smoke:api": "node scripts/smoke-api.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.29.0",
+    "@types/node": "^24.0.10",
+    "concurrently": "^9.2.0",
+    "eslint": "^9.29.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.35.1"
+  }
+}

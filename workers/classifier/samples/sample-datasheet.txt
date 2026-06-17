@@ -1,0 +1,30 @@
+Texas Instruments ADC12DJ5200RF
+
+ADC12DJ5200RF 12-bit, 10.4GSPS single-channel or 5.2GSPS dual-channel RF-sampling analog-to-digital converter (ADC).
+
+Key features:
+- 12-bit RF-sampling ADC with analog input bandwidth of 8 GHz.
+- Usable input frequency range: > 10GHz.
+- JESD204C serial data interface supporting up to 17.16 Gbps line rate.
+- Serialized digital output supports 16 lanes.
+- Package: FCBGA.
+- Power consumption: 4 W.
+
+Device description:
+The ADC12DJ5200RF is designed for direct RF sampling and high-speed signal acquisition applications.
+
+Compatibility and interface notes:
+JESD204B and JESD204A references appear in receiver compatibility and subclass discussion, but the device output interface is JESD204C.
+
+Application examples:
+Applications include radar, electronic warfare, SIGINT, and ELINT.
+
+Clocking and status notes:
+For clock frequencies higher than 3.2 GHz, external clock source components may be required in the reference design.
+Serializer PLL is not locked when the link is not initialized.
+
+Comparative background text:
+Unlike pipeline converters or successive approximation register (SAR) ADCs, this discussion compares alternative converter families for context only.
+
+Qualification note:
+Human-body model (HBM), per ANSI/ESDA/JEDEC JS-001, is referenced for electrostatic discharge qualification.

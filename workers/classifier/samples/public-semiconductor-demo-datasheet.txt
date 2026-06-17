@@ -1,0 +1,11 @@
+Asteria A112 Edge Accelerator
+Public Demo Datasheet Excerpt
+
+The Asteria A112 is a semiconductor accelerator designed for edge inference workloads.
+Fabricated on a 7 nm process node.
+Delivers up to 128 TOPS INT8 peak compute throughput.
+Supports 112 Gbps PAM4 SerDes lanes for high-speed backplane and retimer connectivity.
+A radiation-tolerant packaging option is available for selected aerospace and high-reliability deployments.
+The device integrates high-bandwidth memory interfaces and PCIe Gen5 host connectivity.
+
+This bundled sample is intended for Substrata local demo and validation workflows only.

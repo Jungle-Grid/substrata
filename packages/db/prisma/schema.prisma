@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DocumentSourceType {
+  upload
+  seed
+  manual
+}
+
+enum ClassificationRunStatus {
+  pending
+  queued
+  running
+  completed
+  failed
+}
+
+enum HumanReviewStatus {
+  pending_review
+  reviewed
+  needs_more_information
+  in_review
+  approved
+  rejected
+}
+
+model Organization {
+  id                 String              @id @default(cuid())
+  name               String
+  slug               String              @unique
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  users              User[]
+  documents          Document[]
+  classificationRuns ClassificationRun[]
+  reviewMemos        ReviewMemo[]
+  humanReviews       HumanReview[]
+  auditEvents        AuditEvent[]
+}
+
+model User {
+  id             String        @id @default(cuid())
+  organizationId String
+  email          String        @unique
+  name           String
+  role           String        @default("reviewer")
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reviews        HumanReview[]
+  auditEvents    AuditEvent[]
+}
+
+model Document {
+  id                 String              @id @default(cuid())
+  organizationId     String
+  title              String
+  fileName           String
+  mimeType           String
+  sizeBytes          Int?
+  storagePath        String
+  sourceType         DocumentSourceType  @default(upload)
+  rawText            String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  classificationRuns ClassificationRun[]
+
+  @@index([organizationId, createdAt])
+}
+
+model ClassificationRun {
+  id                    String                   @id @default(cuid())
+  organizationId        String
+  documentId            String
+  status                ClassificationRunStatus  @default(pending)
+  trigger               String                   @default("manual")
+  confidence            Float?
+  uncertaintyFlags      String[]
+  requiresHumanReview   Boolean                  @default(true)
+  workerJobId           String?
+  workerVersion         String?
+  rulesVersion          String?
+  extractedTextPath     String?
+  structuredOutputPath  String?
+  memoArtifactPath      String?
+  errorMessage          String?
+  completedAt           DateTime?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  organization          Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document              Document                 @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  extractedSpecs        ExtractedSpec[]
+  eccnCandidates        ECCNCandidate[]
+  reviewMemo            ReviewMemo?
+  humanReviews          HumanReview[]
+  citations             Citation[]
+
+  @@index([organizationId, createdAt])
+  @@index([documentId, createdAt])
+}
+
+model ExtractedSpec {
+  id                  String             @id @default(cuid())
+  classificationRunId String
+  name                String
+  value               String
+  unit                String?
+  sourceSnippet       String
+  importance          String
+  confidence          Float
+  confidenceLevel     String             @default("medium")
+  category            String             @default("product_identity")
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  classificationRun   ClassificationRun  @relation(fields: [classificationRunId], references: [id], onDelete: Cascade)
+}
+
+model ECCNCandidate {
+  id                  String             @id @default(cuid())
+  classificationRunId String
+  eccn                String
+  title               String
+  rationale           String
+  confidence          Float
+  confidenceLevel     String             @default("medium")
+  matchedTechnicalFacts String[]
+  whyItMayApply       String
+  whyItMayNotApply    String
+  missingInformation  String[]
+  reviewerQuestions   String[]
+  uncertaintyFlags    String[]
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  classificationRun   ClassificationRun  @relation(fields: [classificationRunId], references: [id], onDelete: Cascade)
+  citations           Citation[]
+}
+
+model Citation {
+  id                  String             @id @default(cuid())
+  classificationRunId String
+  eccnCandidateId     String?
+  sourceTitle         String
+  sourceUrl           String?
+  sourceSection       String?
+  quotedText          String
+  relevanceNote       String
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  classificationRun   ClassificationRun  @relation(fields: [classificationRunId], references: [id], onDelete: Cascade)
+  eccnCandidate       ECCNCandidate?     @relation(fields: [eccnCandidateId], references: [id], onDelete: SetNull)
+}
+
+model ReviewMemo {
+  id                  String             @id @default(cuid())
+  organizationId      String
+  classificationRunId String             @unique
+  contentMarkdown     String
+  generatedBy         String             @default("worker_stub")
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  classificationRun   ClassificationRun  @relation(fields: [classificationRunId], references: [id], onDelete: Cascade)
+}
+
+model HumanReview {
+  id                  String             @id @default(cuid())
+  organizationId      String
+  classificationRunId String
+  reviewerId          String
+  status              HumanReviewStatus  @default(pending_review)
+  notes               String?
+  reviewedAt          DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  classificationRun   ClassificationRun  @relation(fields: [classificationRunId], references: [id], onDelete: Cascade)
+  reviewer            User               @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+}
+
+model AuditEvent {
+  id             String        @id @default(cuid())
+  organizationId String
+  actorUserId    String?
+  actor          String
+  action         String
+  entityType     String
+  entityId       String
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([entityType, entityId])
+}
