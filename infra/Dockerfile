@@ -1,0 +1,42 @@
+FROM node:22-bookworm-slim AS base
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN corepack enable
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY apps/api/package.json ./apps/api/package.json
+COPY apps/web/package.json ./apps/web/package.json
+COPY packages/db/package.json ./packages/db/package.json
+COPY packages/shared/package.json ./packages/shared/package.json
+
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+
+RUN pnpm --filter @substrata/db prisma:generate
+
+FROM base AS api
+
+ENV NODE_ENV=production
+EXPOSE 4100
+
+CMD ["sh", "-c", "pnpm --filter @substrata/api exec tsx src/server.ts"]
+
+FROM base AS web-build
+
+ARG NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+
+RUN pnpm --filter @substrata/web build
+
+FROM web-build AS web
+
+ENV NODE_ENV=production
+EXPOSE 3100
+
+CMD ["sh", "-c", "pnpm --filter @substrata/web exec next start -H 0.0.0.0 -p 3100"]
