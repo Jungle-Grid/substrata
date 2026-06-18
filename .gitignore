@@ -17,3 +17,5 @@ uploads
 artifacts
 tmp
 packages/db/generated
+.playwright-mcp/
+substrata-*.png
