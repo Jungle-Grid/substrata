@@ -18,7 +18,8 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
-RUN pnpm --filter @substrata/db prisma:generate
+RUN DATABASE_URL=\"postgresql://build:build@localhost:5432/build?schema=public\" \
+    pnpm --dir packages/db exec prisma generate --schema=prisma/schema.prisma
 
 FROM base AS api
 
