@@ -16,7 +16,8 @@
       "source_snippet": "DS891 Zynq UltraScale+ MPSoC Overview",
       "importance": "Product-family identity is central here because the document describes an MPSoC family rather than one device ordering code.",
       "category": "product_identity",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "product_name",
@@ -25,25 +26,28 @@
       "source_snippet": "DS891 Zynq UltraScale+ MPSoC Overview",
       "importance": "Product-name identity helps keep the memo tied to the programmable-logic SoC family under review.",
       "category": "product_identity",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "part_number",
       "value": "Not a single part number - family overview",
       "unit": null,
       "source_snippet": "DS891 Zynq UltraScale+ MPSoC Overview",
-      "importance": "This document is a family overview, so a final review should use device-specific ordering codes rather than treating the document number as the part number.",
+      "importance": "This document is a family overview, so review signoff should use device-specific ordering codes rather than treating the document number as the part number.",
       "category": "product_identity",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "is_family_overview",
       "value": "true",
       "unit": null,
       "source_snippet": "DS891 Zynq UltraScale+ MPSoC Overview",
-      "importance": "A family overview may omit ordering-code-specific limits, variants, and package-speed-grade details needed for final classification.",
+      "importance": "A family overview may omit ordering-code-specific limits, variants, and package-speed-grade details needed for expert review signoff.",
       "category": "product_identity",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "product_profile",
@@ -52,7 +56,8 @@
       "source_snippet": "DS891 Zynq UltraScale+ MPSoC Overview",
       "importance": "The detected profile controls which facts and review paths should be emphasized in the draft memo.",
       "category": "profile_detection",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "profile_confidence",
@@ -61,7 +66,8 @@
       "source_snippet": "DS891 Zynq UltraScale+ MPSoC Overview",
       "importance": "Profile confidence tells the reviewer how strongly the extraction pipeline identified the document type.",
       "category": "profile_detection",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "profile_rationale",
@@ -70,7 +76,8 @@
       "source_snippet": "DS891 Zynq UltraScale+ MPSoC Overview",
       "importance": "Profile rationale explains why the memo is framed as a programmable-logic SoC review rather than an ADC review.",
       "category": "profile_detection",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "document_number",
@@ -79,7 +86,8 @@
       "source_snippet": "DS891 Zynq UltraScale+ MPSoC Overview",
       "importance": "Document numbers identify the source publication; they should not be substituted for a product part number.",
       "category": "product_identity",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "document_type",
@@ -88,7 +96,8 @@
       "source_snippet": "DS891 Zynq UltraScale+ MPSoC Overview",
       "importance": "Document type helps reviewers distinguish a family overview from a device-specific datasheet or ordering-code document.",
       "category": "product_identity",
-      "confidence": "medium"
+      "confidence": "medium",
+      "display_name": null
     },
     {
       "name": "manufacturer",
@@ -97,7 +106,8 @@
       "source_snippet": "AMD Zynq UltraScale+ MPSoC family overview",
       "importance": "Manufacturer identity anchors the review to the vendor\u2019s own part naming, application framing, and qualification language.",
       "category": "product_identity",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "device_type",
@@ -106,7 +116,8 @@
       "source_snippet": "DS891 Zynq UltraScale+ MPSoC Overview",
       "importance": "Device type frames which technical parameters are most relevant in the initial review path.",
       "category": "product_identity",
-      "confidence": "medium"
+      "confidence": "medium",
+      "display_name": null
     },
     {
       "name": "processor_architecture",
@@ -115,7 +126,8 @@
       "source_snippet": "The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic",
       "importance": "Processor word width is a processing-system fact for SoC review and must not be treated as converter resolution.",
       "category": "processing_system_cpu",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "cpu_core",
@@ -124,7 +136,8 @@
       "source_snippet": "The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic",
       "importance": "The application CPU core identifies the processing subsystem that may affect the electronics review path.",
       "category": "processing_system_cpu",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "cpu_core_count",
@@ -133,16 +146,18 @@
       "source_snippet": "The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic",
       "importance": "Core-count language helps reviewers understand the scale of the processing subsystem.",
       "category": "processing_system_cpu",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "cpu_core_count",
       "value": "dual-core Cortex-A53",
       "unit": null,
       "source_snippet": "The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic",
-      "importance": "Family-overview core-count variants should be reviewed against device-specific ordering codes before final classification.",
+      "importance": "Family-overview core-count variants should be reviewed against device-specific ordering codes before review signoff.",
       "category": "processing_system_cpu",
-      "confidence": "medium"
+      "confidence": "medium",
+      "display_name": null
     },
     {
       "name": "realtime_cpu",
@@ -151,7 +166,8 @@
       "source_snippet": "The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic",
       "importance": "A real-time processor subsystem is a material SoC architecture fact for the electronics review path.",
       "category": "processing_system_cpu",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "memory_integrity",
@@ -160,7 +176,8 @@
       "source_snippet": "- AXI Coherency Extension instruction and data cache with ECC",
       "importance": "ECC in cache, TCM, or memory context means error-correcting code / memory integrity, not elliptic-curve cryptography.",
       "category": "memory_cache_integrity",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "programmable_logic",
@@ -169,7 +186,8 @@
       "source_snippet": "The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic",
       "importance": "Programmable logic is a defining feature for FPGA/SoC Category 3 electronics review.",
       "category": "programmable_logic_fpga",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "processing_system",
@@ -177,8 +195,9 @@
       "unit": null,
       "source_snippet": "The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic",
       "importance": "Processing-system language establishes that the document covers an integrated SoC, not a standalone peripheral.",
-      "category": "programmable_logic_fpga",
-      "confidence": "medium"
+      "category": "processing_system_cpu",
+      "confidence": "medium",
+      "display_name": null
     },
     {
       "name": "ps_pl_integration",
@@ -187,7 +206,8 @@
       "source_snippet": "The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic",
       "importance": "Integration of processing system and programmable logic is central to FPGA SoC review.",
       "category": "programmable_logic_fpga",
-      "confidence": "medium"
+      "confidence": "medium",
+      "display_name": null
     },
     {
       "name": "ethernet_mac",
@@ -196,7 +216,8 @@
       "source_snippet": "- Four 10/100/1000 tri-speed Ethernet MAC",
       "importance": "Ethernet MAC count and speed are relevant high-speed I/O facts for SoC review.",
       "category": "digital_interface",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "pcie_interface",
@@ -205,7 +226,8 @@
       "source_snippet": "- PCI Express compliant interface",
       "importance": "PCIe capability can be relevant to narrower electronics and high-speed interface review.",
       "category": "digital_interface",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "usb_interface",
@@ -214,7 +236,8 @@
       "source_snippet": "- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO",
       "importance": "USB peripheral capability is part of the SoC digital-interface profile.",
       "category": "digital_interface",
-      "confidence": "medium"
+      "confidence": "medium",
+      "display_name": null
     },
     {
       "name": "can_interface",
@@ -223,7 +246,8 @@
       "source_snippet": "- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO",
       "importance": "CAN peripheral capability is part of the SoC digital-interface profile.",
       "category": "digital_interface",
-      "confidence": "medium"
+      "confidence": "medium",
+      "display_name": null
     },
     {
       "name": "spi_interface",
@@ -232,7 +256,8 @@
       "source_snippet": "- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO",
       "importance": "SPI peripheral capability is part of the SoC digital-interface profile.",
       "category": "digital_interface",
-      "confidence": "medium"
+      "confidence": "medium",
+      "display_name": null
     },
     {
       "name": "i2c_interface",
@@ -241,7 +266,8 @@
       "source_snippet": "- Two master and slave I2C interfaces",
       "importance": "I2C peripheral capability is part of the SoC digital-interface profile.",
       "category": "digital_interface",
-      "confidence": "medium"
+      "confidence": "medium",
+      "display_name": null
     },
     {
       "name": "uart_interface",
@@ -250,7 +276,8 @@
       "source_snippet": "- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO",
       "importance": "UART peripheral capability is part of the SoC digital-interface profile.",
       "category": "digital_interface",
-      "confidence": "medium"
+      "confidence": "medium",
+      "display_name": null
     },
     {
       "name": "jtag_interface",
@@ -259,7 +286,8 @@
       "source_snippet": "- JTAG Boundary-Scan System Monitor in PL",
       "importance": "JTAG/debug access can matter for device architecture and security review questions.",
       "category": "digital_interface",
-      "confidence": "medium"
+      "confidence": "medium",
+      "display_name": null
     },
     {
       "name": "displayport_interface",
@@ -268,7 +296,8 @@
       "source_snippet": "- 1 or 2 lanes of DisplayPort (TX only) at 1.62Gb/s, 2.7Gb/s, or 5.4Gb/s",
       "importance": "DisplayPort is a high-speed digital-display interface that may require narrower interface review.",
       "category": "digital_interface",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "displayport_lane_rate",
@@ -277,7 +306,8 @@
       "source_snippet": "- 1 or 2 lanes of DisplayPort (TX only) at 1.62Gb/s, 2.7Gb/s, or 5.4Gb/s",
       "importance": "DisplayPort lane count and lane rates are concrete high-speed I/O facts for electronics review.",
       "category": "digital_interface",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "secure_boot",
@@ -286,7 +316,8 @@
       "source_snippet": "- Supports secure and non-secure boot modes",
       "importance": "Secure boot and non-secure boot modes can trigger separate security/cryptography review questions.",
       "category": "security_cryptography",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "cryptographic_algorithm",
@@ -295,7 +326,8 @@
       "source_snippet": "- 256-bit AES-GCM",
       "importance": "AES-GCM is a named cryptographic algorithm and supports Category 5 Part 2 review questions.",
       "category": "security_cryptography",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "crypto_key_size",
@@ -304,7 +336,8 @@
       "source_snippet": "- 256-bit AES-GCM",
       "importance": "AES key size is relevant to cryptography review and must not be treated as ADC resolution.",
       "category": "security_cryptography",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "cryptographic_algorithm",
@@ -313,7 +346,8 @@
       "source_snippet": "- SHA-3/384",
       "importance": "SHA-3/384 is a named hash algorithm and supports security/cryptography review questions.",
       "category": "security_cryptography",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "cryptographic_algorithm",
@@ -322,7 +356,8 @@
       "source_snippet": "- 4096-bit RSA",
       "importance": "RSA 4096 is a named public-key cryptographic function and supports security/cryptography review questions.",
       "category": "security_cryptography",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "peripheral_adc",
@@ -331,7 +366,8 @@
       "source_snippet": "- 10-bit 200KSPS ADC with up to 17 external inputs",
       "importance": "This is a minor SoC peripheral ADC fact; it should not change the primary product profile to ADC.",
       "category": "peripheral_functions",
-      "confidence": "high"
+      "confidence": "high",
+      "display_name": null
     },
     {
       "name": "gpio",
@@ -340,7 +376,8 @@
       "source_snippet": "- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO",
       "importance": "GPIO is a general-purpose peripheral fact for the SoC feature profile.",
       "category": "peripheral_functions",
-      "confidence": "medium"
+      "confidence": "medium",
+      "display_name": null
     },
     {
       "name": "system_monitor",
@@ -349,7 +386,8 @@
       "source_snippet": "- JTAG Boundary-Scan System Monitor in PL",
       "importance": "System-monitor language helps identify subordinate monitoring peripherals rather than the primary product type.",
       "category": "peripheral_functions",
-      "confidence": "medium"
+      "confidence": "medium",
+      "display_name": null
     },
     {
       "name": "product_description",
@@ -358,25 +396,8 @@
       "source_snippet": "DS891 Zynq UltraScale+ MPSoC Overview",
       "importance": "A short product description helps reviewers distinguish the device itself from supporting reference-design or companion-component text.",
       "category": "product_identity",
-      "confidence": "medium"
-    },
-    {
-      "name": "digital_interface",
-      "value": "Ethernet",
-      "unit": null,
-      "source_snippet": "- Four 10/100/1000 tri-speed Ethernet MAC",
-      "importance": "Digital interface wording helps experts understand how the device connects into a broader digital system.",
-      "category": "digital_interface",
-      "confidence": "medium"
-    },
-    {
-      "name": "digital_interface",
-      "value": "I2C",
-      "unit": null,
-      "source_snippet": "- Two master and slave I2C interfaces",
-      "importance": "Digital interface wording helps experts understand how the device connects into a broader digital system.",
-      "category": "digital_interface",
-      "confidence": "medium"
+      "confidence": "medium",
+      "display_name": null
     },
     {
       "name": "digital_interface",
@@ -385,25 +406,8 @@
       "source_snippet": "- Supports LVCMOS, LVDS, and SSTL",
       "importance": "Digital interface wording helps experts understand how the device connects into a broader digital system.",
       "category": "digital_interface",
-      "confidence": "medium"
-    },
-    {
-      "name": "digital_interface",
-      "value": "JTAG",
-      "unit": null,
-      "source_snippet": "- JTAG Boundary-Scan System Monitor in PL",
-      "importance": "Digital interface wording helps experts understand how the device connects into a broader digital system.",
-      "category": "digital_interface",
-      "confidence": "medium"
-    },
-    {
-      "name": "digital_interface",
-      "value": "UART",
-      "unit": null,
-      "source_snippet": "- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO",
-      "importance": "Digital interface wording helps experts understand how the device connects into a broader digital system.",
-      "category": "digital_interface",
-      "confidence": "medium"
+      "confidence": "medium",
+      "display_name": null
     }
   ],
   "eccn_candidates": [
@@ -413,17 +417,18 @@
       "confidence": "medium",
       "matched_technical_facts": [
         "Product Family: Zynq UltraScale+ MPSoC",
-        "Document Number: DS891",
-        "Part Number: Not a single part number - family overview",
         "Processor Architecture: 64-bit",
         "CPU Core: Arm Cortex-A53",
+        "Real-Time CPU: dual-core Arm Cortex-R5F",
         "Core Count: quad-core Cortex-A53",
         "Core Count: dual-core Cortex-A53",
-        "Real-Time CPU: dual-core Arm Cortex-R5F",
+        "Memory/Cache Integrity: ECC-protected cache",
         "Programmable Logic: programmable logic / PL",
         "Processing System: processing system / PS",
         "PS/PL Integration: PS/PL integration",
-        "Ethernet MACs: Four 10/100/1000 tri-speed Ethernet MAC"
+        "Ethernet MACs: Four 10/100/1000 tri-speed Ethernet MAC",
+        "PCIe Interface: PCIe",
+        "USB Interface: USB 2.0"
       ],
       "regulatory_citations": [
         {
@@ -445,6 +450,12 @@
           "relevance": "The application CPU core identifies the processing subsystem that may affect the electronics review path."
         },
         {
+          "citation_label": "Datasheet evidence \u2014 Memory/Cache Integrity",
+          "citation_text": "- AXI Coherency Extension instruction and data cache with ECC",
+          "source": "Uploaded datasheet text",
+          "relevance": "ECC in cache, TCM, or memory context means error-correcting code / memory integrity, not elliptic-curve cryptography."
+        },
+        {
           "citation_label": "Datasheet evidence \u2014 programmable logic",
           "citation_text": "The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic",
           "source": "Uploaded datasheet text",
@@ -457,6 +468,18 @@
           "relevance": "Ethernet MAC count and speed are relevant high-speed I/O facts for SoC review."
         },
         {
+          "citation_label": "Datasheet evidence \u2014 PCIe interface",
+          "citation_text": "- PCI Express compliant interface",
+          "source": "Uploaded datasheet text",
+          "relevance": "PCIe capability can be relevant to narrower electronics and high-speed interface review."
+        },
+        {
+          "citation_label": "Datasheet evidence \u2014 USB Interface",
+          "citation_text": "- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO",
+          "source": "Uploaded datasheet text",
+          "relevance": "USB peripheral capability is part of the SoC digital-interface profile."
+        },
+        {
           "citation_label": "CCL Category 3 electronics / SoC review path",
           "citation_text": "Category 3 electronics review should be considered for a programmable-logic/SoC family with processing-system, programmable logic, high-speed interface, and security-adjacent architecture facts. This draft does not encode final threshold logic.",
           "source": "15 CFR Part 774, Supplement No. 1, Category 3",
@@ -464,7 +487,7 @@
         }
       ],
       "why_it_may_apply": "The document identifies a programmable-logic/SoC family with processing system, programmable logic, high-speed interfaces, and security features. These facts support Category 3 electronics review before fallback classification.",
-      "why_it_may_not_apply": "The current draft does not encode full CCL thresholds. This is a family overview, so device-specific ordering code and complete specs may be required before any final ECCN assignment.",
+      "why_it_may_not_apply": "The current draft does not encode full CCL thresholds. This is a family overview, so device-specific ordering code and complete specs may be required before review signoff.",
       "missing_information": [
         "Device-specific ordering code, speed grade, package, and complete variant-specific programmable-logic resources.",
         "Current CCL threshold mapping by a qualified reviewer.",
@@ -477,18 +500,15 @@
         "missing_key_specs"
       ],
       "reviewer_questions": [
-        "Is this DS891 document a family overview requiring device-specific ordering-code review before a final ECCN can be assigned?",
-        "Do the Zynq UltraScale+ MPSoC programmable-logic and processing-system features require review under Category 3 electronics entries?",
-        "Do the Arm Cortex-A53 / Cortex-R5F processing-system facts affect the applicable electronics review path?",
-        "Are PCIe, DisplayPort, Ethernet, or other high-speed I/O features relevant to narrower control entries?",
-        "Do secure boot, AES-GCM, SHA-3/384, or RSA 4096 require separate Category 5 Part 2 analysis?",
-        "Is the cryptographic functionality user-accessible, configurable, or limited to boot/authentication functions?",
-        "Does separate product documentation indicate radiation tolerance, space qualification, military design intent, or special-environment qualification?"
-      ]
+        "Is this DS891 document a family overview requiring device-specific ordering-code review before review signoff?",
+        "Do the programmable-logic and processing-system features require review under Category 3 electronics entries?",
+        "Are PCIe, DisplayPort, Ethernet, or other high-speed I/O features relevant to narrower control entries?"
+      ],
+      "review_path_id": "category_3_programmable_logic_soc"
     },
     {
       "eccn": "Category 5 Part 2",
-      "title": "Security/cryptography review path",
+      "title": "Category 5 Part 2 security/cryptography review path",
       "confidence": "medium",
       "matched_technical_facts": [
         "Secure/Non-Secure Boot: secure and non-secure boot",
@@ -532,7 +552,7 @@
           "citation_label": "Category 5 Part 2 security/cryptography review path",
           "citation_text": "Security and cryptography functions such as secure boot, AES-GCM, SHA-3/384, and RSA 4096 may require separate Category 5 Part 2 analysis by a qualified reviewer.",
           "source": "15 CFR Part 774, Supplement No. 1, Category 5 Part 2",
-          "relevance": "This path captures named security facts without making a final determination about control status, mass-market eligibility, exceptions, or availability."
+          "relevance": "This path captures named security facts for expert review of control status, mass-market eligibility, exceptions, and availability."
         }
       ],
       "why_it_may_apply": "The document includes secure boot and named cryptographic functions such as AES-GCM, SHA-3/384, and RSA 4096. These may require separate security/cryptography review.",
@@ -548,14 +568,11 @@
         "limited_regulatory_coverage"
       ],
       "reviewer_questions": [
-        "Is this DS891 document a family overview requiring device-specific ordering-code review before a final ECCN can be assigned?",
-        "Do the Zynq UltraScale+ MPSoC programmable-logic and processing-system features require review under Category 3 electronics entries?",
-        "Do the Arm Cortex-A53 / Cortex-R5F processing-system facts affect the applicable electronics review path?",
-        "Are PCIe, DisplayPort, Ethernet, or other high-speed I/O features relevant to narrower control entries?",
         "Do secure boot, AES-GCM, SHA-3/384, or RSA 4096 require separate Category 5 Part 2 analysis?",
         "Is the cryptographic functionality user-accessible, configurable, or limited to boot/authentication functions?",
-        "Does separate product documentation indicate radiation tolerance, space qualification, military design intent, or special-environment qualification?"
-      ]
+        "Are implementation details in a separate security manual not captured by this overview?"
+      ],
+      "review_path_id": "category_5_part_2_security"
     },
     {
       "eccn": "3A991",
@@ -587,20 +604,24 @@
         "requires_engineering_confirmation"
       ],
       "reviewer_questions": [
-        "Is this DS891 document a family overview requiring device-specific ordering-code review before a final ECCN can be assigned?",
-        "Do the Zynq UltraScale+ MPSoC programmable-logic and processing-system features require review under Category 3 electronics entries?",
-        "Do the Arm Cortex-A53 / Cortex-R5F processing-system facts affect the applicable electronics review path?",
-        "Are PCIe, DisplayPort, Ethernet, or other high-speed I/O features relevant to narrower control entries?",
-        "Do secure boot, AES-GCM, SHA-3/384, or RSA 4096 require separate Category 5 Part 2 analysis?",
-        "Is the cryptographic functionality user-accessible, configurable, or limited to boot/authentication functions?",
-        "Does separate product documentation indicate radiation tolerance, space qualification, military design intent, or special-environment qualification?"
-      ]
+        "What documented reasoning supports excluding narrower Category 3 and Category 5 review paths before considering a broader general-electronics comparison?"
+      ],
+      "review_path_id": "general_electronics_comparison"
     }
   ],
-  "memo_markdown": "# Draft ECCN Review Memo \u2014 ds891 zynq ultrascale plus overview\n\n## 1. Document Summary\n- Title: ds891 zynq ultrascale plus overview\n- Document ID: doc_sample_zynq_ultrascale_plus\n- File name: ds891-zynq-ultrascale-plus-overview.txt\n- Generated timestamp: 2026-06-17T21:52:56+00:00\n- Detected product profile: FPGA / programmable-logic SoC\n- Profile confidence: high\n- Profile rationale: Detected from title/filename/top-level references to Zynq UltraScale+ MPSoC, processing system, programmable logic, and SoC features\n- Disclaimer: Draft for expert review only \u2014 not a final ECCN determination.\n\n## 2. Extracted Technical Facts\n### Product identity\n- **Product Family**: Zynq UltraScale+ MPSoC\n- Confidence: high\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: Product-family identity is central here because the document describes an MPSoC family rather than one device ordering code.\n\n- **Product Name**: Zynq UltraScale+ MPSoC\n- Confidence: high\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: Product-name identity helps keep the memo tied to the programmable-logic SoC family under review.\n\n- **Part Number**: Not a single part number - family overview\n- Confidence: high\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: This document is a family overview, so a final review should use device-specific ordering codes rather than treating the document number as the part number.\n\n- **Family Overview**: true\n- Confidence: high\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: A family overview may omit ordering-code-specific limits, variants, and package-speed-grade details needed for final classification.\n\n- **Document Number**: DS891\n- Confidence: high\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: Document numbers identify the source publication; they should not be substituted for a product part number.\n\n- **Document Type**: Product Specification\n- Confidence: medium\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: Document type helps reviewers distinguish a family overview from a device-specific datasheet or ordering-code document.\n\n- **Manufacturer**: AMD\n- Confidence: high\n- Source snippet: \"AMD Zynq UltraScale+ MPSoC family overview\"\n- Why it matters: Manufacturer identity anchors the review to the vendor\u2019s own part naming, application framing, and qualification language.\n\n- **Device Type**: Processor/SoC\n- Confidence: medium\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: Device type frames which technical parameters are most relevant in the initial review path.\n\n- **Product Description**: DS891 Zynq UltraScale+ MPSoC Overview\n- Confidence: medium\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: A short product description helps reviewers distinguish the device itself from supporting reference-design or companion-component text.\n### Profile detection\n- **Detected Product Profile**: fpga_programmable_logic_soc\n- Confidence: high\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: The detected profile controls which facts and review paths should be emphasized in the draft memo.\n\n- **Profile Confidence**: high\n- Confidence: high\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: Profile confidence tells the reviewer how strongly the extraction pipeline identified the document type.\n\n- **Profile Rationale**: Detected from title/filename/top-level references to Zynq UltraScale+ MPSoC, processing system, programmable logic, and SoC features\n- Confidence: high\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: Profile rationale explains why the memo is framed as a programmable-logic SoC review rather than an ADC review.\n### Processing system / CPU\n- **Processor Architecture**: 64-bit\n- Confidence: high\n- Source snippet: \"The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\"\n- Why it matters: Processor word width is a processing-system fact for SoC review and must not be treated as converter resolution.\n\n- **CPU Core**: Arm Cortex-A53\n- Confidence: high\n- Source snippet: \"The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\"\n- Why it matters: The application CPU core identifies the processing subsystem that may affect the electronics review path.\n\n- **Core Count**: quad-core Cortex-A53\n- Confidence: high\n- Source snippet: \"The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\"\n- Why it matters: Core-count language helps reviewers understand the scale of the processing subsystem.\n\n- **Core Count**: dual-core Cortex-A53\n- Confidence: medium\n- Source snippet: \"The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\"\n- Why it matters: Family-overview core-count variants should be reviewed against device-specific ordering codes before final classification.\n\n- **Real-Time CPU**: dual-core Arm Cortex-R5F\n- Confidence: high\n- Source snippet: \"The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\"\n- Why it matters: A real-time processor subsystem is a material SoC architecture fact for the electronics review path.\n### Programmable logic / FPGA fabric\n- **Programmable Logic**: programmable logic / PL\n- Confidence: high\n- Source snippet: \"The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\"\n- Why it matters: Programmable logic is a defining feature for FPGA/SoC Category 3 electronics review.\n\n- **Processing System**: processing system / PS\n- Confidence: medium\n- Source snippet: \"The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\"\n- Why it matters: Processing-system language establishes that the document covers an integrated SoC, not a standalone peripheral.\n\n- **PS/PL Integration**: PS/PL integration\n- Confidence: medium\n- Source snippet: \"The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\"\n- Why it matters: Integration of processing system and programmable logic is central to FPGA SoC review.\n### Digital interfaces / high-speed I/O\n- **Ethernet MACs**: Four 10/100/1000 tri-speed Ethernet MAC\n- Confidence: high\n- Source snippet: \"- Four 10/100/1000 tri-speed Ethernet MAC\"\n- Why it matters: Ethernet MAC count and speed are relevant high-speed I/O facts for SoC review.\n\n- **PCIe Interface**: PCIe\n- Confidence: high\n- Source snippet: \"- PCI Express compliant interface\"\n- Why it matters: PCIe capability can be relevant to narrower electronics and high-speed interface review.\n\n- **USB Interface**: USB 2.0\n- Confidence: medium\n- Source snippet: \"- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO\"\n- Why it matters: USB peripheral capability is part of the SoC digital-interface profile.\n\n- **CAN Interface**: CAN\n- Confidence: medium\n- Source snippet: \"- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO\"\n- Why it matters: CAN peripheral capability is part of the SoC digital-interface profile.\n\n- **SPI Interface**: SPI\n- Confidence: medium\n- Source snippet: \"- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO\"\n- Why it matters: SPI peripheral capability is part of the SoC digital-interface profile.\n\n- **I2C Interface**: I2C\n- Confidence: medium\n- Source snippet: \"- Two master and slave I2C interfaces\"\n- Why it matters: I2C peripheral capability is part of the SoC digital-interface profile.\n\n- **UART Interface**: UART\n- Confidence: medium\n- Source snippet: \"- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO\"\n- Why it matters: UART peripheral capability is part of the SoC digital-interface profile.\n\n- **JTAG Interface**: JTAG\n- Confidence: medium\n- Source snippet: \"- JTAG Boundary-Scan System Monitor in PL\"\n- Why it matters: JTAG/debug access can matter for device architecture and security review questions.\n\n- **DisplayPort Interface**: DisplayPort\n- Confidence: high\n- Source snippet: \"- 1 or 2 lanes of DisplayPort (TX only) at 1.62Gb/s, 2.7Gb/s, or 5.4Gb/s\"\n- Why it matters: DisplayPort is a high-speed digital-display interface that may require narrower interface review.\n\n- **DisplayPort Lane Rate**: 1 or 2 lanes at 1.62 Gb/s, 2.7 Gb/s, or 5.4 Gb/s\n- Confidence: high\n- Source snippet: \"- 1 or 2 lanes of DisplayPort (TX only) at 1.62Gb/s, 2.7Gb/s, or 5.4Gb/s\"\n- Why it matters: DisplayPort lane count and lane rates are concrete high-speed I/O facts for electronics review.\n\n- **Digital Interface**: Ethernet\n- Confidence: medium\n- Source snippet: \"- Four 10/100/1000 tri-speed Ethernet MAC\"\n- Why it matters: Digital interface wording helps experts understand how the device connects into a broader digital system.\n\n- **Digital Interface**: I2C\n- Confidence: medium\n- Source snippet: \"- Two master and slave I2C interfaces\"\n- Why it matters: Digital interface wording helps experts understand how the device connects into a broader digital system.\n\n- **Digital Interface**: LVDS\n- Confidence: medium\n- Source snippet: \"- Supports LVCMOS, LVDS, and SSTL\"\n- Why it matters: Digital interface wording helps experts understand how the device connects into a broader digital system.\n\n- **Digital Interface**: JTAG\n- Confidence: medium\n- Source snippet: \"- JTAG Boundary-Scan System Monitor in PL\"\n- Why it matters: Digital interface wording helps experts understand how the device connects into a broader digital system.\n\n- **Digital Interface**: UART\n- Confidence: medium\n- Source snippet: \"- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO\"\n- Why it matters: Digital interface wording helps experts understand how the device connects into a broader digital system.\n### Security/cryptography indicators\n- **Secure/Non-Secure Boot**: secure and non-secure boot\n- Confidence: high\n- Source snippet: \"- Supports secure and non-secure boot modes\"\n- Why it matters: Secure boot and non-secure boot modes can trigger separate security/cryptography review questions.\n\n- **Cryptographic Algorithm**: AES-GCM\n- Confidence: high\n- Source snippet: \"- 256-bit AES-GCM\"\n- Why it matters: AES-GCM is a named cryptographic algorithm and supports Category 5 Part 2 review questions.\n\n- **Key Size**: 256-bit\n- Confidence: high\n- Source snippet: \"- 256-bit AES-GCM\"\n- Why it matters: AES key size is relevant to cryptography review and must not be treated as ADC resolution.\n\n- **Cryptographic Algorithm**: SHA-3/384\n- Confidence: high\n- Source snippet: \"- SHA-3/384\"\n- Why it matters: SHA-3/384 is a named hash algorithm and supports security/cryptography review questions.\n\n- **Cryptographic Algorithm**: RSA 4096\n- Confidence: high\n- Source snippet: \"- 4096-bit RSA\"\n- Why it matters: RSA 4096 is a named public-key cryptographic function and supports security/cryptography review questions.\n### Memory/cache integrity\n- **Memory/Cache Integrity**: ECC-protected cache\n- Confidence: high\n- Source snippet: \"- AXI Coherency Extension instruction and data cache with ECC\"\n- Why it matters: ECC in cache, TCM, or memory context means error-correcting code / memory integrity, not elliptic-curve cryptography.\n### Peripheral functions\n- **Peripheral ADC**: 10-bit, 200 KSPS, up to 17 external inputs\n- Confidence: high\n- Source snippet: \"- 10-bit 200KSPS ADC with up to 17 external inputs\"\n- Why it matters: This is a minor SoC peripheral ADC fact; it should not change the primary product profile to ADC.\n\n- **GPIO**: GPIO\n- Confidence: medium\n- Source snippet: \"- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO\"\n- Why it matters: GPIO is a general-purpose peripheral fact for the SoC feature profile.\n\n- **System Monitor**: system monitor\n- Confidence: medium\n- Source snippet: \"- JTAG Boundary-Scan System Monitor in PL\"\n- Why it matters: System-monitor language helps identify subordinate monitoring peripherals rather than the primary product type.\n### Missing/not found facts\n- Special-environment qualification details were not found in the provided datasheet text. Radiation, military, space, or extended-temperature language matters because specialized design intent can affect the review path.\n\n## 3. Candidate ECCN Review Paths\n### Category 3 \u2014 Category 3 electronics / programmable logic / SoC review path\n- Confidence: medium\n- Why it may apply: The document identifies a programmable-logic/SoC family with processing system, programmable logic, high-speed interfaces, and security features. These facts support Category 3 electronics review before fallback classification.\n- Why it may not apply: The current draft does not encode full CCL thresholds. This is a family overview, so device-specific ordering code and complete specs may be required before any final ECCN assignment.\n\n#### Matched facts\n- Product Family: Zynq UltraScale+ MPSoC\n- Document Number: DS891\n- Part Number: Not a single part number - family overview\n- Processor Architecture: 64-bit\n- CPU Core: Arm Cortex-A53\n- Core Count: quad-core Cortex-A53\n- Core Count: dual-core Cortex-A53\n- Real-Time CPU: dual-core Arm Cortex-R5F\n- Programmable Logic: programmable logic / PL\n- Processing System: processing system / PS\n- PS/PL Integration: PS/PL integration\n- Ethernet MACs: Four 10/100/1000 tri-speed Ethernet MAC\n\n#### Citations\n- **Datasheet evidence \u2014 product family**\n- Source: Uploaded datasheet text\n- Citation note: DS891 Zynq UltraScale+ MPSoC Overview\n- Relevance: Product-family identity is central here because the document describes an MPSoC family rather than one device ordering code.\n\n- **Datasheet evidence \u2014 CPU architecture**\n- Source: Uploaded datasheet text\n- Citation note: The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\n- Relevance: Processor word width is a processing-system fact for SoC review and must not be treated as converter resolution.\n\n- **Datasheet evidence \u2014 CPU architecture**\n- Source: Uploaded datasheet text\n- Citation note: The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\n- Relevance: The application CPU core identifies the processing subsystem that may affect the electronics review path.\n\n- **Datasheet evidence \u2014 programmable logic**\n- Source: Uploaded datasheet text\n- Citation note: The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\n- Relevance: Programmable logic is a defining feature for FPGA/SoC Category 3 electronics review.\n\n- **Datasheet evidence \u2014 Ethernet MACs**\n- Source: Uploaded datasheet text\n- Citation note: - Four 10/100/1000 tri-speed Ethernet MAC\n- Relevance: Ethernet MAC count and speed are relevant high-speed I/O facts for SoC review.\n\n- **CCL Category 3 electronics / SoC review path**\n- Source: 15 CFR Part 774, Supplement No. 1, Category 3\n- Citation note: Category 3 electronics review should be considered for a programmable-logic/SoC family with processing-system, programmable logic, high-speed interface, and security-adjacent architecture facts. This draft does not encode final threshold logic.\n- Relevance: These facts support Category 3 electronics review before fallback classification.\n\n#### Missing information\n- Device-specific ordering code, speed grade, package, and complete variant-specific programmable-logic resources.\n- Current CCL threshold mapping by a qualified reviewer.\n- Special-environment qualification details were not found in the provided datasheet text. Radiation, military, space, or extended-temperature language matters because specialized design intent can affect the review path.\n\n#### Reviewer questions\n- Is this DS891 document a family overview requiring device-specific ordering-code review before a final ECCN can be assigned?\n- Do the Zynq UltraScale+ MPSoC programmable-logic and processing-system features require review under Category 3 electronics entries?\n- Do the Arm Cortex-A53 / Cortex-R5F processing-system facts affect the applicable electronics review path?\n- Are PCIe, DisplayPort, Ethernet, or other high-speed I/O features relevant to narrower control entries?\n- Do secure boot, AES-GCM, SHA-3/384, or RSA 4096 require separate Category 5 Part 2 analysis?\n- Is the cryptographic functionality user-accessible, configurable, or limited to boot/authentication functions?\n- Does separate product documentation indicate radiation tolerance, space qualification, military design intent, or special-environment qualification?\n\n#### Uncertainty flags\n- multiple_plausible_eccns\n- requires_engineering_confirmation\n- limited_regulatory_coverage\n- missing_key_specs\n\n### Category 5 Part 2 \u2014 Security/cryptography review path\n- Confidence: medium\n- Why it may apply: The document includes secure boot and named cryptographic functions such as AES-GCM, SHA-3/384, and RSA 4096. These may require separate security/cryptography review.\n- Why it may not apply: The draft does not determine whether functionality is controlled, mass-market eligible, exempt, or otherwise not controlled. A qualified reviewer must evaluate actual cryptographic functionality, availability, and applicable exceptions.\n\n#### Matched facts\n- Secure/Non-Secure Boot: secure and non-secure boot\n- Cryptographic Algorithm: AES-GCM\n- Cryptographic Algorithm: SHA-3/384\n- Cryptographic Algorithm: RSA 4096\n- Key Size: 256-bit\n\n#### Citations\n- **Datasheet evidence \u2014 secure boot**\n- Source: Uploaded datasheet text\n- Citation note: - Supports secure and non-secure boot modes\n- Relevance: Secure boot and non-secure boot modes can trigger separate security/cryptography review questions.\n\n- **Datasheet evidence \u2014 AES-GCM**\n- Source: Uploaded datasheet text\n- Citation note: - 256-bit AES-GCM\n- Relevance: AES-GCM is a named cryptographic algorithm and supports Category 5 Part 2 review questions.\n\n- **Datasheet evidence \u2014 SHA-3/384**\n- Source: Uploaded datasheet text\n- Citation note: - SHA-3/384\n- Relevance: SHA-3/384 is a named hash algorithm and supports security/cryptography review questions.\n\n- **Datasheet evidence \u2014 RSA 4096**\n- Source: Uploaded datasheet text\n- Citation note: - 4096-bit RSA\n- Relevance: RSA 4096 is a named public-key cryptographic function and supports security/cryptography review questions.\n\n- **Datasheet evidence \u2014 Key Size**\n- Source: Uploaded datasheet text\n- Citation note: - 256-bit AES-GCM\n- Relevance: AES key size is relevant to cryptography review and must not be treated as ADC resolution.\n\n- **Category 5 Part 2 security/cryptography review path**\n- Source: 15 CFR Part 774, Supplement No. 1, Category 5 Part 2\n- Citation note: Security and cryptography functions such as secure boot, AES-GCM, SHA-3/384, and RSA 4096 may require separate Category 5 Part 2 analysis by a qualified reviewer.\n- Relevance: This path captures named security facts without making a final determination about control status, mass-market eligibility, exceptions, or availability.\n\n#### Missing information\n- Whether crypto is user-accessible.\n- Whether mass-market or license exception treatment applies.\n- Whether implementation details are in a security manual rather than this overview.\n\n#### Reviewer questions\n- Is this DS891 document a family overview requiring device-specific ordering-code review before a final ECCN can be assigned?\n- Do the Zynq UltraScale+ MPSoC programmable-logic and processing-system features require review under Category 3 electronics entries?\n- Do the Arm Cortex-A53 / Cortex-R5F processing-system facts affect the applicable electronics review path?\n- Are PCIe, DisplayPort, Ethernet, or other high-speed I/O features relevant to narrower control entries?\n- Do secure boot, AES-GCM, SHA-3/384, or RSA 4096 require separate Category 5 Part 2 analysis?\n- Is the cryptographic functionality user-accessible, configurable, or limited to boot/authentication functions?\n- Does separate product documentation indicate radiation tolerance, space qualification, military design intent, or special-environment qualification?\n\n#### Uncertainty flags\n- requires_engineering_confirmation\n- missing_key_specs\n- limited_regulatory_coverage\n\n### 3A991 \u2014 General electronics comparison path\n- Confidence: low\n- Why it may apply: A broader general-electronics comparison path remains relevant only as fallback after the programmable-logic/SoC and security review paths are evaluated.\n- Why it may not apply: The document contains specific programmable-logic, processing-system, high-speed I/O, and cryptography facts that should be reviewed under narrower paths before relying on a general fallback comparison.\n\n#### Matched facts\n- Product Family: Zynq UltraScale+ MPSoC\n- Processor Architecture: 64-bit\n- CPU Core: Arm Cortex-A53\n- Programmable Logic: programmable logic / PL\n\n#### Citations\n- **General electronics fallback review**\n- Source: EAR classification comparison workflow\n- Citation note: A broader general-electronics path should be considered only after the narrower Category 3 electronics review paths are examined and excluded by a qualified reviewer.\n- Relevance: This is a fallback comparison point only. It should not be treated as the likely answer while narrower Category 3 review paths remain open.\n\n#### Missing information\n- Documented reasoning for excluding Category 3 programmable-logic/SoC and Category 5 Part 2 security review paths.\n- Special-environment qualification details were not found in the provided datasheet text. Radiation, military, space, or extended-temperature language matters because specialized design intent can affect the review path.\n\n#### Reviewer questions\n- Is this DS891 document a family overview requiring device-specific ordering-code review before a final ECCN can be assigned?\n- Do the Zynq UltraScale+ MPSoC programmable-logic and processing-system features require review under Category 3 electronics entries?\n- Do the Arm Cortex-A53 / Cortex-R5F processing-system facts affect the applicable electronics review path?\n- Are PCIe, DisplayPort, Ethernet, or other high-speed I/O features relevant to narrower control entries?\n- Do secure boot, AES-GCM, SHA-3/384, or RSA 4096 require separate Category 5 Part 2 analysis?\n- Is the cryptographic functionality user-accessible, configurable, or limited to boot/authentication functions?\n- Does separate product documentation indicate radiation tolerance, space qualification, military design intent, or special-environment qualification?\n\n#### Uncertainty flags\n- limited_regulatory_coverage\n- missing_key_specs\n- requires_engineering_confirmation\n\n\n## 4. Key Uncertainties\n- limited regulatory coverage\n- missing key specs\n- requires engineering confirmation\n\n## 5. Reviewer Questions\n- Is this DS891 document a family overview requiring device-specific ordering-code review before a final ECCN can be assigned?\n- Do the Zynq UltraScale+ MPSoC programmable-logic and processing-system features require review under Category 3 electronics entries?\n- Do the Arm Cortex-A53 / Cortex-R5F processing-system facts affect the applicable electronics review path?\n- Are PCIe, DisplayPort, Ethernet, or other high-speed I/O features relevant to narrower control entries?\n- Do secure boot, AES-GCM, SHA-3/384, or RSA 4096 require separate Category 5 Part 2 analysis?\n- Is the cryptographic functionality user-accessible, configurable, or limited to boot/authentication functions?\n- Does separate product documentation indicate radiation tolerance, space qualification, military design intent, or special-environment qualification?\n\n## 6. Draft Conclusion\n- This draft does not make a final ECCN determination.\n- The evidence supports reviewing Category 3 electronics entries before considering broader fallback classifications.\n- A qualified expert should confirm the applicable threshold mapping, any specialized design intent, and the final ECCN.\n\n## 7. Review State\n- Status: pending_review\n- Reviewer: Unassigned\n- Note: No reviewer note recorded yet.\n",
+  "memo_markdown": "# Draft ECCN Review Memo \u2014 ds891 zynq ultrascale plus overview\n\n## 1. Document Summary\n- Title: ds891 zynq ultrascale plus overview\n- Document ID: doc_sample_zynq_ultrascale_plus\n- File name: ds891-zynq-ultrascale-plus-overview.txt\n- Generated timestamp: 2026-06-18T00:48:34+00:00\n- Detected product profile: FPGA / programmable-logic SoC\n- Profile confidence: high\n- Profile rationale: Detected from title/filename/top-level references to Zynq UltraScale+ MPSoC, processing system, programmable logic, and SoC features\n- Disclaimer: Draft for expert review only.\n\n## 2. Extracted Technical Facts\n### Product identity\n- **Product Family**: Zynq UltraScale+ MPSoC\n- Confidence: high\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: Product-family identity is central here because the document describes an MPSoC family rather than one device ordering code.\n\n- **Product Name**: Zynq UltraScale+ MPSoC\n- Confidence: high\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: Product-name identity helps keep the memo tied to the programmable-logic SoC family under review.\n\n- **Part Number**: Not a single part number - family overview\n- Confidence: high\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: This document is a family overview, so review signoff should use device-specific ordering codes rather than treating the document number as the part number.\n\n- **Family Overview**: true\n- Confidence: high\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: A family overview may omit ordering-code-specific limits, variants, and package-speed-grade details needed for expert review signoff.\n\n- **Document Number**: DS891\n- Confidence: high\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: Document numbers identify the source publication; they should not be substituted for a product part number.\n\n- **Document Type**: Product Specification\n- Confidence: medium\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: Document type helps reviewers distinguish a family overview from a device-specific datasheet or ordering-code document.\n\n- **Manufacturer**: AMD\n- Confidence: high\n- Source snippet: \"AMD Zynq UltraScale+ MPSoC family overview\"\n- Why it matters: Manufacturer identity anchors the review to the vendor\u2019s own part naming, application framing, and qualification language.\n\n- **Device Type**: Processor/SoC\n- Confidence: medium\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: Device type frames which technical parameters are most relevant in the initial review path.\n\n- **Product Description**: DS891 Zynq UltraScale+ MPSoC Overview\n- Confidence: medium\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: A short product description helps reviewers distinguish the device itself from supporting reference-design or companion-component text.\n### Profile detection\n- **Detected Product Profile**: fpga_programmable_logic_soc\n- Confidence: high\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: The detected profile controls which facts and review paths should be emphasized in the draft memo.\n\n- **Profile Confidence**: high\n- Confidence: high\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: Profile confidence tells the reviewer how strongly the extraction pipeline identified the document type.\n\n- **Profile Rationale**: Detected from title/filename/top-level references to Zynq UltraScale+ MPSoC, processing system, programmable logic, and SoC features\n- Confidence: high\n- Source snippet: \"DS891 Zynq UltraScale+ MPSoC Overview\"\n- Why it matters: Profile rationale explains why the memo is framed as a programmable-logic SoC review rather than an ADC review.\n### Processing system / CPU\n- **Processor Architecture**: 64-bit\n- Confidence: high\n- Source snippet: \"The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\"\n- Why it matters: Processor word width is a processing-system fact for SoC review and must not be treated as converter resolution.\n\n- **CPU Core**: Arm Cortex-A53\n- Confidence: high\n- Source snippet: \"The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\"\n- Why it matters: The application CPU core identifies the processing subsystem that may affect the electronics review path.\n\n- **Core Count**: quad-core Cortex-A53\n- Confidence: high\n- Source snippet: \"The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\"\n- Why it matters: Core-count language helps reviewers understand the scale of the processing subsystem.\n\n- **Core Count**: dual-core Cortex-A53\n- Confidence: medium\n- Source snippet: \"The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\"\n- Why it matters: Family-overview core-count variants should be reviewed against device-specific ordering codes before review signoff.\n\n- **Real-Time CPU**: dual-core Arm Cortex-R5F\n- Confidence: high\n- Source snippet: \"The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\"\n- Why it matters: A real-time processor subsystem is a material SoC architecture fact for the electronics review path.\n\n- **Processing System**: processing system / PS\n- Confidence: medium\n- Source snippet: \"The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\"\n- Why it matters: Processing-system language establishes that the document covers an integrated SoC, not a standalone peripheral.\n### Programmable logic / FPGA fabric\n- **Programmable Logic**: programmable logic / PL\n- Confidence: high\n- Source snippet: \"The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\"\n- Why it matters: Programmable logic is a defining feature for FPGA/SoC Category 3 electronics review.\n\n- **PS/PL Integration**: PS/PL integration\n- Confidence: medium\n- Source snippet: \"The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\"\n- Why it matters: Integration of processing system and programmable logic is central to FPGA SoC review.\n### Digital interfaces / high-speed I/O\n- **Ethernet MACs**: Four 10/100/1000 tri-speed Ethernet MAC\n- Confidence: high\n- Source snippet: \"- Four 10/100/1000 tri-speed Ethernet MAC\"\n- Why it matters: Ethernet MAC count and speed are relevant high-speed I/O facts for SoC review.\n\n- **PCIe Interface**: PCIe\n- Confidence: high\n- Source snippet: \"- PCI Express compliant interface\"\n- Why it matters: PCIe capability can be relevant to narrower electronics and high-speed interface review.\n\n- **USB Interface**: USB 2.0\n- Confidence: medium\n- Source snippet: \"- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO\"\n- Why it matters: USB peripheral capability is part of the SoC digital-interface profile.\n\n- **CAN Interface**: CAN\n- Confidence: medium\n- Source snippet: \"- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO\"\n- Why it matters: CAN peripheral capability is part of the SoC digital-interface profile.\n\n- **SPI Interface**: SPI\n- Confidence: medium\n- Source snippet: \"- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO\"\n- Why it matters: SPI peripheral capability is part of the SoC digital-interface profile.\n\n- **I2C Interface**: I2C\n- Confidence: medium\n- Source snippet: \"- Two master and slave I2C interfaces\"\n- Why it matters: I2C peripheral capability is part of the SoC digital-interface profile.\n\n- **UART Interface**: UART\n- Confidence: medium\n- Source snippet: \"- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO\"\n- Why it matters: UART peripheral capability is part of the SoC digital-interface profile.\n\n- **JTAG Interface**: JTAG\n- Confidence: medium\n- Source snippet: \"- JTAG Boundary-Scan System Monitor in PL\"\n- Why it matters: JTAG/debug access can matter for device architecture and security review questions.\n\n- **DisplayPort Interface**: DisplayPort\n- Confidence: high\n- Source snippet: \"- 1 or 2 lanes of DisplayPort (TX only) at 1.62Gb/s, 2.7Gb/s, or 5.4Gb/s\"\n- Why it matters: DisplayPort is a high-speed digital-display interface that may require narrower interface review.\n\n- **DisplayPort Lane Rate**: 1 or 2 lanes at 1.62 Gb/s, 2.7 Gb/s, or 5.4 Gb/s\n- Confidence: high\n- Source snippet: \"- 1 or 2 lanes of DisplayPort (TX only) at 1.62Gb/s, 2.7Gb/s, or 5.4Gb/s\"\n- Why it matters: DisplayPort lane count and lane rates are concrete high-speed I/O facts for electronics review.\n\n- **Digital Interface**: LVDS\n- Confidence: medium\n- Source snippet: \"- Supports LVCMOS, LVDS, and SSTL\"\n- Why it matters: Digital interface wording helps experts understand how the device connects into a broader digital system.\n### Security/cryptography indicators\n- **Secure/Non-Secure Boot**: secure and non-secure boot\n- Confidence: high\n- Source snippet: \"- Supports secure and non-secure boot modes\"\n- Why it matters: Secure boot and non-secure boot modes can trigger separate security/cryptography review questions.\n\n- **Cryptographic Algorithm**: AES-GCM\n- Confidence: high\n- Source snippet: \"- 256-bit AES-GCM\"\n- Why it matters: AES-GCM is a named cryptographic algorithm and supports Category 5 Part 2 review questions.\n\n- **Key Size**: 256-bit\n- Confidence: high\n- Source snippet: \"- 256-bit AES-GCM\"\n- Why it matters: AES key size is relevant to cryptography review and must not be treated as ADC resolution.\n\n- **Cryptographic Algorithm**: SHA-3/384\n- Confidence: high\n- Source snippet: \"- SHA-3/384\"\n- Why it matters: SHA-3/384 is a named hash algorithm and supports security/cryptography review questions.\n\n- **Cryptographic Algorithm**: RSA 4096\n- Confidence: high\n- Source snippet: \"- 4096-bit RSA\"\n- Why it matters: RSA 4096 is a named public-key cryptographic function and supports security/cryptography review questions.\n### Memory/cache integrity\n- **Memory/Cache Integrity**: ECC-protected cache\n- Confidence: high\n- Source snippet: \"- AXI Coherency Extension instruction and data cache with ECC\"\n- Why it matters: ECC in cache, TCM, or memory context means error-correcting code / memory integrity, not elliptic-curve cryptography.\n### Peripheral functions\n- **Peripheral ADC**: 10-bit, 200 KSPS, up to 17 external inputs\n- Confidence: high\n- Source snippet: \"- 10-bit 200KSPS ADC with up to 17 external inputs\"\n- Why it matters: This is a minor SoC peripheral ADC fact; it should not change the primary product profile to ADC.\n\n- **GPIO**: GPIO\n- Confidence: medium\n- Source snippet: \"- 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO\"\n- Why it matters: GPIO is a general-purpose peripheral fact for the SoC feature profile.\n\n- **System Monitor**: system monitor\n- Confidence: medium\n- Source snippet: \"- JTAG Boundary-Scan System Monitor in PL\"\n- Why it matters: System-monitor language helps identify subordinate monitoring peripherals rather than the primary product type.\n### Missing/not found facts\n- Special-environment qualification details were not found in the provided datasheet text. Radiation, military, space, or extended-temperature language matters because specialized design intent can affect the review path.\n\n## 3. Recommended Review Paths\n### Category 3 \u2014 Category 3 electronics / programmable logic / SoC review path\n- Confidence: medium\n- Why it may apply: The document identifies a programmable-logic/SoC family with processing system, programmable logic, high-speed interfaces, and security features. These facts support Category 3 electronics review before fallback classification.\n- Why it may not apply: The current draft does not encode full CCL thresholds. This is a family overview, so device-specific ordering code and complete specs may be required before review signoff.\n\n#### Matched facts\n- Product Family: Zynq UltraScale+ MPSoC\n- Processor Architecture: 64-bit\n- CPU Core: Arm Cortex-A53\n- Real-Time CPU: dual-core Arm Cortex-R5F\n- Core Count: quad-core Cortex-A53\n- Core Count: dual-core Cortex-A53\n- Memory/Cache Integrity: ECC-protected cache\n- Programmable Logic: programmable logic / PL\n- Processing System: processing system / PS\n- PS/PL Integration: PS/PL integration\n- Ethernet MACs: Four 10/100/1000 tri-speed Ethernet MAC\n- PCIe Interface: PCIe\n- USB Interface: USB 2.0\n\n#### Citations\n- **Datasheet evidence \u2014 product family**\n- Source: Uploaded datasheet text\n- Citation note: DS891 Zynq UltraScale+ MPSoC Overview\n- Relevance: Product-family identity is central here because the document describes an MPSoC family rather than one device ordering code.\n\n- **Datasheet evidence \u2014 CPU architecture**\n- Source: Uploaded datasheet text\n- Citation note: The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\n- Relevance: Processor word width is a processing-system fact for SoC review and must not be treated as converter resolution.\n\n- **Datasheet evidence \u2014 CPU architecture**\n- Source: Uploaded datasheet text\n- Citation note: The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\n- Relevance: The application CPU core identifies the processing subsystem that may affect the electronics review path.\n\n- **Datasheet evidence \u2014 Memory/Cache Integrity**\n- Source: Uploaded datasheet text\n- Citation note: - AXI Coherency Extension instruction and data cache with ECC\n- Relevance: ECC in cache, TCM, or memory context means error-correcting code / memory integrity, not elliptic-curve cryptography.\n\n- **Datasheet evidence \u2014 programmable logic**\n- Source: Uploaded datasheet text\n- Citation note: The Zynq UltraScale+ MPSoC products integrate a feature-rich 64-bit quad-core or dual-core Arm Cortex-A53 and dual-core Arm Cortex-R5F processing subsystem with programmable logic\n- Relevance: Programmable logic is a defining feature for FPGA/SoC Category 3 electronics review.\n\n- **Datasheet evidence \u2014 Ethernet MACs**\n- Source: Uploaded datasheet text\n- Citation note: - Four 10/100/1000 tri-speed Ethernet MAC\n- Relevance: Ethernet MAC count and speed are relevant high-speed I/O facts for SoC review.\n\n- **Datasheet evidence \u2014 PCIe interface**\n- Source: Uploaded datasheet text\n- Citation note: - PCI Express compliant interface\n- Relevance: PCIe capability can be relevant to narrower electronics and high-speed interface review.\n\n- **Datasheet evidence \u2014 USB Interface**\n- Source: Uploaded datasheet text\n- Citation note: - 214 PS I/O; UART; CAN; USB 2.0; I2C; SPI; 32b GPIO\n- Relevance: USB peripheral capability is part of the SoC digital-interface profile.\n\n- **CCL Category 3 electronics / SoC review path**\n- Source: 15 CFR Part 774, Supplement No. 1, Category 3\n- Citation note: Category 3 electronics review should be considered for a programmable-logic/SoC family with processing-system, programmable logic, high-speed interface, and security-adjacent architecture facts. This draft does not encode final threshold logic.\n- Relevance: These facts support Category 3 electronics review before fallback classification.\n\n#### Missing information\n- Device-specific ordering code, speed grade, package, and complete variant-specific programmable-logic resources.\n- Current CCL threshold mapping by a qualified reviewer.\n- Special-environment qualification details were not found in the provided datasheet text. Radiation, military, space, or extended-temperature language matters because specialized design intent can affect the review path.\n\n#### Reviewer questions\n- Is this DS891 document a family overview requiring device-specific ordering-code review before review signoff?\n- Do the programmable-logic and processing-system features require review under Category 3 electronics entries?\n- Are PCIe, DisplayPort, Ethernet, or other high-speed I/O features relevant to narrower control entries?\n\n#### Uncertainty flags\n- multiple_plausible_eccns\n- requires_engineering_confirmation\n- limited_regulatory_coverage\n- missing_key_specs\n\n### Category 5 Part 2 \u2014 Category 5 Part 2 security/cryptography review path\n- Confidence: medium\n- Why it may apply: The document includes secure boot and named cryptographic functions such as AES-GCM, SHA-3/384, and RSA 4096. These may require separate security/cryptography review.\n- Why it may not apply: The draft does not determine whether functionality is controlled, mass-market eligible, exempt, or otherwise not controlled. A qualified reviewer must evaluate actual cryptographic functionality, availability, and applicable exceptions.\n\n#### Matched facts\n- Secure/Non-Secure Boot: secure and non-secure boot\n- Cryptographic Algorithm: AES-GCM\n- Cryptographic Algorithm: SHA-3/384\n- Cryptographic Algorithm: RSA 4096\n- Key Size: 256-bit\n\n#### Citations\n- **Datasheet evidence \u2014 secure boot**\n- Source: Uploaded datasheet text\n- Citation note: - Supports secure and non-secure boot modes\n- Relevance: Secure boot and non-secure boot modes can trigger separate security/cryptography review questions.\n\n- **Datasheet evidence \u2014 AES-GCM**\n- Source: Uploaded datasheet text\n- Citation note: - 256-bit AES-GCM\n- Relevance: AES-GCM is a named cryptographic algorithm and supports Category 5 Part 2 review questions.\n\n- **Datasheet evidence \u2014 SHA-3/384**\n- Source: Uploaded datasheet text\n- Citation note: - SHA-3/384\n- Relevance: SHA-3/384 is a named hash algorithm and supports security/cryptography review questions.\n\n- **Datasheet evidence \u2014 RSA 4096**\n- Source: Uploaded datasheet text\n- Citation note: - 4096-bit RSA\n- Relevance: RSA 4096 is a named public-key cryptographic function and supports security/cryptography review questions.\n\n- **Datasheet evidence \u2014 Key Size**\n- Source: Uploaded datasheet text\n- Citation note: - 256-bit AES-GCM\n- Relevance: AES key size is relevant to cryptography review and must not be treated as ADC resolution.\n\n- **Category 5 Part 2 security/cryptography review path**\n- Source: 15 CFR Part 774, Supplement No. 1, Category 5 Part 2\n- Citation note: Security and cryptography functions such as secure boot, AES-GCM, SHA-3/384, and RSA 4096 may require separate Category 5 Part 2 analysis by a qualified reviewer.\n- Relevance: This path captures named security facts for expert review of control status, mass-market eligibility, exceptions, and availability.\n\n#### Missing information\n- Whether crypto is user-accessible.\n- Whether mass-market or license exception treatment applies.\n- Whether implementation details are in a security manual rather than this overview.\n\n#### Reviewer questions\n- Do secure boot, AES-GCM, SHA-3/384, or RSA 4096 require separate Category 5 Part 2 analysis?\n- Is the cryptographic functionality user-accessible, configurable, or limited to boot/authentication functions?\n- Are implementation details in a separate security manual not captured by this overview?\n\n#### Uncertainty flags\n- requires_engineering_confirmation\n- missing_key_specs\n- limited_regulatory_coverage\n\n### 3A991 \u2014 General electronics comparison path\n- Confidence: low\n- Why it may apply: A broader general-electronics comparison path remains relevant only as fallback after the programmable-logic/SoC and security review paths are evaluated.\n- Why it may not apply: The document contains specific programmable-logic, processing-system, high-speed I/O, and cryptography facts that should be reviewed under narrower paths before relying on a general fallback comparison.\n\n#### Matched facts\n- Product Family: Zynq UltraScale+ MPSoC\n- Processor Architecture: 64-bit\n- CPU Core: Arm Cortex-A53\n- Programmable Logic: programmable logic / PL\n\n#### Citations\n- **General electronics fallback review**\n- Source: EAR classification comparison workflow\n- Citation note: A broader general-electronics path should be considered only after the narrower Category 3 electronics review paths are examined and excluded by a qualified reviewer.\n- Relevance: This is a fallback comparison point only. It should not be treated as the likely answer while narrower Category 3 review paths remain open.\n\n#### Missing information\n- Documented reasoning for excluding Category 3 programmable-logic/SoC and Category 5 Part 2 security review paths.\n- Special-environment qualification details were not found in the provided datasheet text. Radiation, military, space, or extended-temperature language matters because specialized design intent can affect the review path.\n\n#### Reviewer questions\n- What documented reasoning supports excluding narrower Category 3 and Category 5 review paths before considering a broader general-electronics comparison?\n\n#### Uncertainty flags\n- limited_regulatory_coverage\n- missing_key_specs\n- requires_engineering_confirmation\n\n\n## 4. Key Uncertainties\n- limited regulatory coverage\n- missing key specs\n- requires engineering confirmation\n\n## 5. Reviewer Questions\n- Is this DS891 document a family overview requiring device-specific ordering-code review before review signoff?\n- Do the programmable-logic and processing-system features require review under Category 3 electronics entries?\n- Are PCIe, DisplayPort, Ethernet, or other high-speed I/O features relevant to narrower control entries?\n- Do secure boot, AES-GCM, SHA-3/384, or RSA 4096 require separate Category 5 Part 2 analysis?\n- Is the cryptographic functionality user-accessible, configurable, or limited to boot/authentication functions?\n- Are implementation details in a separate security manual not captured by this overview?\n- What documented reasoning supports excluding narrower Category 3 and Category 5 review paths before considering a broader general-electronics comparison?\n\n## 6. ECCN Review Recommendation\n- Substrata recommends reviewing Category 3 electronics / programmable-logic / SoC paths and Category 5 Part 2 security/cryptography paths based on the extracted datasheet evidence.\n- Because this is a family overview, a qualified reviewer should confirm the exact ordering code, speed grade, package, security functionality, and applicable CCL threshold mapping.\n\n## 7. Review State\n- Status: pending_review\n- Reviewer: Unassigned\n- Note: No reviewer note recorded yet.\n",
   "artifacts": {
     "extracted_text_path": "/home/invinc/code/substrata/workers/classifier/samples/artifacts/doc_sample_zynq_ultrascale_plus-extracted.txt",
     "structured_output_path": "/home/invinc/code/substrata/workers/classifier/samples/artifacts/doc_sample_zynq_ultrascale_plus-output.json",
-    "memo_path": "/home/invinc/code/substrata/workers/classifier/samples/artifacts/doc_sample_zynq_ultrascale_plus-memo.md"
+    "memo_path": "/home/invinc/code/substrata/workers/classifier/samples/artifacts/doc_sample_zynq_ultrascale_plus-memo.md",
+    "profile_path": "/home/invinc/code/substrata/workers/classifier/samples/artifacts/doc_sample_zynq_ultrascale_plus-profile.json",
+    "extracted_facts_path": "/home/invinc/code/substrata/workers/classifier/samples/artifacts/doc_sample_zynq_ultrascale_plus-extracted-facts.json",
+    "review_paths_path": "/home/invinc/code/substrata/workers/classifier/samples/artifacts/doc_sample_zynq_ultrascale_plus-review-paths.json"
+  },
+  "run_metadata": {
+    "classificationMode": "heuristic_fallback",
+    "aiProvider": "none",
+    "aiEnabled": false,
+    "fallbackReason": "AI_ENABLED is false or unset"
   }
 }

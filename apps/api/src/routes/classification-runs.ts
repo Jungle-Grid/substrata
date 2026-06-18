@@ -36,7 +36,7 @@ classificationRunsRouter.get('/:id/memo', async (req, res) => {
     humanReviewStatus: run.humanReviews[0]?.status ?? 'pending_review',
     contentMarkdown: run.reviewMemo.contentMarkdown,
     reviewerNote: run.humanReviews[0]?.notes ?? null,
-    disclaimer: 'Draft for expert review only — not a final ECCN determination.',
+    disclaimer: 'Draft for expert review only.',
     summary: presentedRun.document.summary,
   });
 });

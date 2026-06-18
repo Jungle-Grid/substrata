@@ -91,7 +91,7 @@ export function buildMockWorkerOutput(input: {
         whyItMayApply:
           'The extracted performance signals support a closer Category 3 electronics review path.',
         whyItMayNotApply:
-          'The current text does not establish a clean threshold match to a narrower control entry.',
+          'The current text leaves threshold mapping to a qualified reviewer before narrowing the review path.',
         missingInformation: [
           'Precise architecture and control-text threshold mapping',
           'Supporting engineering clarification for any specialized deployment statements',
@@ -131,7 +131,7 @@ export function buildMockWorkerOutput(input: {
         ],
       },
     ],
-    memoMarkdown: `# Draft ECCN Review Memo — ${input.title}\n\n## 1. Document Summary\n- Title: ${input.title}\n- Document ID: ${input.documentId}\n- Disclaimer: Draft for expert review only. This memo is not a final legal or compliance determination.\n\n## 2. Extracted Technical Facts\n- Process node: 7 nm\n- Serial interface performance: ${hasHighSpeed ? '112 Gbps' : '56 Gbps'}\n- Radiation tolerance statement: ${hasRadiation ? 'present' : 'not stated'}\n\n## 3. Candidate ECCN Review Paths\n- 3A001 remains an evidence-based review path.\n- 3A991 remains a broader comparison path only after narrower review paths are examined.\n\n## 6. Draft Conclusion\n- This draft does not make a final ECCN determination.\n- A qualified expert should confirm the applicable threshold mapping and final ECCN.`,
+    memoMarkdown: `# Draft ECCN Review Memo — ${input.title}\n\n## 1. Document Summary\n- Title: ${input.title}\n- Document ID: ${input.documentId}\n- Disclaimer: Draft for expert review only.\n\n## 2. Extracted Technical Facts\n- Process node: 7 nm\n- Serial interface performance: ${hasHighSpeed ? '112 Gbps' : '56 Gbps'}\n- Radiation tolerance statement: ${hasRadiation ? 'present' : 'not stated'}\n\n## 3. Recommended Review Paths\n- Substrata recommends reviewing 3A001 as an evidence-based electronics review path.\n- 3A991 remains a broader comparison path only after narrower review paths are examined.\n\n## 6. ECCN Review Recommendation\n- Substrata recommends reviewing the listed paths based on the extracted datasheet evidence.\n- A qualified reviewer should confirm the applicable threshold mapping and supporting documentation.`,
     artifacts: {
       extractedTextPath: `artifacts/${input.documentId}/extracted-text.txt`,
       structuredOutputPath: `artifacts/${input.documentId}/classification-output.json`,

@@ -63,18 +63,26 @@ def _candidate_fact_list(specs: list[ExtractedSpec], preferred_names: list[str],
 
 SOC_FACT_NAMES = [
     "product_family",
-    "document_number",
-    "part_number",
     "processor_architecture",
     "cpu_core",
-    "cpu_core_count",
+    "clock_speed",
+    "cpu_clock_speed",
     "realtime_cpu",
-    "gpu",
+    "cpu_core_count",
+    "cache_tcm",
+    "on_chip_ram",
+    "memory_cache",
+    "memory_integrity",
+    "memory_controller_interface",
+    "external_memory_interface",
+    "external_memory_interfaces",
     "programmable_logic",
     "processing_system",
     "ps_pl_integration",
     "ethernet_mac",
     "pcie_interface",
+    "displayport_lane_rate",
+    "gpu",
     "usb_interface",
     "can_interface",
     "spi_interface",
@@ -82,23 +90,40 @@ SOC_FACT_NAMES = [
     "uart_interface",
     "jtag_interface",
     "displayport_interface",
-    "displayport_lane_rate",
+    "digital_interface",
+    "display_camera_interface",
+    "camera_interface",
+    "display_interface",
+    "audio_interface",
     "secure_boot",
     "cryptographic_algorithm",
     "crypto_key_size",
-    "memory_integrity",
     "peripheral_adc",
+    "peripheral_dac",
+    "package_type",
 ]
 
 SECURITY_FACT_NAMES = [
     "secure_boot",
-    "security_feature",
     "cryptographic_algorithm",
     "crypto_key_size",
+    "security_feature",
     "key_storage",
     "secure_element",
     "tamper_resistance",
     "certificate_signature",
+    "caam",
+    "pkha",
+    "symmetric_engine",
+    "cryptographic_hash_engine",
+    "rng4",
+    "secure_key_management",
+    "inline_encryption_engine",
+    "otfad",
+    "snvs",
+    "zero_master_key",
+    "puf",
+    "encrypted_boot",
 ]
 
 RF_FACT_NAMES = [
@@ -118,9 +143,9 @@ RF_FACT_NAMES = [
 ]
 
 GENERIC_ELECTRONICS_FACT_NAMES = [
-    "device_type",
-    "product_name",
     "product_family",
+    "product_profile",
+    "device_type",
     "digital_interface",
     "jesd_interface",
     "pcie_interface",
@@ -141,6 +166,74 @@ def _candidate_specs_by_names(specs: list[ExtractedSpec], names: list[str], limi
                 if len(selected) >= limit:
                     return selected
     return selected[:limit]
+
+
+def _append_specs_by_category(
+    selected: list[ExtractedSpec],
+    specs: list[ExtractedSpec],
+    categories: set[str],
+    limit: int,
+) -> list[ExtractedSpec]:
+    for spec in specs:
+        if spec.category not in categories or spec in selected:
+            continue
+        selected.append(spec)
+        if len(selected) >= limit:
+            return selected
+    return selected[:limit]
+
+
+def _candidate_specific_reviewer_questions(
+    extracted_facts: list[ExtractedSpec],
+    candidate: ECCNCandidate,
+) -> list[str]:
+    is_fpga_soc_profile = _has_profile(extracted_facts, "fpga_programmable_logic_soc")
+    is_mcu_profile = _has_profile(extracted_facts, "mcu_processor_soc")
+    if is_mcu_profile:
+        product_family = _get_spec(extracted_facts, "product_family")
+        family_label = product_family.value if product_family else "this MCU/processor family"
+        has_security = any(spec.name in SECURITY_FACT_NAMES or spec.category == "security_cryptography" for spec in extracted_facts)
+        if candidate.review_path_id == "category_3_mcu_processor_soc":
+            return [
+                f"Is this {family_label} datasheet a family-level document requiring ordering-code-specific review before review signoff?",
+                "Do the Arm Cortex-M7 and Cortex-M4 processing features, clock rates, memory/cache resources, or external memory interfaces require Category 3 electronics review?",
+                "Do Ethernet, USB, display/camera, CAN, SPI, I2C, or other interfaces affect the electronics review path?",
+            ]
+        if candidate.review_path_id in {"category_5_part_2_security", "category_5_part_2_crypto_security_device"}:
+            return [
+                "Do HAB/encrypted boot and CAAM require separate Category 5 Part 2 analysis?",
+                "Are the cryptographic functions user-accessible, configurable, or limited to boot/storage/authentication?",
+                "Does OTFAD AES-128 counter-mode decryption affect the security/cryptography review path?",
+                "Are implementation details contained in a separate security reference manual?",
+                "Is mass-market/license-exception treatment relevant?",
+            ]
+        questions = [
+            "What documented reasoning supports excluding Category 3 electronics / MCU / processor / SoC and Category 5 Part 2 security review paths before considering a broader general-electronics comparison?"
+        ]
+        if has_security:
+            questions.append("Is additional security documentation required to evaluate mass-market/license-exception treatment?")
+        questions.append("Does separate product documentation indicate radiation tolerance, space qualification, military design intent, or special-environment qualification?")
+        return questions[:6]
+
+    if is_fpga_soc_profile and candidate.review_path_id == "category_3_programmable_logic_soc":
+        document_number = _get_spec(extracted_facts, "document_number")
+        doc_label = document_number.value if document_number else "this"
+        return [
+            f"Is this {doc_label} document a family overview requiring device-specific ordering-code review before review signoff?",
+            "Do the programmable-logic and processing-system features require review under Category 3 electronics entries?",
+            "Are PCIe, DisplayPort, Ethernet, or other high-speed I/O features relevant to narrower control entries?",
+        ]
+    if is_fpga_soc_profile and candidate.review_path_id in {"category_5_part_2_security", "category_5_part_2_crypto_security_device"}:
+        return [
+            "Do secure boot, AES-GCM, SHA-3/384, or RSA 4096 require separate Category 5 Part 2 analysis?",
+            "Is the cryptographic functionality user-accessible, configurable, or limited to boot/authentication functions?",
+            "Are implementation details in a separate security manual not captured by this overview?",
+        ]
+    if is_fpga_soc_profile and candidate.review_path_id == "general_electronics_comparison":
+        return [
+            "What documented reasoning supports excluding narrower Category 3 and Category 5 review paths before considering a broader general-electronics comparison?"
+        ]
+    return generate_reviewer_questions(extracted_facts, candidate.eccn, [])
 
 
 def _spec_value(spec: ExtractedSpec | None) -> str | None:
@@ -176,7 +269,9 @@ def generate_reviewer_questions(
 ) -> list[str]:
     questions: list[str] = []
     matched_names = {spec.name for spec in matched_specs}
-    is_soc_profile = _has_profile(extracted_facts, "fpga_programmable_logic_soc") or _has_profile(extracted_facts, "mcu_processor_soc")
+    is_fpga_soc_profile = _has_profile(extracted_facts, "fpga_programmable_logic_soc")
+    is_mcu_profile = _has_profile(extracted_facts, "mcu_processor_soc")
+    is_soc_profile = is_fpga_soc_profile or is_mcu_profile
     is_rf_profile = _has_profile(extracted_facts, "rf_transceiver")
     is_crypto_profile = _has_profile(extracted_facts, "crypto_security_device")
 
@@ -194,7 +289,35 @@ def generate_reviewer_questions(
         questions.append("Do any hardware performance facts require a separate Category 3 electronics comparison path?")
         return questions[:6]
 
-    if is_soc_profile:
+    if is_mcu_profile:
+        product_family = _get_spec(extracted_facts, "product_family")
+        family_label = product_family.value if product_family else "this MCU/processor family"
+        has_crypto = any(spec.name in SECURITY_FACT_NAMES or spec.category == "security_cryptography" for spec in extracted_facts)
+        questions.append(
+            f"Is this {family_label} datasheet a family-level document requiring ordering-code-specific review before review signoff?"
+        )
+        questions.append(
+            "Do the Arm Cortex-M7 and Cortex-M4 processing features, clock rates, memory/cache resources, or external memory interfaces require Category 3 electronics review?"
+        )
+        if has_crypto:
+            questions.append(
+                "Do HAB/encrypted boot, CAAM, PKHA, symmetric engines, cryptographic hash engine, RNG4, secure key management, OTFAD, SNVS/ZMK, or PUF require separate Category 5 Part 2 review?"
+            )
+            questions.append(
+                "Are the cryptographic functions user-accessible, configurable, or limited to boot/storage/authentication flows?"
+            )
+            questions.append(
+                "Is additional security documentation required to evaluate mass-market/license-exception treatment?"
+            )
+        questions.append(
+            "Do Ethernet, USB, display/camera, CAN, SPI, I2C, or other interfaces affect the electronics review path?"
+        )
+        questions.append(
+            "Does separate product documentation indicate radiation tolerance, space qualification, military design intent, or special-environment qualification?"
+        )
+        return questions[:7]
+
+    if is_fpga_soc_profile:
         product_family = _get_spec(extracted_facts, "product_family")
         document_number = _get_spec(extracted_facts, "document_number")
         has_crypto = any(spec.name in SECURITY_FACT_NAMES for spec in extracted_facts)
@@ -205,7 +328,7 @@ def generate_reviewer_questions(
         family_label = product_family.value if product_family else "the programmable-logic SoC"
         doc_label = document_number.value if document_number else "this document"
         questions.append(
-            f"Is this {doc_label} document a family overview requiring device-specific ordering-code review before a final ECCN can be assigned?"
+            f"Is this {doc_label} document a family overview requiring device-specific ordering-code review before review signoff?"
         )
         questions.append(
             f"Do the {family_label} programmable-logic and processing-system features require review under Category 3 electronics entries?"
@@ -359,21 +482,32 @@ def generate_eccn_candidates(
     has_high_speed_adc = is_converter_primary_review and bool(category_3a001_specs)
     has_special_environment = bool(environmental_specs)
     has_application_context = bool(app_specs)
-    is_soc_profile = _has_profile(specs, "fpga_programmable_logic_soc") or _has_profile(specs, "mcu_processor_soc")
+    is_fpga_soc_profile = _has_profile(specs, "fpga_programmable_logic_soc")
+    is_mcu_profile = _has_profile(specs, "mcu_processor_soc")
+    is_soc_profile = is_fpga_soc_profile or is_mcu_profile
     is_rf_profile = _has_profile(specs, "rf_transceiver")
     is_crypto_profile = _has_profile(specs, "crypto_security_device")
     is_generic_profile = _has_profile(specs, "generic_electronics")
     soc_candidate_specs = _candidate_specs_by_names(specs, SOC_FACT_NAMES, 12)
+    soc_candidate_specs = _append_specs_by_category(
+        soc_candidate_specs,
+        specs,
+        {"processing_system_cpu", "compute_processor", "memory_cache_integrity", "digital_interface"},
+        12,
+    )
     rf_candidate_specs = _candidate_specs_by_names(specs, RF_FACT_NAMES, 10)
-    generic_electronics_specs = _candidate_specs_by_names(specs, GENERIC_ELECTRONICS_FACT_NAMES, 8)
-    security_candidate_specs = _candidate_specs_by_names(specs, SECURITY_FACT_NAMES, 8)
-    if not security_candidate_specs:
-        security_candidate_specs = [
-            spec
-            for spec in specs
-            if spec.category in {"security_cryptography", "security", "cryptography"}
-            or any(term in f"{spec.name} {spec.value}".lower() for term in ("secure boot", "aes", "rsa", "sha", "key storage", "certificate", "signature", "hsm", "tpm"))
-        ][:8]
+    generic_electronics_specs = _candidate_specs_by_names(specs, GENERIC_ELECTRONICS_FACT_NAMES, 3)
+    security_candidate_specs = _candidate_specs_by_names(specs, SECURITY_FACT_NAMES, 12)
+    for spec in specs:
+        if spec in security_candidate_specs:
+            continue
+        if spec.category in {"security_cryptography", "security", "cryptography"} or any(
+            term in f"{spec.name} {spec.value}".lower()
+            for term in ("secure boot", "hab", "encrypted boot", "caam", "pkha", "symmetric", "cryptographic hash", "rng4", "key management", "otfad", "snvs", "zmk", "puf", "aes", "rsa", "sha", "key storage", "certificate", "signature", "hsm", "tpm")
+        ):
+            security_candidate_specs.append(spec)
+            if len(security_candidate_specs) >= 12:
+                break
 
     uncertainty_flags = ["limited_regulatory_coverage"]
     if len(high_value_facts) >= 4:
@@ -451,15 +585,19 @@ def generate_eccn_candidates(
     general_apply_text = (
         "A broader general-electronics outcome could remain relevant only if a qualified reviewer documents why the extracted converter and interface facts do not satisfy any narrower Category 3 entry."
         if is_converter_primary_review
+        else "A broader general-electronics comparison path remains relevant only as fallback after the Category 3 electronics / MCU / processor / SoC and Category 5 Part 2 security review paths are evaluated."
+        if is_mcu_profile
         else "A broader general-electronics comparison path remains relevant only as fallback after the programmable-logic/SoC and security review paths are evaluated."
-        if is_soc_profile
+        if is_fpga_soc_profile
         else "A broader general-electronics review path remains relevant because the current extracted facts identify a semiconductor or compute device but do not by themselves establish a narrower converter-specific control path."
     )
     general_not_apply_text = (
         "The datasheet still contains specific high-speed converter performance and interface facts that should be reviewed against narrower Category 3 electronics entries first."
         if is_converter_primary_review
+        else "The document contains specific processor, memory/cache, interface, and security facts that should be reviewed under narrower paths before relying on a general fallback comparison."
+        if is_mcu_profile
         else "The document contains specific programmable-logic, processing-system, high-speed I/O, and cryptography facts that should be reviewed under narrower paths before relying on a general fallback comparison."
-        if is_soc_profile
+        if is_fpga_soc_profile
         else "A broader general-electronics comparison may still be too broad if a qualified reviewer finds that the device’s security, processing, interface, or design-intent facts map to a narrower current control entry."
     )
     general_missing_information = (
@@ -469,10 +607,15 @@ def generate_eccn_candidates(
         ]
         if is_converter_primary_review
         else [
+            "Documented reasoning for excluding Category 3 electronics / MCU / processor / SoC and Category 5 Part 2 security review paths.",
+            *missing_points[:2],
+        ]
+        if is_mcu_profile
+        else [
             "Documented reasoning for excluding Category 3 programmable-logic/SoC and Category 5 Part 2 security review paths.",
             *missing_points[:2],
         ]
-        if is_soc_profile
+        if is_fpga_soc_profile
         else [
             "Documented reasoning for any narrower control entry that could apply to the device’s security, processing, interface, or design-intent facts.",
             *missing_points[:2],
@@ -484,10 +627,39 @@ def generate_eccn_candidates(
 
     candidates: list[ECCNCandidate] = []
     if is_soc_profile and soc_candidate_specs:
+        category_3_title = (
+            "Category 3 electronics / MCU / processor / SoC review path"
+            if is_mcu_profile
+            else "Category 3 electronics / programmable logic / SoC review path"
+        )
+        category_3_review_path_id = "category_3_mcu_processor_soc" if is_mcu_profile else "category_3_programmable_logic_soc"
+        category_3_citation_text = (
+            "Category 3 electronics review should be considered for an MCU/processor/SoC family with processor cores, memory/cache resources, external memory interfaces, connectivity interfaces, and security-adjacent architecture facts. This draft does not encode final threshold logic."
+            if is_mcu_profile
+            else "Category 3 electronics review should be considered for a programmable-logic/SoC family with processing-system, programmable logic, high-speed interface, and security-adjacent architecture facts. This draft does not encode final threshold logic."
+        )
+        category_3_apply_text = (
+            "The document identifies an NXP i.MX RT1170 crossover processor family with Arm Cortex-M7 and Cortex-M4 cores, clock rates up to 800 MHz and 400 MHz, on-chip RAM/TCM/cache resources, external memory interfaces, and multiple connectivity/display/camera interfaces. These facts support an electronics/processor review path before relying on broader fallback classification."
+            if is_mcu_profile
+            else "The document identifies a programmable-logic/SoC family with processing system, programmable logic, high-speed interfaces, and security features. These facts support Category 3 electronics review before fallback classification."
+        )
+        category_3_missing = (
+            [
+                "Device-specific ordering code, speed grade, package, and complete variant-specific processor/security/interface details.",
+                "Current CCL threshold mapping by a qualified reviewer.",
+                *missing_points[:2],
+            ]
+            if is_mcu_profile
+            else [
+                "Device-specific ordering code, speed grade, package, and complete variant-specific programmable-logic resources.",
+                "Current CCL threshold mapping by a qualified reviewer.",
+                *missing_points[:2],
+            ]
+        )
         candidates.append(
             ECCNCandidate(
                 eccn="Category 3",
-                title="Category 3 electronics / programmable logic / SoC review path",
+                title=category_3_title,
                 confidence="medium" if len(soc_candidate_specs) >= 6 else "low",
                 matched_technical_facts=[_format_spec(spec) for spec in soc_candidate_specs],
                 regulatory_citations=[
@@ -499,33 +671,32 @@ def generate_eccn_candidates(
                             "product_family",
                             "processor_architecture",
                             "cpu_core",
+                            "clock_speed",
+                            "cache_tcm",
+                            "memory_integrity",
+                            "memory_controller_interface",
                             "programmable_logic",
                             "pcie_interface",
                             "ethernet_mac",
                             "displayport_lane_rate",
+                            "usb_interface",
                             "secure_boot",
                         }
                     ],
                     build_regulatory_citation(
                         "CCL Category 3 electronics / SoC review path",
-                        "Category 3 electronics review should be considered for a programmable-logic/SoC family with processing-system, programmable logic, high-speed interface, and security-adjacent architecture facts. This draft does not encode final threshold logic.",
+                        category_3_citation_text,
                         "These facts support Category 3 electronics review before fallback classification.",
                     ),
                 ],
-                why_it_may_apply=(
-                    "The document identifies a programmable-logic/SoC family with processing system, programmable logic, high-speed interfaces, and security features. These facts support Category 3 electronics review before fallback classification."
-                ),
+                why_it_may_apply=category_3_apply_text,
                 why_it_may_not_apply=(
-                    "The current draft does not encode full CCL thresholds. This is a family overview, so device-specific ordering code and complete specs may be required before any final ECCN assignment."
+                    "The current draft does not encode full CCL thresholds. This is a family overview, so device-specific ordering code and complete specs may be required before review signoff."
                 ),
-                missing_information=[
-                    "Device-specific ordering code, speed grade, package, and complete variant-specific programmable-logic resources.",
-                    "Current CCL threshold mapping by a qualified reviewer.",
-                    *missing_points[:2],
-                ],
+                missing_information=category_3_missing,
                 uncertainty_flags=list(dict.fromkeys(["multiple_plausible_eccns", "requires_engineering_confirmation", *uncertainty_flags])),
                 reviewer_questions=[],
-                review_path_id="category_3_programmable_logic_soc",
+                review_path_id=category_3_review_path_id,
             )
         )
 
@@ -589,38 +760,51 @@ def generate_eccn_candidates(
     if (
         not is_crypto_profile
         and security_candidate_specs
-        and any(spec.name in {"secure_boot", "cryptographic_algorithm"} for spec in security_candidate_specs)
+        and any(spec.name in SECURITY_FACT_NAMES or spec.category == "security_cryptography" for spec in security_candidate_specs)
     ):
+        security_fact_list = [_format_spec(spec) for spec in security_candidate_specs]
+        if is_mcu_profile:
+            security_citation_text = "Security and cryptography functions such as secure boot, hardware cryptography acceleration, public-key engines, symmetric engines, hash engines, RNG, secure key management, inline encryption, OTFAD, SNVS/ZMK, or PUF may require separate Category 5 Part 2 analysis by a qualified reviewer."
+            security_apply_text = "The document identifies hardware security and cryptography features including HAB/encrypted boot, CAAM, public-key cryptography engine, symmetric engines, cryptographic hash engine, RNG4, secure hardware-only key management, inline encryption, OTFAD AES-128 counter-mode decryption, SNVS/ZMK, and PUF. These facts support a separate Category 5 Part 2 security/cryptography review path."
+            security_missing = [
+                "Whether cryptographic functions are user-accessible.",
+                "Whether features are limited to boot/authentication/storage protection.",
+                "Whether mass-market/license exception treatment applies.",
+                "Whether details are in a security reference manual.",
+                "Exact algorithms/key sizes not visible in this datasheet.",
+            ]
+        else:
+            security_citation_text = "Security and cryptography functions such as secure boot, AES-GCM, SHA-3/384, and RSA 4096 may require separate Category 5 Part 2 analysis by a qualified reviewer."
+            security_apply_text = "The document includes secure boot and named cryptographic functions such as AES-GCM, SHA-3/384, and RSA 4096. These may require separate security/cryptography review."
+            security_missing = [
+                "Whether crypto is user-accessible.",
+                "Whether mass-market or license exception treatment applies.",
+                "Whether implementation details are in a security manual rather than this overview.",
+            ]
         candidates.append(
             ECCNCandidate(
                 eccn="Category 5 Part 2",
-                title="Security/cryptography review path",
+                title="Category 5 Part 2 security/cryptography review path",
                 confidence="medium",
-                matched_technical_facts=[_format_spec(spec) for spec in security_candidate_specs],
+                matched_technical_facts=security_fact_list,
                 regulatory_citations=[
                     *[
                         build_document_citation(spec, source=source_label)
                         for spec in security_candidate_specs
-                        if spec.name in {"secure_boot", "cryptographic_algorithm", "crypto_key_size"}
+                        if spec.name in SECURITY_FACT_NAMES or spec.category == "security_cryptography"
                     ],
                     build_regulatory_citation(
                         "Category 5 Part 2 security/cryptography review path",
-                        "Security and cryptography functions such as secure boot, AES-GCM, SHA-3/384, and RSA 4096 may require separate Category 5 Part 2 analysis by a qualified reviewer.",
-                        "This path captures named security facts without making a final determination about control status, mass-market eligibility, exceptions, or availability.",
+                        security_citation_text,
+                        "This path captures named security facts for expert review of control status, mass-market eligibility, exceptions, and availability.",
                         source="15 CFR Part 774, Supplement No. 1, Category 5 Part 2",
                     ),
                 ],
-                why_it_may_apply=(
-                    "The document includes secure boot and named cryptographic functions such as AES-GCM, SHA-3/384, and RSA 4096. These may require separate security/cryptography review."
-                ),
+                why_it_may_apply=security_apply_text,
                 why_it_may_not_apply=(
                     "The draft does not determine whether functionality is controlled, mass-market eligible, exempt, or otherwise not controlled. A qualified reviewer must evaluate actual cryptographic functionality, availability, and applicable exceptions."
                 ),
-                missing_information=[
-                    "Whether crypto is user-accessible.",
-                    "Whether mass-market or license exception treatment applies.",
-                    "Whether implementation details are in a security manual rather than this overview.",
-                ],
+                missing_information=security_missing,
                 uncertainty_flags=list(dict.fromkeys(["requires_engineering_confirmation", "missing_key_specs", *uncertainty_flags])),
                 reviewer_questions=[],
                 review_path_id="category_5_part_2_security",
@@ -636,10 +820,10 @@ def generate_eccn_candidates(
                 matched_technical_facts=high_value_facts or ["The datasheet contains ADC performance and interface claims that require Category 3 review."],
                 regulatory_citations=category_3a001_citations,
                 why_it_may_apply=(
-                    f"The datasheet identifies {apply_summary}. These facts support using Category 3 electronics entries as the initial expert-review path. This is not a final ECCN determination; a qualified reviewer must compare the extracted converter and interface facts against the current CCL thresholds."
+                    f"The datasheet identifies {apply_summary}. These facts support using Category 3 electronics entries as the initial expert-review path. A qualified reviewer must compare the extracted converter and interface facts against the current CCL thresholds."
                 ),
                 why_it_may_not_apply=(
-                    "The current draft does not encode final legal thresholds or a complete rules engine. A qualified reviewer still needs to map the extracted converter resolution, sample-rate, bandwidth, frequency-range, and interface facts to the current control text and determine whether a narrower entry is actually triggered."
+                    "The current draft does not encode complete CCL threshold logic. A qualified reviewer still needs to map the extracted converter resolution, sample-rate, bandwidth, frequency-range, and interface facts to the current control text and confirm whether a narrower entry is actually triggered."
                 ),
                 missing_information=missing_points + [
                     "A qualified reviewer must map the extracted converter and interface facts to the current CCL thresholds.",
@@ -667,7 +851,7 @@ def generate_eccn_candidates(
                     ),
                 ],
                 why_it_may_apply="The extracted facts identify electronics performance, package, power, or interface characteristics that may require Category 3 comparison.",
-                why_it_may_not_apply="The currently extracted facts may be too general to trigger a narrower control path, and the memo does not perform final threshold mapping.",
+                why_it_may_not_apply="The currently extracted facts may be too general to trigger a narrower control path, and the memo leaves threshold mapping for qualified reviewer confirmation.",
                 missing_information=["Current CCL threshold mapping by a qualified reviewer.", *missing_points[:2]],
                 uncertainty_flags=list(dict.fromkeys(["limited_regulatory_coverage", *uncertainty_flags])),
                 reviewer_questions=[],
@@ -698,7 +882,8 @@ def generate_eccn_candidates(
         ),
     )
 
-    if not has_high_speed_adc and not has_special_environment and not security_specs and not has_application_context:
+    has_meaningful_processor_or_interface_facts = bool(soc_candidate_specs or generic_electronics_specs or digital_specs)
+    if not has_high_speed_adc and not has_special_environment and not security_specs and not has_application_context and not has_meaningful_processor_or_interface_facts:
         candidates.append(
             ECCNCandidate(
                 eccn="EAR99",
@@ -715,7 +900,7 @@ def generate_eccn_candidates(
                     )
                 ],
                 why_it_may_apply="If the extracted facts do not match a narrower electronics entry after expert review, EAR99 may remain a possible outcome.",
-                why_it_may_not_apply="The absence of a threshold match in this draft is not itself a final determination. OCR loss, missing data, or omitted design-intent details could still change the review path.",
+                why_it_may_not_apply="The absence of a threshold match in this draft still requires expert review because OCR loss, missing data, or omitted design-intent details could change the review path.",
                 missing_information=missing_points + [
                     "Expert confirmation that no narrower Category 3 or security-related review path is triggered by the available datasheet facts."
                 ],
@@ -726,6 +911,9 @@ def generate_eccn_candidates(
         )
 
     for candidate in candidates:
+        if is_soc_profile:
+            candidate.reviewer_questions = _candidate_specific_reviewer_questions(specs, candidate)
+            continue
         matched_specs = _get_specs(
             specs,
             [

@@ -119,7 +119,7 @@ documentsRouter.post('/upload', upload.single('file'), async (req, res) => {
       fileName: persisted.fileName,
       mimeType: persisted.mimeType,
       storagePath: persisted.storagePath,
-      error: error instanceof Error ? error.message : 'Unknown extraction error',
+      error: error instanceof Error ? error.message : 'Extraction error details unavailable',
     });
 
     await recordAuditEvent({
@@ -132,7 +132,7 @@ documentsRouter.post('/upload', upload.single('file'), async (req, res) => {
       metadata: {
         fileName: persisted.fileName,
         mimeType: persisted.mimeType,
-        error: error instanceof Error ? error.message : 'Unknown extraction error',
+        error: error instanceof Error ? error.message : 'Extraction error details unavailable',
       },
     });
 

@@ -4,7 +4,7 @@
     "source": "15 CFR Part 774, Supplement No. 1, Category 3",
     "summary": "Category 3 is the local comparison path for electronics, integrated circuits, converters, programmable logic, processors, RF components, and related performance facts.",
     "relevanceTemplate": "Use this review path when the extracted facts show semiconductor electronics performance, interfaces, converter behavior, RF behavior, processor/SoC architecture, or programmable logic resources that require expert comparison against current Category 3 text.",
-    "warning": "This reference is a review-path pointer only and does not reproduce legal text or make a final ECCN determination."
+    "warning": "This reference is a review-path pointer only and does not reproduce legal text or assign an ECCN."
   },
   "category_5_part_2_security": {
     "label": "Category 5 Part 2 security/cryptography review",
@@ -25,6 +25,6 @@
     "source": "EAR classification comparison workflow",
     "summary": "EAR99 may remain a possible outcome only after a qualified reviewer documents that no controlled indicators or narrower CCL entries apply to the available facts.",
     "relevanceTemplate": "Use this path carefully when no controlled indicators are present in the extracted facts and missing information is limited.",
-    "warning": "EAR99 is never a final determination in this demo memo; it is only a possible outcome for expert review."
+    "warning": "EAR99 is only a possible expert-review outcome after narrower paths are reviewed."
   }
 }

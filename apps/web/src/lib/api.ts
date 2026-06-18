@@ -18,7 +18,7 @@ async function safeFetch<T>(path: string, fallback: T): Promise<ApiResult<T>> {
       return {
         data: null,
         fallback: false,
-        error: `Request failed with status ${response.status}.`,
+        error: `Request did not complete. Status ${response.status}.`,
       };
     }
 
@@ -38,7 +38,7 @@ async function safeFetch<T>(path: string, fallback: T): Promise<ApiResult<T>> {
 
 async function readJsonError(response: Response) {
   const payload = await response.json().catch(() => null);
-  return payload?.message ?? payload?.error ?? 'Request failed.';
+  return payload?.message ?? payload?.error ?? 'Request did not complete.';
 }
 
 export async function fetchDocuments() {

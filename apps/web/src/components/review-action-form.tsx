@@ -81,7 +81,7 @@ export function ReviewActionForm({
               setError(
                 reviewError instanceof Error
                   ? reviewError.message
-                  : 'Failed to save review decision.',
+                  : 'Review decision was not saved.',
               );
             }
           });

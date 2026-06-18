@@ -18,7 +18,7 @@ export function DocumentCreateForm() {
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [statusMessage, setStatusMessage] = useState(
-    'Upload a PDF or text file. If PDF extraction is incomplete, you can paste corrective raw text below.',
+    'Upload a PDF or text file. If extraction needs support, paste source text below.',
   );
   const [isPending, startTransition] = useTransition();
 
@@ -75,10 +75,10 @@ export function DocumentCreateForm() {
             setError(
               submissionError instanceof Error
                 ? submissionError.message
-                : 'Document creation failed.',
+                : 'Document creation did not complete.',
             );
             setStatusMessage(
-              'Upload a PDF or text file. If PDF extraction is incomplete, you can paste corrective raw text below.',
+              'Upload a PDF or text file. If extraction needs support, paste source text below.',
             );
           }
         });
@@ -88,7 +88,7 @@ export function DocumentCreateForm() {
         <label className="space-y-2">
           <span className="text-sm font-medium text-ink">Document title</span>
           <input
-            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+            className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm shadow-sm outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-steel focus:ring-2 focus:ring-steel/20"
             name="title"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
@@ -99,7 +99,7 @@ export function DocumentCreateForm() {
         <label className="space-y-2">
           <span className="text-sm font-medium text-ink">Datasheet file</span>
           <input
-            className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm file:mr-3 file:rounded-full file:border-0 file:bg-slate-100 file:px-3 file:py-2"
+            className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm shadow-sm outline-none transition file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium hover:border-slate-400 focus:border-steel focus:ring-2 focus:ring-steel/20"
             name="file"
             type="file"
             accept=".pdf,.txt,.md,.csv,.json,text/plain,application/pdf"
@@ -108,24 +108,27 @@ export function DocumentCreateForm() {
         </label>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <p className="text-sm font-medium text-ink">Upload and extraction status</p>
+      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <p className="text-sm font-medium text-ink">Document intake status</p>
         <p className="mt-2 text-sm text-slate-600">{statusMessage}</p>
       </div>
 
       <label className="space-y-2">
         <span className="text-sm font-medium text-ink">
-          Optional pasted raw text
+          Optional source text
+        </span>
+        <span className="block text-xs text-slate-500">
+          Use this for extracted text, public snippets, or a sanitized datasheet excerpt.
         </span>
         <textarea
-          className="min-h-64 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+          className="min-h-64 w-full rounded-lg border border-slate-300 px-4 py-3 text-sm shadow-sm outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-steel focus:ring-2 focus:ring-steel/20"
           name="rawText"
           placeholder={sampleRawText}
         />
       </label>
 
       {error ? (
-        <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-900">
+        <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
           {error}
         </p>
       ) : null}
@@ -133,9 +136,9 @@ export function DocumentCreateForm() {
       <button
         type="submit"
         disabled={isPending}
-        className="inline-flex items-center rounded-full bg-ink px-4 py-2 text-sm font-medium text-white transition hover:bg-steel disabled:opacity-50"
+        className="inline-flex min-h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-white transition hover:bg-steel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-steel focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isPending ? 'Preparing review document...' : 'Create review document'}
+        {isPending ? 'Preparing document record...' : 'Create document record'}
       </button>
     </form>
   );

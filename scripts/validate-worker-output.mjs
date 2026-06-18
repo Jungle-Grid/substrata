@@ -190,7 +190,7 @@ assert(!payloadText.includes('sample logic'), 'User-facing output still contains
 assert(payload.memo_markdown.includes('# Draft ECCN Review Memo'), 'Memo is missing the expected title heading.');
 assert(!payload.memo_markdown.trim().startsWith('{'), 'Memo looks like raw JSON instead of Markdown.');
 assert(payload.memo_markdown.includes('## 2. Extracted Technical Facts'), 'Memo is missing the extracted-facts section heading.');
-assert(payload.memo_markdown.includes('## 3. Candidate ECCN Review Paths'), 'Memo is missing the candidate review paths section heading.');
+assert(payload.memo_markdown.includes('## 3. Recommended Review Paths'), 'Memo is missing the recommended review paths section heading.');
 assert(payload.memo_markdown.includes('Draft for expert review only'), 'Memo is missing the draft-only disclaimer.');
 
 const extractedFacts = new Set(payload.extracted_specs.map(extractedFactString));

@@ -3,85 +3,27 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 const workflowSteps = [
-  {
-    step: '01',
-    title: 'Upload datasheet',
-    description:
-      'Start with a semiconductor or advanced hardware datasheet, product brief, or technical appendix.',
-  },
-  {
-    step: '02',
-    title: 'Extract export-relevant specs',
-    description:
-      'Identify performance thresholds, interface rates, process node details, radiation tolerance, and other classification-relevant facts.',
-  },
-  {
-    step: '03',
-    title: 'Compare against CCL / EAR criteria',
-    description:
-      'Map extracted technical details against control text, thresholds, notes, and candidate control pathways.',
-  },
-  {
-    step: '04',
-    title: 'Generate review packet',
-    description:
-      'Produce candidate ECCNs, citation-backed reasoning, uncertainty flags, reviewer notes, and a memo draft for approval.',
-  },
+  ['01', 'Upload datasheet', 'Add a public datasheet, product brief, or extracted text file to the compliance workspace.'],
+  ['02', 'Extract technical facts', 'Normalize architecture, interfaces, memory, cryptography, performance, and packaging evidence.'],
+  ['03', 'Generate review paths', 'Compare source-grounded facts against Category 3, Category 5 Part 2, and broader comparison paths.'],
+  ['04', 'Draft memo', 'Prepare a classification memo draft with citations, uncertainty flags, and reviewer questions.'],
+  ['05', 'Human review', 'Route the evidence package through the human review queue with an audit trail.'],
 ];
 
-const features = [
-  'Datasheet parsing',
-  'Export-relevant spec extraction',
-  'ECCN candidate analysis',
-  'Citation-backed reasoning',
-  'Human review workflow',
-  'Memo generation',
-  'Audit trail',
-  'Team review history',
+const reviewRows = [
+  ['i.MX RT1170 crossover MCU datasheet', 'Facts extracted', 'Category 3 / Category 5 Part 2', 'Needs human review'],
+  ['ADC12DJ5200RF RF-sampling ADC', 'Review paths generated', '3A001 / 3A991', 'Memo drafted'],
+  ['Zynq UltraScale+ MPSoC overview', 'Memo drafted', 'Category 3 / Category 5 Part 2', 'Needs human review'],
 ];
 
-const audiences = [
-  'Export Control Managers',
-  'Global Trade Compliance Directors',
-  'Semiconductor operations teams',
-  'Hardware companies scaling international sales',
-  'Teams hiring foreign-national engineers',
-  'Compliance teams supporting engineering and sales',
+const facts = [
+  ['CPU architecture', 'Arm Cortex-M7 / Cortex-M4', 'Source snippet captured'],
+  ['Security functions', 'HAB, CAAM, OTFAD, PUF', 'Reviewer question open'],
+  ['High-speed I/O', 'Ethernet, USB, display/camera', 'Category 3 path'],
+  ['Cryptography', 'AES / PKHA / RNG indicators', 'Category 5 Part 2 path'],
 ];
 
-const differentiators = [
-  'Purpose-built for datasheet-to-ECCN review',
-  'Evidence-first, citation-backed outputs',
-  'Designed for human approval',
-  'Focused on semiconductor and advanced hardware workflows',
-  'Produces review packets, not vague answers',
-];
-
-function SectionTitle({
-  eyebrow,
-  title,
-  description,
-}: {
-  eyebrow: string;
-  title: string;
-  description?: string;
-}) {
-  return (
-    <div className="max-w-3xl">
-      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-700">
-        {eyebrow}
-      </p>
-      <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">
-        {title}
-      </h2>
-      {description ? (
-        <p className="mt-4 text-base leading-7 text-slate-600">{description}</p>
-      ) : null}
-    </div>
-  );
-}
-
-function CTAButton({
+function CTA({
   href,
   variant = 'primary',
   children,
@@ -90,558 +32,316 @@ function CTAButton({
   variant?: 'primary' | 'secondary';
   children: ReactNode;
 }) {
-  const styles =
+  const className =
     variant === 'primary'
-      ? 'bg-slate-950 text-white hover:bg-sky-800'
-      : 'border border-slate-300 bg-white text-slate-900 hover:border-sky-300 hover:bg-sky-50';
+      ? 'border-ink bg-ink text-white hover:bg-steel focus-visible:ring-steel'
+      : 'border-slate-300 bg-white text-ink hover:border-slate-400 hover:bg-slate-50 focus-visible:ring-slate-400';
 
   return (
     <Link
       href={href}
-      className={`inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-medium transition ${styles}`}
+      className={`inline-flex min-h-11 items-center justify-center rounded-lg border px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${className}`}
     >
       {children}
     </Link>
   );
 }
 
-function MetricChip({ label, value }: { label: string; value: string }) {
+function Eyebrow({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white/85 px-4 py-3 shadow-sm backdrop-blur">
-      <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{label}</p>
-      <p className="mt-2 text-lg font-semibold text-slate-950">{value}</p>
+    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-steel">
+      {children}
+    </p>
+  );
+}
+
+function SectionHeader({
+  eyebrow,
+  title,
+  body,
+}: {
+  eyebrow: string;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="max-w-3xl">
+      <Eyebrow>{eyebrow}</Eyebrow>
+      <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink md:text-4xl">
+        {title}
+      </h2>
+      <p className="mt-4 text-base leading-7 text-slate-600">{body}</p>
     </div>
+  );
+}
+
+function StatusPill({ children }: { children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900">
+      {children}
+    </span>
   );
 }
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(15,23,42,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.04)_1px,transparent_1px)] bg-[size:48px_48px]" />
-        <div className="absolute left-0 top-0 h-[28rem] w-[28rem] rounded-full bg-sky-300/20 blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-[24rem] w-[24rem] rounded-full bg-blue-400/10 blur-3xl" />
-      </div>
-
-      <div className="mx-auto max-w-7xl px-6 py-6 md:px-10">
-        <header className="sticky top-4 z-20 rounded-[28px] border border-white/70 bg-white/80 px-5 py-4 shadow-panel backdrop-blur">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <Link href="/" className="flex items-center gap-3">
-              <Image
-                src="/brand/substrata-mark.png"
-                alt="Substrata mark"
-                width={44}
-                height={44}
-                className="h-11 w-11"
-                priority
-              />
-              <div>
-                <p className="text-lg font-semibold tracking-tight text-slate-950">
-                  Substrata
-                </p>
-                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">
-                  Export Compliance Intelligence
-                </p>
-              </div>
-            </Link>
-
-            <nav className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
-              <Link className="transition hover:text-slate-950" href="#workflow">
-                Workflow
-              </Link>
-              <Link className="transition hover:text-slate-950" href="#product-preview">
-                Product
-              </Link>
-              <Link className="transition hover:text-slate-950" href="#differentiation">
-                Why Substrata
-              </Link>
-              <Link className="transition hover:text-slate-950" href="#early-access">
-                Early access
-              </Link>
-            </nav>
-          </div>
-        </header>
-
-        <section className="grid gap-10 pb-20 pt-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
-          <div>
-            <div className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-xs font-medium uppercase tracking-[0.28em] text-sky-900">
-              Datasheet-to-ECCN review assistant
+    <main className="min-h-screen bg-[#f7f8fa] text-ink">
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-4 md:flex-row md:items-center md:justify-between md:px-8">
+          <Link href="/" className="flex items-center gap-3">
+            <Image
+              src="/brand/substrata-mark.png"
+              alt="Substrata mark"
+              width={36}
+              height={36}
+              className="h-9 w-9"
+              priority
+            />
+            <div>
+              <p className="text-base font-semibold tracking-tight">Substrata</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                Compliance workspace
+              </p>
             </div>
-            <h1 className="mt-7 max-w-4xl text-5xl font-semibold tracking-tight text-slate-950 md:text-7xl">
-              Classify hardware exports from datasheets, faster.
+          </Link>
+          <nav className="flex flex-wrap items-center gap-4 text-sm font-medium text-slate-600">
+            <Link className="hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-steel" href="#workflow">
+              Workflow
+            </Link>
+            <Link className="hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-steel" href="#workspace">
+              Workspace
+            </Link>
+            <Link className="hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-steel" href="#trust">
+              Evidence
+            </Link>
+            <CTA href="/documents/new">Upload a datasheet</CTA>
+          </nav>
+        </div>
+      </header>
+
+      <section className="border-b border-slate-200 bg-white">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 md:px-8 lg:grid-cols-[0.95fr_1.05fr] lg:py-20">
+          <div>
+            <Eyebrow>ECCN review assistant for hardware teams</Eyebrow>
+            <h1 className="mt-5 max-w-4xl text-4xl font-semibold tracking-tight text-ink md:text-6xl">
+              Generate cited ECCN review memos from semiconductor datasheets.
             </h1>
-            <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-600 md:text-xl">
-              Substrata reviews semiconductor and advanced hardware datasheets,
-              extracts export-relevant specs, maps them to ECCN candidates with
-              citations, and generates a review-ready classification memo for
-              human approval.
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
+              Substrata extracts technical facts from datasheets, recommends export-control review paths, and prepares human-review-ready memo drafts with evidence, citations, uncertainty flags, and audit-ready reasoning.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <CTAButton href="/dashboard">Go to Dashboard</CTAButton>
-              <CTAButton href="/documents/new" variant="secondary">
-                Upload Datasheet for Review
-              </CTAButton>
-              <CTAButton href="#workflow" variant="secondary">
-                See example workflow
-              </CTAButton>
+              <CTA href="/documents/new">Upload a datasheet</CTA>
+              <CTA href="/dashboard" variant="secondary">Open compliance workspace</CTA>
             </div>
-            <p className="mt-5 text-sm text-slate-500">
-              Built for export control, trade compliance, and global operations
-              teams.
-            </p>
-
-            <div className="mt-10 grid gap-3 sm:grid-cols-3">
-              <MetricChip label="Primary input" value="Datasheets and spec sheets" />
-              <MetricChip label="Primary output" value="Draft review packet" />
-              <MetricChip label="Approval model" value="Human reviewer required" />
+            <div className="mt-8 grid gap-3 text-sm text-slate-600 sm:grid-cols-3">
+              <div className="border-l-2 border-steel pl-3">
+                <p className="font-semibold text-ink">For</p>
+                <p>Export control and trade compliance teams</p>
+              </div>
+              <div className="border-l-2 border-steel pl-3">
+                <p className="font-semibold text-ink">Input</p>
+                <p>Datasheets, product briefs, extracted text</p>
+              </div>
+              <div className="border-l-2 border-steel pl-3">
+                <p className="font-semibold text-ink">Output</p>
+                <p>Classification memo draft for review</p>
+              </div>
             </div>
           </div>
 
-          <div className="relative">
-            <div className="absolute -left-6 -top-6 hidden h-32 w-32 rounded-full border border-sky-200 bg-sky-100/60 blur-2xl md:block" />
-            <div className="relative overflow-hidden rounded-[32px] border border-slate-200 bg-slate-950 p-5 shadow-[0_30px_100px_rgba(15,23,42,0.22)]">
-              <div className="mb-4 flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+          <div className="self-start rounded-xl border border-slate-200 bg-slate-50 shadow-sm">
+            <div className="border-b border-slate-200 bg-white px-5 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
-                    Review Run
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-white">
-                    ORION-X7 Edge Accelerator Datasheet
-                  </p>
+                  <p className="text-sm font-semibold text-ink">Human review queue</p>
+                  <p className="mt-1 text-xs text-slate-500">Sample/dev data shown for product context</p>
                 </div>
-                <span className="rounded-full bg-amber-400/15 px-3 py-1 text-xs font-medium text-amber-200">
-                  Needs reviewer confirmation
-                </span>
-              </div>
-
-              <div className="grid gap-4">
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-white">
-                      Extracted export-relevant specs
-                    </p>
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                      6 signals
-                    </p>
-                  </div>
-                  <div className="mt-4 space-y-3 text-sm text-slate-200">
-                    <div className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2">
-                      <span>Process node</span>
-                      <span className="font-medium text-sky-300">7 nm</span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2">
-                      <span>SerDes throughput</span>
-                      <span className="font-medium text-sky-300">112 Gbps</span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2">
-                      <span>Radiation tolerance</span>
-                      <span className="font-medium text-amber-200">Present</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-sm font-medium text-white">Reasoning draft</p>
-                  <p className="mt-3 text-sm leading-7 text-slate-300">
-                    Candidate ECCN <span className="font-semibold text-white">3A001</span>{' '}
-                    identified due to performance-oriented semiconductor
-                    characteristics. Review should confirm whether extracted
-                    throughput and packaging details map to a narrower control.
-                  </p>
-                  <div className="mt-4 rounded-xl border border-sky-400/20 bg-sky-400/10 p-3 text-sm text-sky-100">
-                    Relevant citation: Category 3 control text review required for
-                    semiconductor performance thresholds and related technical notes.
-                  </div>
-                </div>
+                <StatusPill>Needs human review</StatusPill>
               </div>
             </div>
-          </div>
-        </section>
-
-        <section className="border-y border-slate-200/80 py-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-slate-500">
-              Built for technical export classification reviews
-            </p>
-            <div className="flex flex-wrap gap-3 text-sm text-slate-600">
-              <span className="rounded-full border border-slate-200 bg-white px-4 py-2">
-                Semiconductor
-              </span>
-              <span className="rounded-full border border-slate-200 bg-white px-4 py-2">
-                Advanced electronics
-              </span>
-              <span className="rounded-full border border-slate-200 bg-white px-4 py-2">
-                Aerospace-adjacent hardware
-              </span>
-              <span className="rounded-full border border-slate-200 bg-white px-4 py-2">
-                Robotics and edge compute
-              </span>
+            <div className="overflow-hidden">
+              <table className="hidden w-full border-collapse text-left text-sm md:table">
+                <thead className="bg-slate-100 text-xs uppercase tracking-[0.14em] text-slate-500">
+                  <tr>
+                    <th className="px-5 py-3 font-semibold">Document</th>
+                    <th className="px-5 py-3 font-semibold">Memo status</th>
+                    <th className="px-5 py-3 font-semibold">Recommended review paths</th>
+                    <th className="px-5 py-3 font-semibold">Queue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 bg-white">
+                  {reviewRows.map(([document, memoStatus, paths, queue]) => (
+                    <tr key={document} className="hover:bg-slate-50">
+                      <td className="px-5 py-4 font-medium text-ink">{document}</td>
+                      <td className="px-5 py-4 text-slate-600">{memoStatus}</td>
+                      <td className="px-5 py-4 text-slate-600">{paths}</td>
+                      <td className="px-5 py-4">
+                        <StatusPill>{queue}</StatusPill>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="divide-y divide-slate-200 bg-white md:hidden">
+                {reviewRows.map(([document, memoStatus, paths, queue]) => (
+                  <div key={document} className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="font-semibold text-ink">{document}</p>
+                      <StatusPill>{queue}</StatusPill>
+                    </div>
+                    <dl className="mt-3 grid gap-2 text-sm">
+                      <div>
+                        <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Memo status</dt>
+                        <dd className="mt-1 text-slate-700">{memoStatus}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Recommended review paths</dt>
+                        <dd className="mt-1 text-slate-700">{paths}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="grid gap-px border-t border-slate-200 bg-slate-200 md:grid-cols-3">
+              {['Evidence-backed recommendations', 'Cited review paths', 'Audit trail preserved'].map((item) => (
+                <div key={item} className="bg-white px-5 py-4 text-sm font-medium text-slate-700">
+                  {item}
+                </div>
+              ))}
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section className="grid gap-8 py-20 lg:grid-cols-[0.85fr_1.15fr]">
-          <SectionTitle
-            eyebrow="The Problem"
-            title="ECCN reviews should not start from a blank memo."
-            description="Hardware compliance teams need faster first-pass analysis without sacrificing evidence quality, traceability, or human judgment."
-          />
-          <div className="grid gap-4">
-            {[
-              'Datasheets contain export-relevant technical details, but reviewers still manually hunt for specs.',
-              'ECCN reasoning is scattered across rules, notes, thresholds, and citations.',
-              'Classification memos need evidence, traceability, and human judgment.',
-              'Growing hardware companies need faster reviews without losing auditability.',
-            ].map((item) => (
-              <div
-                key={item}
-                className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <p className="text-base leading-7 text-slate-700">{item}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section id="workflow" className="py-20">
-          <SectionTitle
+      <section id="workflow" className="border-b border-slate-200 bg-[#f7f8fa]">
+        <div className="mx-auto max-w-7xl px-5 py-16 md:px-8">
+          <SectionHeader
             eyebrow="Workflow"
-            title="From datasheet to review packet."
-            description="Substrata is built around the evidence chain compliance teams actually need: source document, extracted technical facts, candidate classifications, supporting citations, and a memo draft ready for review."
+            title="From datasheet to human-review-ready memo."
+            body="The workflow follows the evidence chain reviewers need: source document, extracted technical facts, recommended review paths, citations, uncertainty flags, reviewer questions, and a memo draft."
           />
-
-          <div className="mt-10 grid gap-4 xl:grid-cols-4">
-            {workflowSteps.map((item) => (
+          <div className="mt-10 grid gap-0 overflow-hidden rounded-xl border border-slate-200 bg-white lg:grid-cols-5">
+            {workflowSteps.map(([step, title, description], index) => (
               <div
-                key={item.step}
-                className="group rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-sky-200 hover:shadow-lg"
+                key={step}
+                className={`p-5 ${index === 0 ? '' : 'border-t border-slate-200 lg:border-l lg:border-t-0'}`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold uppercase tracking-[0.24em] text-sky-700">
-                    {item.step}
-                  </span>
-                  <span className="h-3 w-3 rounded-full bg-sky-500 shadow-[0_0_0_6px_rgba(14,165,233,0.12)]" />
-                </div>
-                <h3 className="mt-6 text-xl font-semibold text-slate-950">
-                  {item.title}
-                </h3>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
-                  {item.description}
-                </p>
+                <p className="font-mono text-xs font-semibold text-steel">{step}</p>
+                <h3 className="mt-4 text-base font-semibold text-ink">{title}</h3>
+                <p className="mt-3 text-sm leading-6 text-slate-600">{description}</p>
               </div>
             ))}
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section
-          id="product-preview"
-          className="grid gap-8 py-20 lg:grid-cols-[0.78fr_1.22fr]"
-        >
-          <div>
-            <SectionTitle
-              eyebrow="Product Preview"
-              title="A review surface built for trade compliance teams."
-              description="The output is not a generic answer. It is a structured packet designed to help a reviewer inspect the source facts, evaluate candidate ECCNs, and edit a memo draft before approval."
-            />
-            <div className="mt-6 inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 shadow-sm">
+      <section id="workspace" className="border-b border-slate-200 bg-white">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 md:px-8 lg:grid-cols-[0.85fr_1.15fr]">
+          <SectionHeader
+            eyebrow="Compliance workspace"
+            title="Dense review surfaces for serious classification work."
+            body="Substrata is organized around documents, review runs, extracted facts, recommended review paths, memo drafts, human review status, and audit history."
+          />
+          <div className="rounded-xl border border-slate-200">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <p className="text-sm font-semibold text-ink">Run detail: i.MX RT1170 crossover MCU</p>
+              <p className="mt-1 text-xs text-slate-500">Evidence package prepared for reviewer signoff</p>
+            </div>
+            <div className="grid gap-px bg-slate-200 md:grid-cols-[0.9fr_1.1fr]">
+              <div className="bg-slate-50 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Extracted technical facts</p>
+                <div className="mt-4 space-y-3">
+                  {facts.map(([name, value, note]) => (
+                    <div key={name} className="rounded-lg border border-slate-200 bg-white p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm font-semibold text-ink">{name}</p>
+                        <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">{note}</span>
+                      </div>
+                      <p className="mt-2 text-sm text-slate-600">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-white p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">ECCN review recommendation</p>
+                <div className="mt-4 space-y-4">
+                  <div className="rounded-lg border border-steel/25 bg-blue-50/60 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-semibold text-ink">Category 3 electronics / MCU / processor paths</p>
+                      <span className="text-xs font-medium text-steel">medium confidence</span>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-slate-700">
+                      Recommended based on processor architecture, memory/cache, interfaces, and device-family evidence extracted from the datasheet.
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <p className="font-semibold text-ink">Category 5 Part 2 security/cryptography paths</p>
+                    <p className="mt-3 text-sm leading-6 text-slate-700">
+                      Reviewer should confirm security functionality, algorithm availability, and mass-market/license-exception treatment.
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 p-4">
+                    <p className="text-sm font-semibold text-ink">Reviewer questions</p>
+                    <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-600">
+                      <li>Which ordering code and package should anchor review signoff?</li>
+                      <li>Are cryptographic functions user-accessible or limited to boot/storage protection?</li>
+                      <li>Which current CCL thresholds should be mapped before approval?</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="trust" className="bg-[#f7f8fa]">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 md:px-8 lg:grid-cols-[1fr_0.8fr]">
+          <SectionHeader
+            eyebrow="Trust model"
+            title="Built around evidence, citations, uncertainty, and human review."
+            body="Substrata gives reviewers a better starting point: source-grounded facts, cited review paths, missing information, and a memo draft that stays tied to the document record."
+          />
+          <div className="space-y-4">
+            {[
+              ['Traceable recommendations', 'Every recommendation is paired with extracted facts and reviewer questions.'],
+              ['Audit-ready reasoning', 'Runs retain artifacts, memo drafts, citations, review status, and notes.'],
+              ['Human review queue', 'Approval remains an operational workflow owned by the compliance team.'],
+            ].map(([title, body]) => (
+              <div key={title} className="rounded-xl border border-slate-200 bg-white p-5">
+                <h3 className="font-semibold text-ink">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
+              </div>
+            ))}
+            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-5">
               <Image
                 src="/brand/jungle-grid-logo.png"
                 alt="Jungle Grid logo"
-                width={20}
-                height={20}
-                className="h-5 w-5 object-contain"
+                width={28}
+                height={28}
+                className="h-7 w-7 object-contain"
               />
-              <span>
-                Document analysis and review workflows powered by Jungle Grid.
-              </span>
+              <p className="text-sm text-slate-600">
+                Powered by Jungle Grid for managed document analysis and review execution.
+              </p>
             </div>
           </div>
+        </div>
+      </section>
 
-          <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_24px_100px_rgba(15,23,42,0.12)]">
-            <div className="grid gap-px bg-slate-200 lg:grid-cols-[0.92fr_1.08fr]">
-              <div className="space-y-4 bg-slate-50 p-5">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-slate-950">
-                      Extracted specs
-                    </p>
-                    <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                      Normalized
-                    </span>
-                  </div>
-                  <div className="mt-4 space-y-3 text-sm">
-                    {[
-                      ['Process node', '7 nm'],
-                      ['SerDes throughput', '112 Gbps'],
-                      ['Peak INT8 throughput', '180 TOPS'],
-                      ['Radiation-tolerant packaging', 'Referenced'],
-                    ].map(([label, value]) => (
-                      <div
-                        key={label}
-                        className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2"
-                      >
-                        <span className="text-slate-600">{label}</span>
-                        <span className="font-medium text-slate-950">{value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="text-sm font-semibold text-slate-950">
-                    Human reviewer notes
-                  </p>
-                  <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm leading-7 text-slate-600">
-                    Confirm whether the device is marketed solely for commercial
-                    edge inference or whether any space / radiation-resilient
-                    deployment claims trigger narrower review.
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4 bg-white p-5">
-                <div className="rounded-2xl border border-slate-200 p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-slate-950">
-                      Candidate ECCNs
-                    </p>
-                    <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-900">
-                      Needs reviewer confirmation
-                    </span>
-                  </div>
-                  <div className="mt-4 space-y-3">
-                    <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
-                      <div className="flex items-center justify-between">
-                        <p className="text-lg font-semibold text-slate-950">3A001</p>
-                        <span className="text-sm font-medium text-sky-900">
-                          Confidence: medium
-                        </span>
-                      </div>
-                      <p className="mt-3 text-sm leading-7 text-slate-700">
-                        Candidate ECCN based on performance-oriented semiconductor
-                        characteristics and technical thresholds requiring closer
-                        Category 3 review.
-                      </p>
-                      <div className="mt-4 space-y-2">
-                        <div className="rounded-xl bg-white px-3 py-3 text-sm text-slate-700">
-                          Relevant citation: Category 3 control text placeholder
-                          reference for semiconductor performance review.
-                        </div>
-                        <div className="rounded-xl bg-white px-3 py-3 text-sm text-slate-700">
-                          Relevant citation: Datasheet statement referencing 112
-                          Gbps PAM4 SerDes support.
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="flex items-center justify-between">
-                        <p className="text-lg font-semibold text-slate-950">3A991</p>
-                        <span className="text-sm font-medium text-slate-600">
-                          Fallback candidate
-                        </span>
-                      </div>
-                      <p className="mt-3 text-sm leading-7 text-slate-700">
-                        Retained as a lower-confidence fallback if further review
-                        does not support a narrower controlled category.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-slate-950">
-                      Memo preview
-                    </p>
-                    <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                      Reasoning draft
-                    </span>
-                  </div>
-                  <div className="mt-4 rounded-2xl bg-slate-950 p-4 text-sm leading-7 text-slate-200">
-                    <p className="font-medium text-white">Classification memo draft</p>
-                    <p className="mt-3">
-                      The reviewed datasheet describes an advanced semiconductor
-                      device fabricated on a 7 nm process node with 112 Gbps PAM4
-                      SerDes support and a stated radiation-tolerant packaging
-                      option. Based on the extracted technical factors, Substrata
-                      suggests 3A001 as a candidate ECCN for human review.
-                    </p>
-                    <p className="mt-3 text-amber-200">
-                      This memo is a draft review artifact only and requires
-                      compliance approval before use.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
+      <footer className="border-t border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-8 text-sm text-slate-500 md:flex-row md:items-center md:justify-between md:px-8">
+          <p className="font-medium text-ink">Substrata</p>
+          <div className="flex flex-wrap gap-4">
+            <Link href="/dashboard" className="hover:text-ink">Dashboard</Link>
+            <Link href="/documents/new" className="hover:text-ink">Upload a datasheet</Link>
+            <a href="mailto:founders@substrata.ai?subject=Substrata%20review" className="hover:text-ink">
+              Contact
+            </a>
           </div>
-        </section>
-
-        <section className="py-20">
-          <SectionTitle
-            eyebrow="Capabilities"
-            title="Purpose-built components for export classification review."
-          />
-          <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {features.map((feature) => (
-              <div
-                key={feature}
-                className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-md"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-base font-semibold text-slate-950">{feature}</p>
-                  <span className="mt-1 h-2.5 w-2.5 rounded-full bg-sky-500" />
-                </div>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
-                  {feature === 'Datasheet parsing' &&
-                    'Turn hardware documents into structured review inputs without starting from a blank page.'}
-                  {feature === 'Export-relevant spec extraction' &&
-                    'Surface the parameters reviewers actually need to inspect for ECCN analysis.'}
-                  {feature === 'ECCN candidate analysis' &&
-                    'Draft candidate pathways without implying final legal certainty.'}
-                  {feature === 'Citation-backed reasoning' &&
-                    'Tie each candidate to supporting source snippets and relevant control text.'}
-                  {feature === 'Human review workflow' &&
-                    'Keep approval with qualified reviewers and make uncertainty visible.'}
-                  {feature === 'Memo generation' &&
-                    'Create a review-ready memo draft that can be edited and approved internally.'}
-                  {feature === 'Audit trail' &&
-                    'Preserve run history, generated outputs, and reviewer actions for traceability.'}
-                  {feature === 'Team review history' &&
-                    'Maintain continuity across compliance, operations, engineering, and sales support.'}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="grid gap-8 py-20 lg:grid-cols-[0.85fr_1.15fr]">
-          <SectionTitle
-            eyebrow="Who It Is For"
-            title="Built for teams that ship controlled technology globally."
-            description="Substrata is designed for organizations that need disciplined, evidence-first technical classification workflows before products move across borders, into programs, or into engineering environments."
-          />
-          <div className="grid gap-4 md:grid-cols-2">
-            {audiences.map((audience) => (
-              <div
-                key={audience}
-                className="rounded-[24px] border border-slate-200 bg-white px-5 py-4 shadow-sm"
-              >
-                <p className="text-sm font-medium text-slate-800">{audience}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section id="differentiation" className="py-20">
-          <SectionTitle
-            eyebrow="Differentiation"
-            title="Not a chatbot. Not a generic compliance tool."
-          />
-          <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            {differentiators.map((point) => (
-              <div
-                key={point}
-                className="rounded-[24px] border border-slate-200 bg-slate-950 p-5 text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
-              >
-                <p className="text-base font-semibold">{point}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="py-12">
-          <div className="rounded-[32px] border border-amber-200 bg-amber-50 px-6 py-5 text-sm leading-7 text-amber-950 shadow-sm">
-            Substrata is a review assistant. It does not provide legal advice or
-            replace qualified export control counsel. Final classifications should
-            be reviewed and approved by authorized compliance professionals.
-          </div>
-        </section>
-
-        <section id="early-access" className="py-20">
-          <div className="rounded-[36px] border border-slate-200 bg-slate-950 px-6 py-10 shadow-[0_30px_100px_rgba(15,23,42,0.24)] md:px-10">
-            <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-300">
-                  Early Access
-                </p>
-                <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white md:text-4xl">
-                  Review your first datasheet with Substrata.
-                </h2>
-                <p className="mt-4 max-w-2xl text-base leading-8 text-slate-300">
-                  We are working with early semiconductor and advanced hardware
-                  teams to shape the product around real classification workflows.
-                </p>
-              </div>
-              <div className="rounded-[28px] border border-white/10 bg-white/5 p-5">
-                <div className="flex items-center gap-3">
-                  <Image
-                    src="/brand/substrata-mark.png"
-                    alt="Substrata mark"
-                    width={44}
-                    height={44}
-                    className="h-11 w-11"
-                  />
-                  <div>
-                    <p className="text-sm font-semibold text-white">
-                      Request early access
-                    </p>
-                    <p className="text-sm text-slate-400">
-                      Join the early design partner queue.
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <CTAButton href="mailto:founders@substrata.ai?subject=Substrata%20Early%20Access">
-                    Request early access
-                  </CTAButton>
-                  <CTAButton href="#workflow" variant="secondary">
-                    See example workflow
-                  </CTAButton>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <footer className="border-t border-slate-200 py-10">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-3">
-              <Image
-                src="/brand/substrata-mark.png"
-                alt="Substrata mark"
-                width={40}
-                height={40}
-                className="h-10 w-10"
-              />
-              <div>
-                <p className="font-semibold text-slate-950">Substrata</p>
-                <p className="text-sm text-slate-500">
-                  Export compliance intelligence for hardware teams.
-                </p>
-              </div>
-            </div>
-            <p className="max-w-3xl text-sm leading-7 text-slate-500">
-              Evidence-first classification support for semiconductor and advanced
-              hardware organizations. Draft outputs require human review and
-              approval.
-            </p>
-          </div>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <div className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 shadow-sm">
-              <Image
-                src="/brand/jungle-grid-logo.png"
-                alt="Jungle Grid logo"
-                width={20}
-                height={20}
-                className="h-5 w-5 object-contain"
-              />
-              <span className="font-medium">Powered by Jungle Grid</span>
-            </div>
-          </div>
-        </footer>
-      </div>
+        </div>
+      </footer>
     </main>
   );
 }

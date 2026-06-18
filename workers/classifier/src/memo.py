@@ -7,6 +7,32 @@ from labels import display_name_for_spec_name
 from schemas import ECCNCandidate, ExtractedSpec
 
 
+def _profile_value(specs: list[ExtractedSpec]) -> str:
+    for spec in specs:
+        if spec.name == "product_profile":
+            return spec.value
+    return ""
+
+
+def _recommended_path_summary(candidates: list[ECCNCandidate]) -> str:
+    titles: list[str] = []
+    for candidate in candidates:
+        title = candidate.title
+        for prefix in (
+            "Category 3 electronics / ",
+            "Category 5 Part 2 ",
+        ):
+            title = title.replace(prefix, prefix)
+        if candidate.eccn == "Category 3" and "Category 3" not in title:
+            title = f"Category 3 {title}"
+        elif candidate.eccn == "Category 5 Part 2" and "Category 5 Part 2" not in title:
+            title = f"Category 5 Part 2 {title}"
+        elif candidate.eccn not in {"Category 3", "Category 5 Part 2"} and candidate.eccn not in title:
+            title = f"{candidate.eccn} {title}"
+        titles.append(title)
+    return ", ".join(titles[:3])
+
+
 def generate_memo(
     document_id: str,
     document_title: str,
@@ -22,7 +48,12 @@ def generate_memo(
     profile_summary_lines: list[str] = []
     if spec_by_name.get("product_profile"):
         profile_value = spec_by_name["product_profile"].value
-        display_profile = "FPGA / programmable-logic SoC" if profile_value == "fpga_programmable_logic_soc" else profile_value
+        if profile_value == "fpga_programmable_logic_soc":
+            display_profile = "FPGA / programmable-logic SoC"
+        elif profile_value == "mcu_processor_soc":
+            display_profile = "MCU/Processor/SoC"
+        else:
+            display_profile = profile_value
         profile_summary_lines.append(f"- Detected product profile: {display_profile}")
     if spec_by_name.get("profile_confidence"):
         profile_summary_lines.append(f"- Profile confidence: {spec_by_name['profile_confidence'].value}")
@@ -105,25 +136,43 @@ def generate_memo(
             "Are there omitted security, environmental, or end-use details that could change the review path?",
         ]
 
-    conclusion_lines = [
-        "This draft does not make a final ECCN determination.",
-        "The evidence supports reviewing Category 3 electronics entries before considering broader fallback classifications." if any(candidate.eccn in {"3A001", "Category 3"} for candidate in candidates) else "The current evidence does not close the review path and still requires qualified expert analysis.",
-        "A qualified expert should confirm the applicable threshold mapping, any specialized design intent, and the final ECCN.",
-    ]
+    has_category_3 = any(candidate.eccn in {"3A001", "Category 3"} for candidate in candidates)
+    has_category_5 = any(candidate.eccn == "Category 5 Part 2" for candidate in candidates)
+    is_family_overview = any(spec.name == "is_family_overview" and spec.value.lower() == "true" for spec in specs)
+    profile_value = _profile_value(specs)
+    if has_category_3 and has_category_5:
+        if profile_value == "mcu_processor_soc":
+            conclusion_lines = [
+                "Substrata recommends reviewing Category 3 electronics / MCU / processor paths and Category 5 Part 2 security/cryptography paths based on the extracted datasheet evidence.",
+                "A qualified reviewer should confirm the applicable ordering code, security functionality, algorithm availability, mass-market/license-exception treatment, and current CCL threshold mapping.",
+            ]
+        else:
+            conclusion_lines = [
+                "Substrata recommends reviewing Category 3 electronics / programmable-logic / SoC paths and Category 5 Part 2 security/cryptography paths based on the extracted datasheet evidence.",
+                "Because this is a family overview, a qualified reviewer should confirm the exact ordering code, speed grade, package, security functionality, and applicable CCL threshold mapping."
+                if is_family_overview
+                else "A qualified reviewer should confirm the exact device variant, security functionality, and applicable CCL threshold mapping.",
+            ]
+    else:
+        recommended_paths = _recommended_path_summary(candidates)
+        conclusion_lines = [
+            f"Substrata recommends reviewing {recommended_paths or 'the extracted technical evidence'} based on the extracted datasheet evidence.",
+            "A qualified reviewer should confirm the applicable threshold mapping, specialized design intent, missing information, and current CCL mapping.",
+        ]
 
     return f"""# Draft ECCN Review Memo — {document_title}
 
 ## 1. Document Summary
 - Title: {document_title}
 - Document ID: {document_id}
-- File name: {document_metadata.get("fileName", "Unknown")}
+- File name: {document_metadata.get("fileName", "Not recorded")}
 - Generated timestamp: {generated_at}
-{chr(10).join(profile_summary_lines) + chr(10) if profile_summary_lines else ""}- Disclaimer: Draft for expert review only — not a final ECCN determination.
+{chr(10).join(profile_summary_lines) + chr(10) if profile_summary_lines else ""}- Disclaimer: Draft for expert review only.
 
 ## 2. Extracted Technical Facts
 {chr(10).join(fact_sections) if fact_sections else "- No technical facts were extracted from the provided datasheet text."}
 
-## 3. Candidate ECCN Review Paths
+## 3. Recommended Review Paths
 {chr(10).join(candidate_sections)}
 
 ## 4. Key Uncertainties
@@ -132,7 +181,7 @@ def generate_memo(
 ## 5. Reviewer Questions
 {chr(10).join(f"- {question}" for question in reviewer_questions)}
 
-## 6. Draft Conclusion
+## 6. ECCN Review Recommendation
 {chr(10).join(f"- {line}" for line in conclusion_lines)}
 
 ## 7. Review State

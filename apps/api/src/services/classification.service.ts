@@ -117,6 +117,7 @@ export async function createClassificationRun(input: {
         extractedSpecCount: workerOutput.extractedSpecs.length,
         extractedSpecNames: workerOutput.extractedSpecs.map((spec) => spec.name),
         candidateECCNs: workerOutput.eccnCandidates.map((candidate) => candidate.eccn),
+        runMetadata: workerOutput.runMetadata,
       });
     }
 
@@ -243,7 +244,7 @@ export async function createClassificationRun(input: {
     return hydratedRun;
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : 'Classification run failed.';
+      error instanceof Error ? error.message : 'Classification run did not complete.';
 
     await prisma.classificationRun.update({
       where: { id: run.id },

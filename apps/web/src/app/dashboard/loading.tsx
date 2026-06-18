@@ -2,13 +2,12 @@ import { Panel, Shell } from '../../components/ui';
 
 export default function LoadingDashboard() {
   return (
-    <Shell eyebrow="Operations Console" title="Loading dashboard...">
+    <Shell eyebrow="Compliance workspace" title="Loading review queue...">
       <Panel>
         <p className="text-sm text-slate-600">
-          Fetching documents, runs, and review status from the local API.
+          Fetching documents, review runs, memo status, and human review queue.
         </p>
       </Panel>
     </Shell>
   );
 }
-

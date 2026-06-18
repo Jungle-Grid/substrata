@@ -12,6 +12,21 @@ import { getLocalStorageRoot, workerEntryPoint } from '../lib/paths';
 
 const execFileAsync = promisify(execFile);
 
+function logWorkerStderr(documentId: string, stderr?: string) {
+  const trimmed = stderr?.trim();
+  if (!trimmed) {
+    return;
+  }
+
+  console.log('Classification worker diagnostic log', {
+    documentId,
+    stderr: trimmed
+      .split('\n')
+      .filter(Boolean)
+      .slice(-80),
+  });
+}
+
 function mapCliOutput(output: WorkerCliOutput): WorkerOutput {
   return {
     documentId: output.document_id,
@@ -95,15 +110,24 @@ export async function runLocalWorker(input: {
   );
 
   try {
-    const { stdout } = await execFileAsync('python3', [workerEntryPoint, payloadPath], {
+    const { stdout, stderr } = await execFileAsync('python3', [workerEntryPoint, payloadPath], {
       maxBuffer: 1024 * 1024 * 4,
     });
+    logWorkerStderr(input.documentId, stderr);
 
     const parsed = workerCliOutputSchema.parse(JSON.parse(stdout));
     return mapCliOutput(parsed);
   } catch (error) {
+    const stderr =
+      typeof error === 'object' &&
+      error !== null &&
+      'stderr' in error &&
+      typeof error.stderr === 'string'
+        ? error.stderr
+        : undefined;
+    logWorkerStderr(input.documentId, stderr);
     const message =
-      error instanceof Error ? error.message : 'Local worker execution failed.';
-    throw new HttpError(500, 'Classification worker failed.', { message });
+      error instanceof Error ? error.message : 'Local worker execution did not complete.';
+    throw new HttpError(500, 'Classification worker did not complete.', { message });
   }
 }

@@ -14,7 +14,7 @@ export function SampleDatasheetButton() {
       <button
         type="button"
         disabled={isPending}
-        className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-ink transition hover:border-steel disabled:opacity-50"
+        className="inline-flex min-h-10 items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-ink transition hover:border-steel hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-steel focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         onClick={() => {
           setError(null);
           startTransition(async () => {
@@ -25,20 +25,20 @@ export function SampleDatasheetButton() {
               setError(
                 creationError instanceof Error
                   ? creationError.message
-                  : 'Sample datasheet creation failed.',
+                  : 'Sample datasheet creation did not complete.',
               );
             }
           });
         }}
       >
-        {isPending ? 'Preparing sample datasheet...' : 'Try sample datasheet'}
+        {isPending ? 'Preparing sample review...' : 'Run sample review'}
       </button>
       <p className="text-xs leading-5 text-slate-500">
         Uses a bundled public/sample semiconductor datasheet text file for demo
         purposes.
       </p>
       {error ? (
-        <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-900">
+        <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
           {error}
         </p>
       ) : null}

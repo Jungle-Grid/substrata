@@ -11,14 +11,13 @@ export function StartClassificationButton({ documentId }: { documentId: string }
 
   return (
     <div className="space-y-3">
-      <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-950">
-        For early validation, please use public datasheets only. Do not upload
-        confidential or proprietary documents.
+      <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-950">
+        Early validation workspace: use public datasheets or sanitized technical text.
       </p>
       <button
         type="button"
         disabled={isPending}
-        className="inline-flex items-center rounded-full bg-ink px-4 py-2 text-sm font-medium text-white transition hover:bg-steel disabled:opacity-50"
+        className="inline-flex min-h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-white transition hover:bg-steel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-steel focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         onClick={() => {
           setError(null);
           startTransition(async () => {
@@ -29,16 +28,16 @@ export function StartClassificationButton({ documentId }: { documentId: string }
               setError(
                 runError instanceof Error
                   ? runError.message
-                  : 'Classification run failed.',
+                  : 'Review run did not complete.',
               );
             }
           });
         }}
       >
-        {isPending ? 'Generating draft memo...' : 'Start classification run'}
+        {isPending ? 'Generating memo draft...' : 'Start review run'}
       </button>
       {error ? (
-        <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-900">
+        <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
           {error}
         </p>
       ) : null}

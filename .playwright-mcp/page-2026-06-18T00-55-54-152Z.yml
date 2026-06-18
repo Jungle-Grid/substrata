@@ -1,0 +1,176 @@
+- main [ref=e2]:
+  - generic [ref=e4]:
+    - link "Substrata mark Substrata Compliance workspace" [ref=e5] [cursor=pointer]:
+      - /url: /
+      - img "Substrata mark" [ref=e6]
+      - generic [ref=e7]:
+        - paragraph [ref=e8]: Substrata
+        - paragraph [ref=e9]: Compliance workspace
+    - navigation [ref=e10]:
+      - link "Workflow" [ref=e11] [cursor=pointer]:
+        - /url: "#workflow"
+      - link "Workspace" [ref=e12] [cursor=pointer]:
+        - /url: "#workspace"
+      - link "Evidence" [ref=e13] [cursor=pointer]:
+        - /url: "#trust"
+      - link "Upload a datasheet" [ref=e14] [cursor=pointer]:
+        - /url: /documents/new
+  - generic [ref=e16]:
+    - generic [ref=e17]:
+      - paragraph [ref=e18]: ECCN review assistant for hardware teams
+      - heading "Generate cited ECCN review memos from semiconductor datasheets." [level=1] [ref=e19]
+      - paragraph [ref=e20]: Substrata extracts technical facts from datasheets, recommends export-control review paths, and prepares human-review-ready memo drafts with evidence, citations, uncertainty flags, and audit-ready reasoning.
+      - generic [ref=e21]:
+        - link "Upload a datasheet" [ref=e22] [cursor=pointer]:
+          - /url: /documents/new
+        - link "Open compliance workspace" [ref=e23] [cursor=pointer]:
+          - /url: /dashboard
+      - generic [ref=e24]:
+        - generic [ref=e25]:
+          - paragraph [ref=e26]: For
+          - paragraph [ref=e27]: Export control and trade compliance teams
+        - generic [ref=e28]:
+          - paragraph [ref=e29]: Input
+          - paragraph [ref=e30]: Datasheets, product briefs, extracted text
+        - generic [ref=e31]:
+          - paragraph [ref=e32]: Output
+          - paragraph [ref=e33]: Classification memo draft for review
+    - generic [ref=e34]:
+      - generic [ref=e36]:
+        - generic [ref=e37]:
+          - paragraph [ref=e38]: Human review queue
+          - paragraph [ref=e39]: Sample/dev data shown for product context
+        - generic [ref=e40]: Needs human review
+      - table [ref=e42]:
+        - rowgroup [ref=e43]:
+          - row "Document Memo status Recommended review paths Queue" [ref=e44]:
+            - columnheader "Document" [ref=e45]
+            - columnheader "Memo status" [ref=e46]
+            - columnheader "Recommended review paths" [ref=e47]
+            - columnheader "Queue" [ref=e48]
+        - rowgroup [ref=e49]:
+          - row "i.MX RT1170 crossover MCU datasheet Facts extracted Category 3 / Category 5 Part 2 Needs human review" [ref=e50]:
+            - cell "i.MX RT1170 crossover MCU datasheet" [ref=e51]
+            - cell "Facts extracted" [ref=e52]
+            - cell "Category 3 / Category 5 Part 2" [ref=e53]
+            - cell "Needs human review" [ref=e54]:
+              - generic [ref=e55]: Needs human review
+          - row "ADC12DJ5200RF RF-sampling ADC Review paths generated 3A001 / 3A991 Memo drafted" [ref=e56]:
+            - cell "ADC12DJ5200RF RF-sampling ADC" [ref=e57]
+            - cell "Review paths generated" [ref=e58]
+            - cell "3A001 / 3A991" [ref=e59]
+            - cell "Memo drafted" [ref=e60]:
+              - generic [ref=e61]: Memo drafted
+          - row "Zynq UltraScale+ MPSoC overview Memo drafted Category 3 / Category 5 Part 2 Needs human review" [ref=e62]:
+            - cell "Zynq UltraScale+ MPSoC overview" [ref=e63]
+            - cell "Memo drafted" [ref=e64]
+            - cell "Category 3 / Category 5 Part 2" [ref=e65]
+            - cell "Needs human review" [ref=e66]:
+              - generic [ref=e67]: Needs human review
+      - generic [ref=e68]:
+        - generic [ref=e69]: Evidence-backed recommendations
+        - generic [ref=e70]: Cited review paths
+        - generic [ref=e71]: Audit trail preserved
+  - generic [ref=e73]:
+    - generic [ref=e74]:
+      - paragraph [ref=e75]: Workflow
+      - heading "From datasheet to human-review-ready memo." [level=2] [ref=e76]
+      - paragraph [ref=e77]: "The workflow follows the evidence chain reviewers need: source document, extracted technical facts, recommended review paths, citations, uncertainty flags, reviewer questions, and a memo draft."
+    - generic [ref=e78]:
+      - generic [ref=e79]:
+        - paragraph [ref=e80]: "01"
+        - heading "Upload datasheet" [level=3] [ref=e81]
+        - paragraph [ref=e82]: Add a public datasheet, product brief, or extracted text file to the compliance workspace.
+      - generic [ref=e83]:
+        - paragraph [ref=e84]: "02"
+        - heading "Extract technical facts" [level=3] [ref=e85]
+        - paragraph [ref=e86]: Normalize architecture, interfaces, memory, cryptography, performance, and packaging evidence.
+      - generic [ref=e87]:
+        - paragraph [ref=e88]: "03"
+        - heading "Generate review paths" [level=3] [ref=e89]
+        - paragraph [ref=e90]: Compare source-grounded facts against Category 3, Category 5 Part 2, and broader comparison paths.
+      - generic [ref=e91]:
+        - paragraph [ref=e92]: "04"
+        - heading "Draft memo" [level=3] [ref=e93]
+        - paragraph [ref=e94]: Prepare a classification memo draft with citations, uncertainty flags, and reviewer questions.
+      - generic [ref=e95]:
+        - paragraph [ref=e96]: "05"
+        - heading "Human review" [level=3] [ref=e97]
+        - paragraph [ref=e98]: Route the evidence package through the human review queue with an audit trail.
+  - generic [ref=e100]:
+    - generic [ref=e101]:
+      - paragraph [ref=e102]: Compliance workspace
+      - heading "Dense review surfaces for serious classification work." [level=2] [ref=e103]
+      - paragraph [ref=e104]: Substrata is organized around documents, review runs, extracted facts, recommended review paths, memo drafts, human review status, and audit history.
+    - generic [ref=e105]:
+      - generic [ref=e106]:
+        - paragraph [ref=e107]: "Run detail: i.MX RT1170 crossover MCU"
+        - paragraph [ref=e108]: Evidence package prepared for reviewer signoff
+      - generic [ref=e109]:
+        - generic [ref=e110]:
+          - paragraph [ref=e111]: Extracted technical facts
+          - generic [ref=e112]:
+            - generic [ref=e113]:
+              - generic [ref=e114]:
+                - paragraph [ref=e115]: CPU architecture
+                - generic [ref=e116]: Source snippet captured
+              - paragraph [ref=e117]: Arm Cortex-M7 / Cortex-M4
+            - generic [ref=e118]:
+              - generic [ref=e119]:
+                - paragraph [ref=e120]: Security functions
+                - generic [ref=e121]: Reviewer question open
+              - paragraph [ref=e122]: HAB, CAAM, OTFAD, PUF
+            - generic [ref=e123]:
+              - generic [ref=e124]:
+                - paragraph [ref=e125]: High-speed I/O
+                - generic [ref=e126]: Category 3 path
+              - paragraph [ref=e127]: Ethernet, USB, display/camera
+            - generic [ref=e128]:
+              - generic [ref=e129]:
+                - paragraph [ref=e130]: Cryptography
+                - generic [ref=e131]: Category 5 Part 2 path
+              - paragraph [ref=e132]: AES / PKHA / RNG indicators
+        - generic [ref=e133]:
+          - paragraph [ref=e134]: ECCN review recommendation
+          - generic [ref=e135]:
+            - generic [ref=e136]:
+              - generic [ref=e137]:
+                - paragraph [ref=e138]: Category 3 electronics / MCU / processor paths
+                - generic [ref=e139]: medium confidence
+              - paragraph [ref=e140]: Recommended based on processor architecture, memory/cache, interfaces, and device-family evidence extracted from the datasheet.
+            - generic [ref=e141]:
+              - paragraph [ref=e142]: Category 5 Part 2 security/cryptography paths
+              - paragraph [ref=e143]: Reviewer should confirm security functionality, algorithm availability, and mass-market/license-exception treatment.
+            - generic [ref=e144]:
+              - paragraph [ref=e145]: Reviewer questions
+              - list [ref=e146]:
+                - listitem [ref=e147]: Which ordering code and package should anchor review signoff?
+                - listitem [ref=e148]: Are cryptographic functions user-accessible or limited to boot/storage protection?
+                - listitem [ref=e149]: Which current CCL thresholds should be mapped before approval?
+  - generic [ref=e151]:
+    - generic [ref=e152]:
+      - paragraph [ref=e153]: Trust model
+      - heading "Built around evidence, citations, uncertainty, and human review." [level=2] [ref=e154]
+      - paragraph [ref=e155]: "Substrata gives reviewers a better starting point: source-grounded facts, cited review paths, missing information, and a memo draft that stays tied to the document record."
+    - generic [ref=e156]:
+      - generic [ref=e157]:
+        - heading "Traceable recommendations" [level=3] [ref=e158]
+        - paragraph [ref=e159]: Every recommendation is paired with extracted facts and reviewer questions.
+      - generic [ref=e160]:
+        - heading "Audit-ready reasoning" [level=3] [ref=e161]
+        - paragraph [ref=e162]: Runs retain artifacts, memo drafts, citations, review status, and notes.
+      - generic [ref=e163]:
+        - heading "Human review queue" [level=3] [ref=e164]
+        - paragraph [ref=e165]: Approval remains an operational workflow owned by the compliance team.
+      - generic [ref=e166]:
+        - img "Jungle Grid logo" [ref=e167]
+        - paragraph [ref=e168]: Powered by Jungle Grid for managed document analysis and review execution.
+  - generic [ref=e170]:
+    - paragraph [ref=e171]: Substrata
+    - generic [ref=e172]:
+      - link "Dashboard" [ref=e173] [cursor=pointer]:
+        - /url: /dashboard
+      - link "Upload a datasheet" [ref=e174] [cursor=pointer]:
+        - /url: /documents/new
+      - link "Contact" [ref=e175] [cursor=pointer]:
+        - /url: mailto:founders@substrata.ai?subject=Substrata%20review

@@ -2,11 +2,10 @@ import { Panel, Shell } from '../../../components/ui';
 
 export default function LoadingClassificationRun() {
   return (
-    <Shell eyebrow="Classification Run" title="Loading classification run...">
+    <Shell eyebrow="Classification run" title="Loading review run...">
       <Panel>
         <p className="text-sm text-slate-600">
-          Loading extracted specs, ECCN review cards, citations, reviewer state,
-          and memo content.
+          Loading recommended review paths, supporting evidence, and memo draft.
         </p>
       </Panel>
     </Shell>

@@ -125,7 +125,7 @@ export const mockRun: ClassificationRunRecord = {
   ],
   reviewMemo: {
     contentMarkdown:
-      '# Draft ECCN Review Memo — Radiation-Tolerant Edge Accelerator Datasheet\n\n## 1. Document Summary\n- Title: Radiation-Tolerant Edge Accelerator Datasheet\n- Disclaimer: Draft for expert review only. This memo is not a final legal or compliance determination.',
+      '# Draft ECCN Review Memo — Radiation-Tolerant Edge Accelerator Datasheet\n\n## 1. Document Summary\n- Title: Radiation-Tolerant Edge Accelerator Datasheet\n- Disclaimer: Draft for expert review only.',
   },
   humanReviews: [
     {

@@ -29,7 +29,7 @@ export async function extractTextFromStoredFile(input: {
       return stdout.trim();
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Unknown PDF extraction error.';
+        error instanceof Error ? error.message : 'PDF extraction error details unavailable.';
       const stderr =
         typeof error === 'object' &&
         error !== null &&
@@ -54,7 +54,7 @@ export async function extractTextFromStoredFile(input: {
         stderr,
       });
 
-      throw new HttpError(422, 'Failed to extract text from the uploaded PDF.', {
+      throw new HttpError(422, 'Text extraction did not complete for the uploaded PDF.', {
         fileName: input.originalFileName,
         message,
         stderr: stderr || null,
@@ -69,14 +69,14 @@ export async function extractTextFromStoredFile(input: {
       return text.trim();
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Unknown text extraction error.';
+        error instanceof Error ? error.message : 'Text extraction error details unavailable.';
       console.error('Text file extraction failed', {
         fileName: input.originalFileName,
         mimeType: input.mimeType,
         absolutePath: input.absolutePath,
         message,
       });
-      throw new HttpError(422, 'Failed to read the uploaded text file.', {
+      throw new HttpError(422, 'The uploaded text file could not be read.', {
         fileName: input.originalFileName,
         message,
       });

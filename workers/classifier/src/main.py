@@ -24,6 +24,19 @@ from schemas import AIExtractionResult, ExtractedSpec, WorkerOutput, validate_ai
 from validation import validate_memo_markdown, validate_worker_output
 
 
+def _log_worker_event(event: str, **fields: object) -> None:
+    print(
+        json.dumps(
+            {
+                "event": event,
+                **fields,
+            },
+            default=str,
+        ),
+        file=sys.stderr,
+    )
+
+
 AI_IDENTITY_IMPORTANCE = {
     "manufacturer": "Manufacturer identity helps reviewers tie the memo to the correct source and product line.",
     "product_name": "Product name anchors the review memo to the device described by the source document.",
@@ -31,10 +44,55 @@ AI_IDENTITY_IMPORTANCE = {
     "part_number": "Part-number identity helps reviewers distinguish a device ordering code from a document number.",
     "document_number": "Document numbers identify the source publication and should not be substituted for product part numbers.",
     "document_type": "Document type helps reviewers distinguish a datasheet, overview, or product specification.",
-    "is_family_overview": "Family-overview status flags that variant-specific ordering-code details may be required for final review.",
+    "is_family_overview": "Family-overview status flags that variant-specific ordering-code details may be required for review signoff.",
     "product_profile": "Detected product profile controls which technical facts and review paths should be emphasized.",
     "profile_confidence": "Profile confidence tells the reviewer how strongly the extraction identified the document type.",
     "profile_rationale": "Profile rationale explains why the memo follows this product-review path.",
+}
+
+SPEC_IMPORTANCE_SENTENCES = {
+    "cpu_core": "CPU core type helps reviewers understand the processor architecture and appropriate electronics review path.",
+    "processor_architecture": "Processor architecture helps reviewers characterize the processing subsystem before comparing it against electronics control thresholds.",
+    "cpu_core_count": "Core-count information helps reviewers understand the scale of the processor subsystem and whether ordering-code-specific review is needed.",
+    "clock_speed": "Clock speed helps characterize processing performance and may affect how reviewers compare the product against electronics control thresholds.",
+    "cpu_clock_speed": "Clock speed helps characterize processing performance and may affect how reviewers compare the product against electronics control thresholds.",
+    "cache_tcm": "Memory and cache resources help characterize the processor subsystem and distinguish general MCU features from specialized compute hardware.",
+    "on_chip_ram": "Memory and cache resources help characterize the processor subsystem and distinguish general MCU features from specialized compute hardware.",
+    "memory_cache": "Memory and cache resources help characterize the processor subsystem and distinguish general MCU features from specialized compute hardware.",
+    "memory_integrity": "Memory and cache resources help characterize the processor subsystem and distinguish general MCU features from specialized compute hardware.",
+    "memory_controller_interface": "External memory interfaces help reviewers understand the processor subsystem and the electronics review path.",
+    "external_memory_interface": "External memory interfaces help reviewers understand the processor subsystem and the electronics review path.",
+    "external_memory_interfaces": "External memory interfaces help reviewers understand the processor subsystem and the electronics review path.",
+    "secure_boot": "Secure boot can trigger security/cryptography review questions because it may involve authentication, cryptographic verification, and protected boot flows.",
+    "security_feature": "Hardware security features can require separate security/cryptography review depending on accessibility, algorithms, and available exceptions.",
+    "cryptographic_algorithm": "Named cryptographic functions can require separate security/cryptography review depending on accessibility, algorithms, and exceptions.",
+    "crypto_key_size": "Cryptographic key-size information can affect security/cryptography review and should be tied to a current source fact.",
+    "key_storage": "Secure key-management features can require security/cryptography review because protected keys may affect functionality and availability analysis.",
+    "caam": "Hardware cryptography accelerators can require separate security/cryptography review because their functions may be controlled depending on accessibility, algorithms, and exceptions.",
+    "pkha": "Public-key cryptography engines can require separate security/cryptography review depending on accessibility, algorithms, and exceptions.",
+    "symmetric_engine": "Symmetric cryptography engines can require separate security/cryptography review depending on accessibility, algorithms, and exceptions.",
+    "cryptographic_hash_engine": "Cryptographic hash engines can require separate security/cryptography review depending on accessibility, algorithms, and exceptions.",
+    "rng4": "Random-number generation hardware can matter to security/cryptography review when it supports cryptographic functions.",
+    "secure_key_management": "Secure key-management features can require security/cryptography review because protected keys may affect functionality and availability analysis.",
+    "inline_encryption_engine": "Inline encryption can require security/cryptography review because it may protect memory or storage traffic with cryptographic functions.",
+    "otfad": "OTFAD AES-128 counter-mode decryption can require security/cryptography review because it protects external flash access.",
+    "snvs": "Secure non-volatile storage features can matter to security/cryptography review when they protect keys or boot state.",
+    "zero_master_key": "Zero Master Key functionality can matter to security/cryptography review when it affects protected key handling.",
+    "puf": "PUF functionality can matter to security/cryptography review because it may support device-unique key generation or protection.",
+    "encrypted_boot": "Encrypted boot can trigger security/cryptography review questions because it may involve protected boot flows and cryptographic verification.",
+    "peripheral_adc": "Peripheral ADC/DAC features should be recorded as subordinate MCU peripherals, not treated as the primary product type.",
+    "peripheral_dac": "Peripheral ADC/DAC features should be recorded as subordinate MCU peripherals, not treated as the primary product type.",
+    "digital_interface": "Connectivity interfaces help reviewers understand the processor integration profile and whether electronics interface review is needed.",
+    "ethernet_mac": "Ethernet interfaces help reviewers understand the processor integration profile and whether electronics interface review is needed.",
+    "usb_interface": "USB interfaces help reviewers understand the processor integration profile and whether electronics interface review is needed.",
+    "can_interface": "CAN interfaces help reviewers understand the processor integration profile and whether electronics interface review is needed.",
+    "spi_interface": "SPI interfaces help reviewers understand the processor integration profile and whether electronics interface review is needed.",
+    "i2c_interface": "I2C interfaces help reviewers understand the processor integration profile and whether electronics interface review is needed.",
+    "uart_interface": "UART interfaces help reviewers understand the processor integration profile and whether electronics interface review is needed.",
+    "display_camera_interface": "Display and camera interfaces help reviewers understand the processor integration profile and whether electronics interface review is needed.",
+    "camera_interface": "Camera interfaces help reviewers understand the processor integration profile and whether electronics interface review is needed.",
+    "display_interface": "Display interfaces help reviewers understand the processor integration profile and whether electronics interface review is needed.",
+    "audio_interface": "Audio interfaces help reviewers understand the processor integration profile and whether electronics interface review is needed.",
 }
 
 
@@ -63,6 +121,62 @@ def _ai_max_input_chars() -> int:
 
 def _normalize_whitespace(value: str) -> str:
     return " ".join(value.split())
+
+
+def _interface_family(spec: ExtractedSpec) -> str:
+    if spec.name in {"ethernet_mac"} or spec.value.lower() == "ethernet":
+        return "ethernet"
+    if spec.name in {"pcie_interface"} or spec.value.lower() == "pcie":
+        return "pcie"
+    if spec.name in {"i2c_interface"} or spec.value.lower() == "i2c":
+        return "i2c"
+    if spec.name in {"uart_interface"} or spec.value.lower() == "uart":
+        return "uart"
+    if spec.name in {"jtag_interface"} or spec.value.lower() == "jtag":
+        return "jtag"
+    if spec.name in {"displayport_interface", "displayport_lane_rate"} or "displayport" in spec.value.lower():
+        return "displayport"
+    return spec.value.lower()
+
+
+def _display_name_for_key(spec: ExtractedSpec) -> str:
+    return spec.display_name or spec.name.replace("_", " ").title()
+
+
+def _dedupe_interface_facts(specs: list[ExtractedSpec]) -> list[ExtractedSpec]:
+    specific_interface_names = {
+        "ethernet_mac",
+        "pcie_interface",
+        "i2c_interface",
+        "uart_interface",
+        "jtag_interface",
+        "displayport_interface",
+        "displayport_lane_rate",
+    }
+    specific_families = {
+        _interface_family(spec)
+        for spec in specs
+        if spec.name in specific_interface_names
+    }
+
+    deduped: list[ExtractedSpec] = []
+    seen: set[tuple[str, str, str, str, str]] = set()
+    for spec in specs:
+        family = _interface_family(spec) if spec.category == "digital_interface" else ""
+        if spec.name == "digital_interface" and family in specific_families:
+            continue
+        key = (
+            spec.category.lower(),
+            _display_name_for_key(spec).lower(),
+            spec.value.lower(),
+            spec.source_snippet.lower(),
+            family,
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(spec)
+    return deduped
 
 
 def _window_around_patterns(text: str, patterns: list[str], window: int = 1800) -> list[str]:
@@ -178,6 +292,11 @@ def _merge_ai_specs(extraction: AIExtractionResult) -> list[ExtractedSpec]:
         if key in seen:
             continue
         seen.add(key)
+        if spec.importance.strip().lower() in {"high", "medium", "low"}:
+            spec.importance = SPEC_IMPORTANCE_SENTENCES.get(
+                spec.name,
+                "This fact helps reviewers understand the device architecture and decide which expert review path should be evaluated.",
+            )
         specs.append(spec)
     return specs
 
@@ -250,7 +369,7 @@ def _memo_input_package(
         "document": {
             "id": worker_input.document_id,
             "title": worker_input.document_title,
-            "fileName": worker_input.document_metadata.get("fileName", "Unknown"),
+            "fileName": worker_input.document_metadata.get("fileName", "Not recorded"),
             "generatedTimestamp": datetime.now(UTC).replace(microsecond=0).isoformat(),
         },
         "runMode": run_mode,
@@ -272,10 +391,26 @@ def _run_ai_flow(
 ) -> tuple[list[ExtractedSpec], list[Any], list[str], float, str, dict[str, Any], AIExtractionResult]:
     ai_text = truncate_for_ai(text, _ai_max_input_chars())
     client = GeminiClient()
+    _log_worker_event(
+        "ai_flow.started",
+        document_id=worker_input.document_id,
+        provider="gemini",
+        model=client.model,
+        source_text_characters=len(text),
+        ai_input_characters=len(ai_text),
+        ai_input_truncated=len(ai_text) < len(text),
+        timeout_seconds=client.timeout_seconds,
+        max_retries=client.max_retries,
+    )
     extraction_prompt = build_extraction_prompt(
         document_title=worker_input.document_title,
-        file_name=str(worker_input.document_metadata.get("fileName", "Unknown")),
+        file_name=str(worker_input.document_metadata.get("fileName", "Not recorded")),
         document_text=ai_text,
+    )
+    _log_worker_event(
+        "ai_flow.extraction_request",
+        document_id=worker_input.document_id,
+        prompt_characters=len(extraction_prompt),
     )
     extraction_payload = client.generate_json(
         prompt_type="extraction",
@@ -283,26 +418,41 @@ def _run_ai_flow(
         user_prompt=extraction_prompt,
         input_character_count=len(ai_text),
     )
+    _log_worker_event("ai_flow.extraction_response_received", document_id=worker_input.document_id)
     extraction = validate_ai_extraction_payload(extraction_payload)
-    specs = _merge_ai_specs(extraction)
-    candidates, uncertainty_flags, confidence = generate_eccn_candidates(specs, source_label=source_label)
-    memo_prompt = build_memo_prompt(
-        _memo_input_package(
-            worker_input=worker_input,
-            extraction=extraction,
-            specs=specs,
-            candidates=candidates,
-            uncertainty_flags=uncertainty_flags,
-            run_mode="ai_assisted",
-        )
+    _log_worker_event(
+        "ai_flow.extraction_validated",
+        document_id=worker_input.document_id,
+        profile=extraction.product_profile.profile,
+        profile_confidence=extraction.product_profile.confidence,
+        extracted_fact_count=len(extraction.extracted_facts),
+        missing_fact_count=len(extraction.missing_facts),
+        warning_count=len(extraction.warnings),
     )
-    memo_markdown = client.generate_markdown(
-        prompt_type="memo_drafting",
-        system_instruction=MEMO_SYSTEM_PROMPT,
-        user_prompt=memo_prompt,
-        input_character_count=len(memo_prompt),
+    specs = _dedupe_interface_facts(_merge_ai_specs(extraction))
+    candidates, uncertainty_flags, confidence = generate_eccn_candidates(specs, source_label=source_label)
+    _log_worker_event(
+        "ai_flow.local_candidates_generated",
+        document_id=worker_input.document_id,
+        extracted_spec_count=len(specs),
+        candidate_count=len(candidates),
+        candidate_eccns=[candidate.eccn for candidate in candidates],
+    )
+    memo_markdown = generate_memo(
+        worker_input.document_id,
+        worker_input.document_title,
+        worker_input.document_metadata,
+        specs,
+        candidates,
+        uncertainty_flags,
+    )
+    _log_worker_event(
+        "ai_flow.memo_rendered",
+        document_id=worker_input.document_id,
+        memo_characters=len(memo_markdown),
     )
     validate_memo_markdown(memo_markdown)
+    _log_worker_event("ai_flow.memo_validated", document_id=worker_input.document_id)
     metadata = {
         "classificationMode": "ai_assisted",
         "aiProvider": "gemini",
@@ -315,7 +465,7 @@ def _run_ai_flow(
 
 
 def _run_heuristic_flow(worker_input: Any, text: str, source_label: str, *, fallback_reason: str | None = None):
-    specs = _ensure_profile_specs(extract_specs(text))
+    specs = _dedupe_interface_facts(_ensure_profile_specs(extract_specs(text)))
     candidates, uncertainty_flags, confidence = generate_eccn_candidates(specs, source_label=source_label)
     memo_markdown = generate_memo(
         worker_input.document_id,
@@ -355,11 +505,29 @@ def run(payload_path: str) -> WorkerOutput:
     worker_input = load_input(payload_path)
     text = extract_text(worker_input.file_path)
     source_label = _document_source_label(worker_input.document_metadata.get("sourceType"))
-    ai_enabled = _env_truthy("AI_ENABLED", False) and os.environ.get("AI_PROVIDER", "gemini").lower() == "gemini"
+    ai_env_enabled = _env_truthy("AI_ENABLED", False)
+    ai_provider = os.environ.get("AI_PROVIDER", "gemini").lower()
+    has_gemini_key = bool(os.environ.get("GEMINI_API_KEY", "").strip())
+    ai_enabled = ai_env_enabled and ai_provider == "gemini"
     fallback_enabled = _env_truthy("AI_FALLBACK_TO_HEURISTIC", True)
     extraction: AIExtractionResult | None
 
-    if ai_enabled and os.environ.get("GEMINI_API_KEY"):
+    _log_worker_event(
+        "worker.ai_gate",
+        document_id=worker_input.document_id,
+        ai_enabled_env=ai_env_enabled,
+        ai_provider=ai_provider,
+        provider_supported=ai_provider == "gemini",
+        gemini_api_key_present=has_gemini_key,
+        ai_flow_enabled=ai_enabled and has_gemini_key,
+        fallback_enabled=fallback_enabled,
+        ai_model=os.environ.get("AI_MODEL", "gemini-2.5-flash"),
+        ai_timeout_seconds=os.environ.get("AI_TIMEOUT_SECONDS", "60"),
+        ai_max_retries=os.environ.get("AI_MAX_RETRIES", "2"),
+        source_text_characters=len(text),
+    )
+
+    if ai_enabled and has_gemini_key:
         try:
             specs, candidates, uncertainty_flags, confidence, memo_markdown, run_metadata, extraction = _run_ai_flow(
                 worker_input=worker_input,
@@ -367,6 +535,13 @@ def run(payload_path: str) -> WorkerOutput:
                 source_label=source_label,
             )
         except (GeminiClientError, ValueError) as error:
+            _log_worker_event(
+                "ai_flow.failed",
+                document_id=worker_input.document_id,
+                error_type=type(error).__name__,
+                error_message=str(error)[:1000],
+                fallback_enabled=fallback_enabled,
+            )
             if not fallback_enabled:
                 raise
             specs, candidates, uncertainty_flags, confidence, memo_markdown, run_metadata, extraction = _run_heuristic_flow(
@@ -378,7 +553,19 @@ def run(payload_path: str) -> WorkerOutput:
             uncertainty_flags = list(dict.fromkeys([*uncertainty_flags, "requires_engineering_confirmation"]))
             run_metadata["aiFailureMessage"] = str(error)[:500]
     else:
-        reason = "AI disabled or GEMINI_API_KEY missing" if ai_enabled else None
+        if not ai_env_enabled:
+            reason = "AI_ENABLED is false or unset"
+        elif ai_provider != "gemini":
+            reason = f"Unsupported AI_PROVIDER: {ai_provider}"
+        elif not has_gemini_key:
+            reason = "GEMINI_API_KEY missing"
+        else:
+            reason = "AI disabled or GEMINI_API_KEY missing"
+        _log_worker_event(
+            "ai_flow.skipped",
+            document_id=worker_input.document_id,
+            reason=reason,
+        )
         specs, candidates, uncertainty_flags, confidence, memo_markdown, run_metadata, extraction = _run_heuristic_flow(
             worker_input,
             text,
@@ -427,6 +614,14 @@ def run(payload_path: str) -> WorkerOutput:
         document_title=worker_input.document_title,
         extracted_text=text,
         output=output,
+    )
+    _log_worker_event(
+        "worker.output_validated",
+        document_id=worker_input.document_id,
+        classification_mode=run_metadata.get("classificationMode"),
+        extracted_spec_count=len(specs),
+        candidate_count=len(candidates),
+        memo_characters=len(memo_markdown),
     )
 
     structured_output_path.write_text(json.dumps(output.to_dict(), indent=2))

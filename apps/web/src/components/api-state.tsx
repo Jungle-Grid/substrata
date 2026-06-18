@@ -12,13 +12,16 @@ export function ApiNotice({
   }
 
   return (
-    <Panel className="mb-6 border-amber-200 bg-amber-50">
-      <p className="text-sm font-medium text-amber-950">API fallback mode</p>
-      <p className="mt-2 text-sm text-amber-900">
-        The page is showing seeded or mock data because the local API could not be
-        reached.
+    <Panel className="mb-6 border-slate-200 bg-slate-50">
+      <p className="text-sm font-medium text-ink">Sample workspace data</p>
+      <p className="mt-2 text-sm text-slate-600">
+        The local API is unavailable, so this page is showing clearly labeled sample data for review.
       </p>
-      {error ? <p className="mt-2 text-sm text-amber-800">{error}</p> : null}
+      {error ? (
+        <p className="mt-2 text-xs uppercase tracking-[0.14em] text-slate-500">
+          Development fallback active
+        </p>
+      ) : null}
     </Panel>
   );
 }
@@ -37,4 +40,3 @@ export function EmptyState({
     </Panel>
   );
 }
-

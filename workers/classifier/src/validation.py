@@ -29,7 +29,15 @@ STALE_DEVICE_MARKERS = {
         "3.2 W/Ch",
     ],
 }
-BANNED_MEMO_TERMS = ("placeholder", "\"mock\"", "not extracted")
+BANNED_MEMO_TERMS = ("placeholder", "mock", "not extracted")
+WEAK_MANUFACTURER_SNIPPET_TERMS = (
+    "creating an environment where employees",
+    "removing noninclusive language",
+    "consequential damages",
+    "expressly advised",
+    "warranty",
+    "liability",
+)
 FINAL_DETERMINATION_PATTERNS = (
     r"\bfinal\s+eccn\s+(?:is|:)",
     r"\bthe\s+eccn\s+is\b",
@@ -40,6 +48,7 @@ LEGAL_PART_NUMBER_TERMS = ("advised", "damages", "consequential", "expressly")
 FALSE_ADC_CONTEXT_TERMS = ("cortex", "quad-core", "dual-core", "external inputs", "system monitor")
 FALSE_CHANNEL_MODE_TERMS = ("single channel (bit)", "control register", "direction control")
 ECC_MEMORY_CONTEXT_TERMS = ("cache with ecc", "nand", "memory", "flash", "error correction")
+WEAK_IMPORTANCE_VALUES = {"high", "medium", "low"}
 RADIATION_CONTEXT_TERMS = (
     "single event",
     "single-event",
@@ -85,6 +94,82 @@ def _spec_values(specs: list[ExtractedSpec], name: str) -> list[str]:
     return [spec.value for spec in specs if spec.name == name]
 
 
+def _has_profile(specs: list[ExtractedSpec], profile: str) -> bool:
+    return any(spec.name == "product_profile" and spec.value == profile for spec in specs)
+
+
+def _extracted_fact_blob(specs: list[ExtractedSpec]) -> str:
+    return _normalize(" ".join(f"{spec.name} {spec.value} {spec.source_snippet}" for spec in specs))
+
+
+def _interface_family(spec: ExtractedSpec) -> str:
+    if spec.name == "ethernet_mac" or spec.value.lower() == "ethernet":
+        return "ethernet"
+    if spec.name == "pcie_interface" or spec.value.lower() == "pcie":
+        return "pcie"
+    if spec.name == "i2c_interface" or spec.value.lower() == "i2c":
+        return "i2c"
+    if spec.name == "uart_interface" or spec.value.lower() == "uart":
+        return "uart"
+    if spec.name == "jtag_interface" or spec.value.lower() == "jtag":
+        return "jtag"
+    if spec.name in {"displayport_interface", "displayport_lane_rate"} or "displayport" in spec.value.lower():
+        return "displayport"
+    return spec.value.lower()
+
+
+def _markdown_looks_malformed(markdown: str) -> str | None:
+    if markdown.count("```") % 2:
+        return "unbalanced fenced code block"
+    lines = markdown.splitlines()
+    if any(line.startswith("#### ") and not any(previous.startswith("### ") for previous in lines[:index]) for index, line in enumerate(lines)):
+        return "fourth-level heading appears before third-level heading"
+    required_order = [
+        "## 1. Document Summary",
+        "## 2. Extracted Technical Facts",
+        "## 3. Recommended Review Paths",
+        "## 4. Key Uncertainties",
+        "## 5. Reviewer Questions",
+        "## 6. ECCN Review Recommendation",
+    ]
+    positions = [markdown.find(section) for section in required_order]
+    if any(position == -1 for position in positions) or positions != sorted(positions):
+        return "required memo sections are missing or out of order"
+    return None
+
+
+def _weak_source_boilerplate_lines(markdown: str) -> list[str]:
+    weak_lines: list[str] = []
+    source_markers = ("source snippet", "citation note", "manufacturer evidence", "source:")
+    for line in markdown.splitlines():
+        normalized = _normalize(line)
+        if not any(marker in normalized for marker in source_markers):
+            continue
+        if any(_contains_weak_boilerplate_term(normalized, term) for term in WEAK_MANUFACTURER_SNIPPET_TERMS):
+            weak_lines.append(line.strip())
+    return weak_lines
+
+
+def _contains_weak_boilerplate_term(normalized: str, term: str) -> bool:
+    if " " in term:
+        return term in normalized
+    return re.search(rf"\b{re.escape(term)}\b", normalized) is not None
+
+
+def _memo_has_source_evidence(markdown: str) -> bool:
+    normalized = _normalize(markdown)
+    return any(
+        marker in normalized
+        for marker in (
+            "source snippet",
+            "citation note",
+            "datasheet evidence",
+            "source:",
+            "source -",
+        )
+    )
+
+
 def _extract_question_tokens(question: str) -> list[str]:
     tokens: list[str] = []
     for pattern in (
@@ -114,7 +199,11 @@ def collect_validation_issues(
 ) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     normalized_text = _normalize(extracted_text)
+    normalized_memo = _normalize(output.memo_markdown)
     extracted_fact_strings = {_normalize(_format_spec(spec)) for spec in output.extracted_specs}
+    extracted_source_snippets = {_normalize(spec.source_snippet) for spec in output.extracted_specs}
+    extracted_blob = _extracted_fact_blob(output.extracted_specs)
+    is_mcu_processor_soc = _has_profile(output.extracted_specs, "mcu_processor_soc")
 
     if len(output.extracted_specs) < 8:
         issues.append(
@@ -137,6 +226,18 @@ def collect_validation_issues(
                 )
             )
 
+    for weak_value in WEAK_IMPORTANCE_VALUES:
+        weak_phrase = f"why it matters: {weak_value}"
+        if weak_phrase in normalized_memo:
+            issues.append(
+                ValidationIssue(
+                    bad_string=weak_phrase,
+                    section="memo_markdown.extracted_technical_facts",
+                    reason="The memo contains a weak importance label instead of an explanatory sentence.",
+                    remediation="Replace importance values with profile-specific explanatory sentences.",
+                )
+            )
+
     if output.memo_markdown.strip().startswith("{"):
         issues.append(
             ValidationIssue(
@@ -146,6 +247,204 @@ def collect_validation_issues(
                 remediation="Render the final memo as Markdown only.",
             )
         )
+
+    for pattern in FINAL_DETERMINATION_PATTERNS:
+        if re.search(pattern, normalized_memo, flags=re.IGNORECASE):
+            issues.append(
+                ValidationIssue(
+                    bad_string=pattern,
+                    section="memo_markdown",
+                    reason="The memo appears to present Substrata as assigning an ECCN.",
+                    remediation="Keep the memo draft-only and require qualified expert review.",
+                )
+            )
+
+    malformed_reason = _markdown_looks_malformed(output.memo_markdown)
+    if malformed_reason:
+        issues.append(
+            ValidationIssue(
+                bad_string=malformed_reason,
+                section="memo_markdown",
+                reason="The memo Markdown appears malformed.",
+                remediation="Regenerate a clean Markdown memo with ordered sections and balanced Markdown syntax.",
+            )
+        )
+
+    specific_interface_names = {
+        "ethernet_mac",
+        "pcie_interface",
+        "i2c_interface",
+        "uart_interface",
+        "jtag_interface",
+        "displayport_interface",
+        "displayport_lane_rate",
+    }
+    specific_interface_families = {
+        _interface_family(spec)
+        for spec in output.extracted_specs
+        if spec.name in specific_interface_names
+    }
+    for spec in output.extracted_specs:
+        if spec.name == "digital_interface" and _interface_family(spec) in specific_interface_families:
+            issues.append(
+                ValidationIssue(
+                    bad_string=f"Digital Interface: {spec.value}",
+                    section="extracted_specs.digital_interface",
+                    reason="A generic interface fact duplicates a richer interface-specific fact.",
+                    remediation="Suppress generic digital_interface facts when a richer interface-specific fact exists for the same interface family.",
+                )
+            )
+
+    candidate_question_counts: dict[str, int] = {}
+    for candidate in output.eccn_candidates:
+        for question in candidate.reviewer_questions:
+            candidate_question_counts[question] = candidate_question_counts.get(question, 0) + 1
+    for question, count in candidate_question_counts.items():
+        if count > 2:
+            issues.append(
+                ValidationIssue(
+                    bad_string=question,
+                    section="eccn_candidates.reviewer_questions",
+                    reason="The same reviewer question appears under too many candidate sections.",
+                    remediation="Keep candidate reviewer questions path-specific and put the full deduplicated set only in the global Reviewer Questions section.",
+                )
+            )
+
+    has_security_or_crypto_facts = any(
+        spec.name in {"secure_boot", "cryptographic_algorithm", "crypto_key_size", "security_feature"}
+        or spec.category == "security_cryptography"
+        for spec in output.extracted_specs
+    )
+    if has_security_or_crypto_facts:
+        conclusion_start = output.memo_markdown.lower().find("## 6. eccn review recommendation")
+        conclusion_text = output.memo_markdown[conclusion_start:].lower() if conclusion_start != -1 else output.memo_markdown.lower()
+        if "category 5 part 2" not in conclusion_text:
+            issues.append(
+                ValidationIssue(
+                    bad_string="Category 5 Part 2",
+                    section="memo_markdown.eccn_review_recommendation",
+                    reason="Security or cryptography facts are present but the conclusion does not mention the Category 5 Part 2 review path.",
+                    remediation="Mention Category 5 Part 2 security/cryptography review before broader fallback classifications.",
+                )
+            )
+
+    if is_mcu_processor_soc:
+        candidate_titles = " ".join(candidate.title for candidate in output.eccn_candidates).lower()
+        reviewer_questions = " ".join(
+            question
+            for candidate in output.eccn_candidates
+            for question in candidate.reviewer_questions
+        ).lower()
+        candidate_text = " ".join(
+            [
+                *(candidate.title for candidate in output.eccn_candidates),
+                *(candidate.why_it_may_apply for candidate in output.eccn_candidates),
+                *(candidate.why_it_may_not_apply for candidate in output.eccn_candidates),
+                *(fact for candidate in output.eccn_candidates for fact in candidate.matched_technical_facts),
+                *(item for candidate in output.eccn_candidates for item in candidate.missing_information),
+                *(question for candidate in output.eccn_candidates for question in candidate.reviewer_questions),
+            ]
+        ).lower()
+        has_processor_or_interface_facts = any(
+            spec.name
+            in {
+                "processor_architecture",
+                "cpu_core",
+                "clock_speed",
+                "cpu_clock_speed",
+                "cache_tcm",
+                "on_chip_ram",
+                "memory_cache",
+                "memory_integrity",
+                "memory_controller_interface",
+                "external_memory_interface",
+                "external_memory_interfaces",
+                "ethernet_mac",
+                "usb_interface",
+                "can_interface",
+                "spi_interface",
+                "i2c_interface",
+                "uart_interface",
+                "displayport_interface",
+                "digital_interface",
+            }
+            for spec in output.extracted_specs
+        )
+        if "category 3 electronics / mcu / processor / soc review path" not in candidate_titles:
+            issues.append(
+                ValidationIssue(
+                    bad_string=candidate_titles or "missing",
+                    section="eccn_candidates.title",
+                    reason="MCU/processor output is missing the profile-specific Category 3 title.",
+                    remediation="Use 'Category 3 electronics / MCU / processor / SoC review path' for mcu_processor_soc.",
+                )
+            )
+        if "category 3" in candidate_titles and "programmable logic" in candidate_titles:
+            issues.append(
+                ValidationIssue(
+                    bad_string="programmable logic",
+                    section="eccn_candidates.title",
+                    reason="MCU/processor Category 3 title leaks programmable-logic wording.",
+                    remediation="Use MCU/processor/SoC-specific wording unless programmable logic is extracted from the current document.",
+                )
+            )
+        for term in ("programmable logic", "fpga fabric"):
+            if term in normalized_memo and term not in extracted_blob:
+                issues.append(
+                    ValidationIssue(
+                        bad_string=term,
+                        section="memo_markdown",
+                        reason="MCU/processor memo contains programmable-logic wording not supported by extracted facts.",
+                        remediation="Remove FPGA/programmable-logic wording from MCU/processor memos unless the current document contains that fact.",
+                    )
+                )
+        for term in ("zynq", "pl/ps"):
+            if term in normalized_memo:
+                issues.append(
+                    ValidationIssue(
+                        bad_string=term,
+                        section="memo_markdown",
+                        reason="MCU/processor memo contains stale Zynq or PL/PS wording.",
+                        remediation="Remove stale Zynq/PL/PS wording from MCU/processor output.",
+                    )
+                )
+        if "programmable logic" in reviewer_questions:
+            issues.append(
+                ValidationIssue(
+                    bad_string="programmable logic",
+                    section="eccn_candidates.reviewer_questions",
+                    reason="MCU/processor reviewer questions reuse programmable-logic wording.",
+                    remediation="Generate i.MX/MCU-specific processor, interface, and security reviewer questions.",
+                )
+            )
+        for stale_crypto in ("aes-gcm", "sha-3/384", "rsa 4096"):
+            if stale_crypto in candidate_text and stale_crypto not in extracted_blob:
+                issues.append(
+                    ValidationIssue(
+                        bad_string=stale_crypto,
+                        section="eccn_candidates",
+                        reason="Category 5 text mentions a crypto example not extracted from the current MCU document.",
+                        remediation="Build Category 5 wording only from current extracted security facts.",
+                    )
+                )
+        if "ear99" in normalized_memo and has_security_or_crypto_facts:
+            issues.append(
+                ValidationIssue(
+                    bad_string="EAR99",
+                    section="memo_markdown",
+                    reason="EAR99 appears despite security/cryptography facts in an MCU/processor memo.",
+                    remediation="Suppress EAR99 until no meaningful Category 3, security, processor, interface, or high-performance indicators exist.",
+                )
+            )
+        if "ear99" in normalized_memo and has_processor_or_interface_facts:
+            issues.append(
+                ValidationIssue(
+                    bad_string="EAR99",
+                    section="memo_markdown",
+                    reason="EAR99 appears despite meaningful processor/interface facts in an MCU/processor memo.",
+                    remediation="Use Category 3, Category 5 Part 2, and general-electronics comparison paths for this memo.",
+                )
+            )
 
     current_device = _current_device_marker(document_title, output.extracted_specs)
     if current_device:
@@ -322,6 +621,15 @@ def collect_validation_issues(
                     remediation="Populate importance for every extracted fact that can appear in the memo.",
                 )
             )
+        if spec.name == "manufacturer" and any(_contains_weak_boilerplate_term(_normalize(spec.source_snippet), term) for term in WEAK_MANUFACTURER_SNIPPET_TERMS):
+            issues.append(
+                ValidationIssue(
+                    bad_string=spec.source_snippet,
+                    section=f"extracted_specs[{index}].source_snippet",
+                    reason="Manufacturer evidence comes from weak boilerplate language.",
+                    remediation="Use title/header/footer/product-page evidence or omit the manufacturer snippet from the main memo.",
+                )
+            )
         if spec.name == "part_number" and _normalize(spec.value) in LEGAL_PART_NUMBER_TERMS:
             issues.append(
                 ValidationIssue(
@@ -358,8 +666,72 @@ def collect_validation_issues(
                     remediation="Do not extract ECC as a crypto algorithm unless the surrounding text clearly indicates public-key or cryptographic use.",
                 )
             )
+        if spec.name == "modulation_feature" and "pwm" in _normalize(f"{spec.value} {spec.source_snippet}"):
+            issues.append(
+                ValidationIssue(
+                    bad_string=spec.source_snippet,
+                    section=f"extracted_specs[{index}]",
+                    reason="PWM was labeled as an RF modulation feature.",
+                    remediation="Treat PWM as a timer/control peripheral unless RF modulation context is explicit.",
+                )
+            )
+        if spec.name in {"processing_system", "ps_pl_integration"} and re.search(r"\bps\b", _normalize(spec.source_snippet)) and "picosecond" in _normalize(spec.source_snippet):
+            issues.append(
+                ValidationIssue(
+                    bad_string=spec.source_snippet,
+                    section=f"extracted_specs[{index}]",
+                    reason="ps from picoseconds was labeled as processing-system wording.",
+                    remediation="Only extract PS/PL facts when the source explicitly discusses processing system and programmable logic.",
+                )
+            )
+        if spec.name == "enob" and any(term in _normalize(spec.source_snippet) for term in ("formula", "equation", "calculate", "computed as", "sinad =")):
+            issues.append(
+                ValidationIssue(
+                    bad_string=spec.source_snippet,
+                    section=f"extracted_specs[{index}]",
+                    reason="ENOB formula text was treated as product converter performance.",
+                    remediation="Only extract ENOB when a current-document value is presented as the product's measured or specified performance.",
+                )
+            )
 
     for candidate_index, candidate in enumerate(output.eccn_candidates):
+        identity_fact_count = sum(
+            1
+            for fact in candidate.matched_technical_facts
+            if fact.lower().startswith(
+                (
+                    "document number:",
+                    "document type:",
+                    "part number:",
+                    "product name:",
+                    "family overview:",
+                    "detected product profile:",
+                    "profile confidence:",
+                    "profile rationale:",
+                )
+            )
+        )
+        technical_fact_count = len(candidate.matched_technical_facts) - identity_fact_count
+        if identity_fact_count > technical_fact_count and len(candidate.matched_technical_facts) >= 3:
+            issues.append(
+                ValidationIssue(
+                    bad_string=", ".join(candidate.matched_technical_facts[:4]),
+                    section=f"eccn_candidates[{candidate_index}].matched_technical_facts",
+                    reason="Candidate matched facts are dominated by document identity fields instead of technical facts.",
+                    remediation="Move document identity facts to summary or missing information and keep candidate facts focused on technical features.",
+                )
+            )
+        if is_zynq_soc and candidate.review_path_id == "category_3_programmable_logic_soc":
+            technical_markers = ("processor architecture:", "cpu core:", "real-time cpu:", "programmable logic:", "processing system:", "ps/pl integration", "ethernet macs:", "pcie interface:", "displayport lane rate:", "gpu:")
+            if sum(1 for fact in candidate.matched_technical_facts if fact.lower().startswith(technical_markers)) < 5:
+                issues.append(
+                    ValidationIssue(
+                        bad_string=", ".join(candidate.matched_technical_facts),
+                        section=f"eccn_candidates[{candidate_index}].matched_technical_facts",
+                        reason="Category 3 SoC candidate contains too few technical SoC facts.",
+                        remediation="Prioritize product family plus processor, programmable-logic, PS/PL, and high-speed I/O facts.",
+                    )
+                )
         for fact in candidate.matched_technical_facts:
             if _normalize(fact) not in extracted_fact_strings and "require" not in fact.lower() and "no strong" not in fact.lower():
                 issues.append(
@@ -373,7 +745,8 @@ def collect_validation_issues(
 
         for citation in candidate.regulatory_citations:
             if "datasheet evidence" in citation.citation_label.lower():
-                if _normalize(citation.citation_text) not in normalized_text:
+                citation_text = _normalize(citation.citation_text)
+                if citation_text not in normalized_text and citation_text not in extracted_source_snippets:
                     issues.append(
                         ValidationIssue(
                             bad_string=citation.citation_text,
@@ -413,7 +786,7 @@ def validate_worker_output(
     if not issues:
         return
 
-    lines = ["Memo validation failed:"]
+    lines = ["Memo validation needs attention:"]
     for issue in issues:
         lines.append(
             f"- bad string: {issue.bad_string} | section: {issue.section} | reason: {issue.reason} | remediation: {issue.remediation}"
@@ -432,25 +805,30 @@ def validate_memo_markdown(memo_markdown: str) -> None:
     for term in BANNED_MEMO_TERMS:
         if term in normalized:
             issues.append(f"memo contains banned term: {term}")
+    for line in _weak_source_boilerplate_lines(memo_markdown):
+        issues.append(f"memo contains weak source-evidence boilerplate: {line[:180]}")
     for pattern in FINAL_DETERMINATION_PATTERNS:
         if re.search(pattern, normalized, flags=re.IGNORECASE):
-            issues.append(f"memo appears to make a final determination: {pattern}")
+            issues.append(f"memo appears to overstate the review recommendation: {pattern}")
+    malformed_reason = _markdown_looks_malformed(memo_markdown)
+    if malformed_reason:
+        issues.append(f"memo markdown appears malformed: {malformed_reason}")
     required_sections = [
         "document summary",
         "extracted technical facts",
-        "candidate eccn review paths",
+        "recommended review paths",
         "key uncertainties",
         "reviewer questions",
-        "draft conclusion",
+        "eccn review recommendation",
         "review state",
     ]
     for section in required_sections:
         if section not in normalized:
             issues.append(f"memo is missing section: {section}")
-    if "source snippet" not in normalized:
-        issues.append("memo does not include source snippets")
+    if not _memo_has_source_evidence(memo_markdown):
+        issues.append("memo does not include source evidence")
     if "expert review" not in normalized:
         issues.append("memo does not clearly require expert review")
 
     if issues:
-        raise ValueError("Memo Markdown validation failed: " + "; ".join(issues))
+        raise ValueError("Memo Markdown validation needs attention: " + "; ".join(issues))

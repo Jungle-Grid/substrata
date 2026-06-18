@@ -346,6 +346,55 @@ def _add_spec(
     specs.append(new_spec)
 
 
+WEAK_MANUFACTURER_SNIPPET_TERMS = (
+    "creating an environment where employees",
+    "removing noninclusive language",
+    "consequential damages",
+    "expressly advised",
+    "warranty",
+    "liability",
+    "terms and conditions",
+)
+
+
+def _weak_manufacturer_snippet(snippet: str) -> bool:
+    normalized = snippet.lower()
+    return any(term in normalized for term in WEAK_MANUFACTURER_SNIPPET_TERMS)
+
+
+def _find_manufacturer_evidence(text: str) -> tuple[str, str, str] | None:
+    manufacturer_pattern = (
+        r"\b(Texas Instruments|Analog Devices|ADI|Intel|AMD|Xilinx|NXP|"
+        r"Microchip|Renesas|Infineon|onsemi|STMicroelectronics|Qorvo|Skyworks|"
+        r"Broadcom|Lattice|Teledyne|Marvell|Semtech|Maxim Integrated|Analog Devices, Inc\.)\b"
+    )
+    candidates: list[tuple[int, str, str, str]] = []
+    for match in re.finditer(manufacturer_pattern, text, flags=re.IGNORECASE):
+        snippet = _extract_snippet(text, match.start(), match.end())
+        context = _context_window(text, match.start(), match.end(), size=220)
+        context_lower = context.lower()
+        if _weak_manufacturer_snippet(snippet) or _weak_manufacturer_snippet(context):
+            continue
+        score = 50
+        if any(term in context_lower for term in ("zynq ultrascale+ mpsoc", "product specification", "data sheet", "datasheet")):
+            score -= 35
+        if any(term in context_lower for term in ("copyright", "©", "(c)", "xilinx, inc", "advanced micro devices")):
+            score -= 10
+        if match.start() < 3000:
+            score -= 8
+        candidates.append((score, match.group(1), snippet, "high" if score <= 20 else "medium"))
+
+    if not candidates:
+        return None
+
+    _, manufacturer, snippet, confidence = sorted(candidates, key=lambda item: item[0])[0]
+    if manufacturer.lower() == "xilinx":
+        manufacturer = "Xilinx"
+    if manufacturer.lower() == "amd":
+        manufacturer = "AMD"
+    return manufacturer, snippet, confidence
+
+
 def _find_line(text: str, pattern: str) -> str | None:
     match = re.search(pattern, text, flags=re.IGNORECASE | re.MULTILINE)
     if not match:
@@ -485,7 +534,7 @@ def _add_zynq_family_identity(
         value="Not a single part number - family overview",
         unit=None,
         source_snippet=snippet,
-        importance="This document is a family overview, so a final review should use device-specific ordering codes rather than treating the document number as the part number.",
+        importance="This document is a family overview, so review signoff should use device-specific ordering codes rather than treating the document number as the part number.",
         category="product_identity",
         confidence="high",
     )
@@ -496,7 +545,7 @@ def _add_zynq_family_identity(
         value="true",
         unit=None,
         source_snippet=snippet,
-        importance="A family overview may omit ordering-code-specific limits, variants, and package-speed-grade details needed for final classification.",
+        importance="A family overview may omit ordering-code-specific limits, variants, and package-speed-grade details needed for expert review signoff.",
         category="product_identity",
         confidence="high",
     )
@@ -568,6 +617,63 @@ def _add_zynq_family_identity(
     return True
 
 
+def _add_imx_rt1170_identity(
+    text: str,
+    specs: list[ExtractedSpec],
+    seen: dict[tuple[str, str], int],
+) -> bool:
+    imx_match = re.search(r"\bi\.?MX\s+RT1170\s+Crossover\s+Processors\b|\bi\.?MX\s+RT1170\b", text, flags=re.IGNORECASE)
+    if not imx_match:
+        return False
+
+    snippet = _extract_snippet(text, imx_match.start(), imx_match.end())
+    _add_spec(
+        specs,
+        seen,
+        name="product_family",
+        value="i.MX RT1170 Crossover Processors",
+        unit=None,
+        source_snippet=snippet,
+        importance="Product family matters because this datasheet covers an i.MX RT1170 processor family rather than a final ordering-code classification.",
+        category="product_identity",
+        confidence="high",
+    )
+    _add_spec(
+        specs,
+        seen,
+        name="product_profile",
+        value="mcu_processor_soc",
+        unit=None,
+        source_snippet=snippet,
+        importance="Detected product profile controls which technical facts and review paths should be emphasized.",
+        category="profile_detection",
+        confidence="high",
+    )
+    _add_spec(
+        specs,
+        seen,
+        name="profile_confidence",
+        value="high",
+        unit=None,
+        source_snippet=snippet,
+        importance="Profile confidence tells the reviewer how strongly the extraction pipeline identified the document type.",
+        category="profile_detection",
+        confidence="high",
+    )
+    _add_spec(
+        specs,
+        seen,
+        name="profile_rationale",
+        value="Detected from top-level references to i.MX RT1170 crossover processors, Arm Cortex-M processor cores, memory/cache, interfaces, and security blocks.",
+        unit=None,
+        source_snippet=snippet,
+        importance="Profile rationale explains why the memo is framed as an MCU/processor/SoC review.",
+        category="profile_detection",
+        confidence="high",
+    )
+    return True
+
+
 def _add_soc_fact(
     specs: list[ExtractedSpec],
     seen: dict[tuple[str, str], int],
@@ -628,6 +734,50 @@ def _extract_soc_fpga_facts(
         specs,
         seen,
         text=text,
+        pattern=r"\bArm\s+Cortex-?M7\b|\bCortex-?M7\b",
+        name="cpu_core",
+        value="Arm Cortex-M7",
+        importance="CPU core type helps reviewers understand the processor architecture and appropriate electronics review path.",
+        category="processing_system_cpu",
+        confidence="high",
+    )
+    _add_soc_fact(
+        specs,
+        seen,
+        text=text,
+        pattern=r"\bArm\s+Cortex-?M4\b|\bCortex-?M4\b",
+        name="cpu_core",
+        value="Arm Cortex-M4",
+        importance="CPU core type helps reviewers understand the processor architecture and appropriate electronics review path.",
+        category="processing_system_cpu",
+        confidence="high",
+    )
+    _add_soc_fact(
+        specs,
+        seen,
+        text=text,
+        pattern=r"\b(?:Cortex-?M7|M7\s+core)[^.\n]{0,120}\b800\s*MHz\b|\b800\s*MHz\b[^.\n]{0,120}\b(?:Cortex-?M7|M7\s+core)\b",
+        name="clock_speed",
+        value="Cortex-M7 up to 800 MHz",
+        importance="Clock speed helps characterize processing performance and may affect how reviewers compare the product against electronics control thresholds.",
+        category="processing_system_cpu",
+        confidence="high",
+    )
+    _add_soc_fact(
+        specs,
+        seen,
+        text=text,
+        pattern=r"\b(?:Cortex-?M4|M4\s+core)[^.\n]{0,120}\b400\s*MHz\b|\b400\s*MHz\b[^.\n]{0,120}\b(?:Cortex-?M4|M4\s+core)\b",
+        name="clock_speed",
+        value="Cortex-M4 up to 400 MHz",
+        importance="Clock speed helps characterize processing performance and may affect how reviewers compare the product against electronics control thresholds.",
+        category="processing_system_cpu",
+        confidence="high",
+    )
+    _add_soc_fact(
+        specs,
+        seen,
+        text=text,
         pattern=r"\bquad-core\b[^.\n]{0,80}\bCortex-A53\b|\bCortex-A53\b[^.\n]{0,80}\bquad-core\b",
         name="cpu_core_count",
         value="quad-core Cortex-A53",
@@ -642,7 +792,7 @@ def _extract_soc_fpga_facts(
         pattern=r"\bdual-core\b[^.\n]{0,80}\bCortex-A53\b|\bCortex-A53\b[^.\n]{0,80}\bdual-core\b",
         name="cpu_core_count",
         value="dual-core Cortex-A53",
-        importance="Family-overview core-count variants should be reviewed against device-specific ordering codes before final classification.",
+        importance="Family-overview core-count variants should be reviewed against device-specific ordering codes before review signoff.",
         category="processing_system_cpu",
         confidence="medium",
     )
@@ -676,6 +826,17 @@ def _extract_soc_fpga_facts(
         value="TCM/cache present",
         importance="TCM and cache details help distinguish memory-integrity facts from cryptographic features.",
         category="processing_system_cpu",
+    )
+    _add_soc_fact(
+        specs,
+        seen,
+        text=text,
+        pattern=r"\b2\s*MB\s+on-chip\s+RAM\b|\bOn-chip\s+RAM\s*\(2\s*MB\s+in\s+total\)",
+        name="on_chip_ram",
+        value="2 MB on-chip RAM",
+        importance="Memory and cache resources help characterize the processor subsystem and distinguish general MCU features from specialized compute hardware.",
+        category="processing_system_cpu",
+        confidence="high",
     )
 
     for ecc_match in re.finditer(r"\bECC\b", text, flags=re.IGNORECASE):
@@ -712,11 +873,11 @@ def _extract_soc_fpga_facts(
         specs,
         seen,
         text=text,
-        pattern=r"\bprocessing system\b|\bprocessing subsystem\b|\bPS\b",
+        pattern=r"\bprocessing system\b|\bprocessing subsystem\b",
         name="processing_system",
         value="processing system / PS",
         importance="Processing-system language establishes that the document covers an integrated SoC, not a standalone peripheral.",
-        category="programmable_logic_fpga",
+        category="processing_system_cpu",
     )
     _add_soc_fact(
         specs,
@@ -731,6 +892,7 @@ def _extract_soc_fpga_facts(
 
     interface_specs = [
         (r"\bFour\s+10/100/1000\s+tri-speed\s+Ethernet\s+MAC\b|\bEthernet\s+MAC\b", "ethernet_mac", "Four 10/100/1000 tri-speed Ethernet MAC", "Ethernet MAC count and speed are relevant high-speed I/O facts for SoC review."),
+        (r"\b10M/100M\s+Ethernet\s+controller\b|\bGigabit\s+Ethernet\s+controller\b|\bEthernet\s+Controller\b", "ethernet_mac", "Ethernet controllers", "Ethernet interfaces help reviewers understand the processor integration profile and whether electronics interface review is needed."),
         (r"\bPCI\s+Express\b|\bPCIe\b", "pcie_interface", "PCIe", "PCIe capability can be relevant to narrower electronics and high-speed interface review."),
         (r"\bUSB\s*2\.0\b|\bUSB\b", "usb_interface", "USB 2.0", "USB peripheral capability is part of the SoC digital-interface profile."),
         (r"\bCAN\b", "can_interface", "CAN", "CAN peripheral capability is part of the SoC digital-interface profile."),
@@ -739,6 +901,9 @@ def _extract_soc_fpga_facts(
         (r"\bUART\b", "uart_interface", "UART", "UART peripheral capability is part of the SoC digital-interface profile."),
         (r"\bJTAG\b", "jtag_interface", "JTAG", "JTAG/debug access can matter for device architecture and security review questions."),
         (r"\bDisplayPort\b", "displayport_interface", "DisplayPort", "DisplayPort is a high-speed digital-display interface that may require narrower interface review."),
+        (r"\bMIPI\s+CSI\b|\bParallel\s+Camera\s+Sensor\s+Interface\b|\bcamera interface\b", "camera_interface", "MIPI CSI / camera interface", "Camera interfaces help reviewers understand the processor integration profile and whether electronics interface review is needed."),
+        (r"\bMIPI\s+DSI\b|\bLCD\s+display\b|\bParallel\s+RGB\s+LCD\b|\bLCD interface\b", "display_interface", "LCD / MIPI DSI display interface", "Display interfaces help reviewers understand the processor integration profile and whether electronics interface review is needed."),
+        (r"\bSPDIF\b|\bI2S\s+audio\b|\baudio interface\b", "audio_interface", "SPDIF / I2S audio interface", "Audio interfaces help reviewers understand the processor integration profile and whether electronics interface review is needed."),
         (r"\bNAND\b|\beMMC\b|\bSD\b", "memory_controller_interface", "NAND/eMMC/SD memory interface", "External memory-controller interfaces help characterize the SoC integration profile."),
     ]
     for pattern, name, value, importance in interface_specs:
@@ -769,6 +934,19 @@ def _extract_soc_fpga_facts(
         )
 
     security_specs = [
+        (r"\bHigh\s+Assurance\s+Boot\s+\(HAB\)|\bHAB\b", "secure_boot", "High Assurance Boot (HAB)", "Secure boot can trigger security/cryptography review questions because it may involve authentication, cryptographic verification, and protected boot flows."),
+        (r"\bEncrypted\s+Boot\b", "encrypted_boot", "Encrypted Boot", "Encrypted boot can trigger security/cryptography review questions because it may involve protected boot flows and cryptographic verification."),
+        (r"\bCryptographic\s+Acceleration\s+and\s+Assurance\s+\(CAAM\)\b|\bCAAM\b", "caam", "Cryptographic Acceleration and Assurance (CAAM)", "Hardware cryptography accelerators can require separate security/cryptography review because their functions may be controlled depending on accessibility, algorithms, and exceptions."),
+        (r"\bPublic\s+Key\s+Cryptography\s+Engine\s+\(PKHA\)\b|\bPKHA\b", "pkha", "Public Key Cryptography Engine (PKHA)", "Public-key cryptography engines can require separate security/cryptography review depending on accessibility, algorithms, and exceptions."),
+        (r"\bSymmetric\s+Engines?\b|\bAES-128/256\b|\bDES/3DES\b", "symmetric_engine", "Symmetric engines", "Symmetric cryptography engines can require separate security/cryptography review depending on accessibility, algorithms, and exceptions."),
+        (r"\bCryptographic\s+Hash\s+Engine\b|\bSHA-2\b", "cryptographic_hash_engine", "Cryptographic hash engine", "Cryptographic hash engines can require separate security/cryptography review depending on accessibility, algorithms, and exceptions."),
+        (r"\bRandom\s+Number\s+Generation\s+\(RNG4\)\b|\bRNG4\b", "rng4", "Random Number Generation (RNG4)", "Random-number generation hardware can matter to security/cryptography review when it supports cryptographic functions."),
+        (r"\bSecure\s+Hardware-Only\s+Cryptographic\s+Key\s+Management\b|\bkey\s+management\b", "secure_key_management", "Secure hardware-only cryptographic key management", "Secure key-management features can require security/cryptography review because protected keys may affect functionality and availability analysis."),
+        (r"\bInline\s+Encryption\s+Engine\b|\bIEE\b", "inline_encryption_engine", "Inline Encryption Engine (IEE)", "Inline encryption can require security/cryptography review because it may protect memory or storage traffic with cryptographic functions."),
+        (r"\bOn-the-Fly\s+AES\s+Decryption\s+\(OTFAD\)\b|\bOTFAD\b", "otfad", "OTFAD AES-128 Counter Mode decryption", "OTFAD AES-128 counter-mode decryption can require security/cryptography review because it protects external flash access."),
+        (r"\bSecure\s+Non-Volatile\s+Storage\s+\(SNVS\)\b|\bSNVS\b", "snvs", "Secure Non-Volatile Storage (SNVS)", "Secure non-volatile storage features can matter to security/cryptography review when they protect keys or boot state."),
+        (r"\bZero\s+Master\s+Key\b|\bZMK\b", "zero_master_key", "Zero Master Key (ZMK)", "Zero Master Key functionality can matter to security/cryptography review when it affects protected key handling."),
+        (r"\bPhysical\s+Unclonable\s+Function\s+\(PUF\)\b|\bPUF\b", "puf", "Physical Unclonable Function (PUF)", "PUF functionality can matter to security/cryptography review because it may support device-unique key generation or protection."),
         (r"\bsecure\s+and\s+non-secure\s+boot\b|\bsecure boot\b", "secure_boot", "secure and non-secure boot", "Secure boot and non-secure boot modes can trigger separate security/cryptography review questions."),
         (r"\b256-bit\s+AES-GCM\b|\bAES-GCM\b", "cryptographic_algorithm", "AES-GCM", "AES-GCM is a named cryptographic algorithm and supports Category 5 Part 2 review questions."),
         (r"\b256-bit\s+AES-GCM\b", "crypto_key_size", "256-bit", "AES key size is relevant to cryptography review and must not be treated as ADC resolution."),
@@ -827,26 +1005,21 @@ def extract_specs(text: str) -> list[ExtractedSpec]:
     normalized_text = text.replace("\r", "")
     top_text = _top_window(normalized_text)
     has_zynq_family_identity = _add_zynq_family_identity(normalized_text, specs, seen)
+    has_imx_rt1170_identity = _add_imx_rt1170_identity(normalized_text, specs, seen)
 
-    manufacturer_pattern = (
-        r"\b(Texas Instruments|Analog Devices|ADI|Intel|AMD|Xilinx|NXP|"
-        r"Microchip|Renesas|Infineon|onsemi|STMicroelectronics|Qorvo|Skyworks|"
-        r"Broadcom|Lattice|Teledyne|Marvell|Semtech|Maxim Integrated|Analog Devices, Inc\.)\b"
-    )
-    manufacturer_match = re.search(manufacturer_pattern, top_text, flags=re.IGNORECASE)
-    if not manufacturer_match:
-        manufacturer_match = re.search(manufacturer_pattern, normalized_text, flags=re.IGNORECASE)
-    if manufacturer_match:
+    manufacturer_evidence = _find_manufacturer_evidence(top_text) or _find_manufacturer_evidence(normalized_text)
+    if manufacturer_evidence:
+        manufacturer, manufacturer_snippet, manufacturer_confidence = manufacturer_evidence
         _add_spec(
             specs,
             seen,
             name="manufacturer",
-            value=manufacturer_match.group(1),
+            value=manufacturer,
             unit=None,
-            source_snippet=_extract_snippet(normalized_text, manufacturer_match.start(), manufacturer_match.end()),
+            source_snippet=manufacturer_snippet,
             importance="Manufacturer identity anchors the review to the vendor’s own part naming, application framing, and qualification language.",
             category="product_identity",
-            confidence="high",
+            confidence=manufacturer_confidence,
         )
 
     part_patterns = [
@@ -909,7 +1082,7 @@ def extract_specs(text: str) -> list[ExtractedSpec]:
             )
             break
 
-    if has_zynq_family_identity or has_primary_compute_signal:
+    if has_zynq_family_identity or has_imx_rt1170_identity or has_primary_compute_signal:
         _extract_soc_fpga_facts(normalized_text, specs, seen)
 
     description_line = _find_line(
@@ -1114,6 +1287,9 @@ def extract_specs(text: str) -> list[ExtractedSpec]:
     for name, label in [("enob", "ENOB"), ("snr", "SNR"), ("sfdr", "SFDR")]:
         match = re.search(rf"\b{label}\b[^.\n]{{0,20}}?(?P<qualifier>typical|maximum|minimum|>|<)?\s*(?P<value>\d+(?:\.\d+)?)\s*dB\b", normalized_text, flags=re.IGNORECASE)
         if match:
+            metric_line = _extract_line(normalized_text, match.start(), match.end())
+            if any(term in metric_line.lower() for term in ("formula", "equation", "calculate", "computed as", "sinad =")):
+                continue
             _add_spec(
                 specs,
                 seen,
@@ -1161,15 +1337,41 @@ def extract_specs(text: str) -> list[ExtractedSpec]:
 
     _extract_primary_jesd_facts(normalized_text, specs, seen)
 
+    specific_interface_fact_names = {
+        spec.name
+        for spec in specs
+        if spec.name
+        in {
+            "ethernet_mac",
+            "pcie_interface",
+            "spi_interface",
+            "i2c_interface",
+            "uart_interface",
+            "jtag_interface",
+            "displayport_interface",
+        }
+    }
+    generic_interface_to_specific = {
+        "ethernet": "ethernet_mac",
+        "pcie": "pcie_interface",
+        "spi": "spi_interface",
+        "i2c": "i2c_interface",
+        "jtag": "jtag_interface",
+        "uart": "uart_interface",
+    }
     for match in re.finditer(r"\b(LVDS|CMOS|SPI|I2C|PCIe|Ethernet|JTAG|UART)\b", normalized_text, flags=re.IGNORECASE):
         context = _context_window(normalized_text, match.start(), match.end())
-        if match.group(0).upper() in {"SPI", "CMOS"}:
+        interface_value = match.group(0)
+        if interface_value.upper() in {"SPI", "CMOS"}:
+            continue
+        specific_name = generic_interface_to_specific.get(interface_value.lower())
+        if specific_name and specific_name in specific_interface_fact_names:
             continue
         _add_spec(
             specs,
             seen,
             name="digital_interface",
-            value=match.group(0),
+            value=interface_value,
             unit=None,
             source_snippet=_extract_snippet(normalized_text, match.start(), match.end()),
             importance="Digital interface wording helps experts understand how the device connects into a broader digital system.",
@@ -1288,6 +1490,10 @@ def extract_specs(text: str) -> list[ExtractedSpec]:
 
     if re.search(r"\b(modulation|demodulation|upconversion|downconversion|frequency synthesis)\b", normalized_text, flags=re.IGNORECASE):
         modulation_match = re.search(r"\b(modulation|demodulation|upconversion|downconversion|frequency synthesis)\b", normalized_text, flags=re.IGNORECASE)
+        if modulation_match:
+            modulation_context = _context_window(normalized_text, modulation_match.start(), modulation_match.end(), size=120)
+            if "pulse width modulation" in modulation_context.lower() or "pulse-width modulation" in modulation_context.lower():
+                modulation_match = None
         if modulation_match:
             _add_spec(
                 specs,
