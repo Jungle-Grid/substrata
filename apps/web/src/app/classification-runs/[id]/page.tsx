@@ -35,6 +35,19 @@ function displayStatus(status: string) {
   return status.replace(/_/g, ' ');
 }
 
+function displayReviewStatus(status: string) {
+  if (status === 'pending_review') {
+    return 'Needs human review';
+  }
+  if (status === 'needs_more_information') {
+    return 'Blocked';
+  }
+  if (status === 'reviewed' || status === 'approved') {
+    return 'Approved';
+  }
+  return status.replace(/_/g, ' ');
+}
+
 function toneForConfidence(confidence: string): 'warning' | 'success' | 'default' {
   if (confidence === 'high') {
     return 'success';
@@ -305,7 +318,7 @@ export default async function ClassificationRunPage({
           <div>
             <h2 className="text-xl font-semibold text-ink">Review disposition</h2>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Badge tone={toneForStatus(reviewStatus)}>{reviewStatus}</Badge>
+              <Badge tone={toneForStatus(reviewStatus)}>{displayReviewStatus(reviewStatus)}</Badge>
               <Badge tone="warning">Expert review recommended</Badge>
             </div>
             {latestReview?.notes ? (

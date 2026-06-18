@@ -5,7 +5,7 @@ import { useState, useTransition } from 'react';
 import { submitReview } from '../lib/api';
 
 const reviewStatuses = [
-  { value: 'pending_review', label: 'Pending review' },
+  { value: 'pending_review', label: 'Needs human review' },
   { value: 'reviewed', label: 'Reviewed' },
   { value: 'needs_more_information', label: 'Needs more information' },
   { value: 'rejected', label: 'Rejected' },

@@ -185,7 +185,7 @@ def generate_memo(
 {chr(10).join(f"- {line}" for line in conclusion_lines)}
 
 ## 7. Review State
-- Status: pending_review
+- Status: Needs human review
 - Reviewer: Unassigned
 - Note: No reviewer note recorded yet.
 """
