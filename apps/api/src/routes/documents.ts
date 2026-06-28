@@ -7,6 +7,7 @@ import {
 } from '@substrata/shared';
 import { parseBody } from '../lib/http';
 import { HttpError } from '../lib/errors';
+import { canCreateClassification } from '../lib/authz';
 import {
   createDocument,
   getDocument,
@@ -45,7 +46,11 @@ function deriveTitleFromFileName(fileName: string) {
 
 documentsRouter.post('/', async (req, res) => {
   const input = parseBody(documentCreateSchema, req);
-  const { organization, user } = req.authContext;
+  const { organization, user, membership } = req.authContext!;
+
+  if (!canCreateClassification(membership.role)) {
+    throw new HttpError(403, 'You do not have access to create documents.');
+  }
 
   const document = await createDocument(organization.id, {
     ...input,
@@ -70,7 +75,10 @@ documentsRouter.post('/', async (req, res) => {
 });
 
 documentsRouter.post('/upload', upload.single('file'), async (req, res) => {
-  const { organization, user } = req.authContext;
+  const { organization, user, membership } = req.authContext!;
+  if (!canCreateClassification(membership.role)) {
+    throw new HttpError(403, 'You do not have access to upload documents.');
+  }
   const input = uploadSchema.parse({
     title: req.body.title,
     rawText: req.body.rawText,
@@ -198,7 +206,10 @@ documentsRouter.post('/upload', upload.single('file'), async (req, res) => {
 });
 
 documentsRouter.post('/sample', async (req, res) => {
-  const { organization, user } = req.authContext;
+  const { organization, user, membership } = req.authContext!;
+  if (!canCreateClassification(membership.role)) {
+    throw new HttpError(403, 'You do not have access to create documents.');
+  }
   const sample = await loadBundledSampleDatasheet();
 
   const document = await createDocument(organization.id, sample);
@@ -225,13 +236,13 @@ documentsRouter.post('/sample', async (req, res) => {
 });
 
 documentsRouter.get('/', async (req, res) => {
-  const { organization } = req.authContext;
+  const { organization } = req.authContext!;
   const documents = await listDocuments(organization.id);
   res.json(documents.map((document) => presentDocument(document)));
 });
 
 documentsRouter.get('/:id', async (req, res) => {
-  const { organization } = req.authContext;
+  const { organization } = req.authContext!;
   const document = await getDocument(organization.id, req.params.id);
 
   if (!document) {
@@ -243,7 +254,11 @@ documentsRouter.get('/:id', async (req, res) => {
 
 documentsRouter.post('/:id/classification-runs', async (req, res) => {
   const input = parseBody(classificationRunCreateSchema, req);
-  const { organization, user } = req.authContext;
+  const { organization, user, membership } = req.authContext!;
+
+  if (!canCreateClassification(membership.role)) {
+    throw new HttpError(403, 'You do not have access to create classification reviews.');
+  }
 
   const run = await workerClient.createRun({
     documentId: req.params.id,

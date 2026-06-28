@@ -140,6 +140,7 @@ export async function createClassificationRun(input: {
 
       await tx.extractedSpec.createMany({
         data: workerOutput.extractedSpecs.map((spec) => ({
+          organizationId: input.organizationId,
           classificationRunId: run.id,
           name: spec.name,
           value: spec.value,
@@ -155,6 +156,7 @@ export async function createClassificationRun(input: {
       for (const candidate of workerOutput.eccnCandidates) {
         const createdCandidate = await tx.eCCNCandidate.create({
           data: {
+            organizationId: input.organizationId,
             classificationRunId: run.id,
             eccn: candidate.eccn,
             title: candidate.title,
@@ -172,6 +174,7 @@ export async function createClassificationRun(input: {
 
         await tx.citation.createMany({
           data: candidate.regulatoryCitations.map((citation) => ({
+            organizationId: input.organizationId,
             classificationRunId: run.id,
             eccnCandidateId: createdCandidate.id,
             sourceTitle: citation.citationLabel,
@@ -330,7 +333,7 @@ export async function submitClassificationReview(input: {
       entityId: updatedReview.id,
       metadata: {
         classificationRunId: input.classificationRunId,
-        note,
+        noteLength: note.length,
       },
     });
   }
@@ -362,6 +365,91 @@ export async function getClassificationRun(
           reviewer: true,
         },
       },
+    },
+  });
+}
+
+export async function listClassificationRuns(organizationId: string) {
+  return prisma.classificationRun.findMany({
+    where: {
+      organizationId,
+    },
+    include: {
+      document: true,
+      extractedSpecs: true,
+      eccnCandidates: {
+        include: {
+          citations: true,
+        },
+      },
+      reviewMemo: true,
+      humanReviews: {
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          reviewer: true,
+        },
+      },
+    },
+    orderBy: {
+      updatedAt: 'desc',
+    },
+  });
+}
+
+export async function listReviewQueue(organizationId: string) {
+  return prisma.classificationRun.findMany({
+    where: {
+      organizationId,
+      requiresHumanReview: true,
+    },
+    include: {
+      document: true,
+      extractedSpecs: true,
+      humanReviews: {
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          reviewer: true,
+        },
+      },
+      eccnCandidates: {
+        include: {
+          citations: true,
+        },
+      },
+      reviewMemo: true,
+    },
+    orderBy: {
+      updatedAt: 'asc',
+    },
+  });
+}
+
+export async function listReviewMemos(organizationId: string) {
+  return prisma.reviewMemo.findMany({
+    where: {
+      organizationId,
+    },
+    include: {
+      classificationRun: {
+        include: {
+          document: true,
+          humanReviews: {
+            orderBy: {
+              createdAt: 'desc',
+            },
+            include: {
+              reviewer: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      updatedAt: 'desc',
     },
   });
 }

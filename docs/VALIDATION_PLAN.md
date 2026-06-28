@@ -48,3 +48,22 @@ Test pricing and packaging assumptions early:
 - users ask for saved history and review traceability
 - users care about memo quality and citations
 - buyers discuss procurement path rather than only feature ideas
+
+## Current Product QA Signals
+
+Recent frontend QA for the authenticated workspace focused on:
+
+- auth/session UX across sign-in, sign-up, verify-email, forgot-password, reset-password, and OAuth callback states
+- responsive navigation and data surfaces under `/app`
+- review-oriented status language such as `Needs human review`, `Needs more information`, and `Escalated for review`
+- empty, loading, error, and permission-aware states
+
+Current validated outcomes:
+
+- unauthenticated route protection works for `/app`
+- auth pages present intentional validation and recovery states
+- raw backend exception text is no longer exposed to users on auth failure
+
+Current validation gap:
+
+- authenticated browser smoke coverage remains blocked until local Postgres connectivity is restored for successful sign-in

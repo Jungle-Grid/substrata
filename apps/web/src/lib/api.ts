@@ -1,39 +1,22 @@
+'use client';
+
 import type {
-  ApiResult,
+  AuditEventRecord,
+  AuthSessionRecord,
   ClassificationRunRecord,
   DocumentRecord,
+  InviteRecord,
+  MembershipRecord,
+  MemoListRecord,
+  TeamMemberRecord,
 } from './types';
-import { mockDashboard, mockRun } from './mock-data';
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
+const API_BASE = `${
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000'
+}/v1`;
 
-async function safeFetch<T>(path: string, fallback: T): Promise<ApiResult<T>> {
-  try {
-    const response = await fetch(`${API_BASE}${path}`, {
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      return {
-        data: null,
-        fallback: false,
-        error: `Request did not complete. Status ${response.status}.`,
-      };
-    }
-
-    return {
-      data: (await response.json()) as T,
-      fallback: false,
-    };
-  } catch (error) {
-    return {
-      data: fallback,
-      fallback: true,
-      error:
-        error instanceof Error ? error.message : 'The API is currently unreachable.',
-    };
-  }
+function buildUrl(path: string) {
+  return `${API_BASE}${path}`;
 }
 
 async function readJsonError(response: Response) {
@@ -41,28 +24,210 @@ async function readJsonError(response: Response) {
   return payload?.message ?? payload?.error ?? 'Request did not complete.';
 }
 
-export async function fetchDocuments() {
-  return safeFetch<DocumentRecord[]>('/documents', mockDashboard.documents);
+async function clientFetch<T>(
+  path: string,
+  init?: RequestInit & { csrfToken?: string },
+) {
+  const headers = new Headers(init?.headers);
+  if (init?.csrfToken) {
+    headers.set('x-csrf-token', init.csrfToken);
+  }
+
+  const response = await fetch(buildUrl(path), {
+    ...init,
+    headers,
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new Error(await readJsonError(response));
+  }
+
+  if (response.status === 204) {
+    return null as T;
+  }
+
+  return (await response.json()) as T;
 }
 
-export async function fetchDocument(id: string) {
-  return safeFetch<DocumentRecord>(`/documents/${id}`, {
-    ...mockDashboard.documents[0],
-    title: 'Sample Datasheet',
+export async function fetchCsrfToken() {
+  const result = await clientFetch<{ csrfToken: string }>('/auth/csrf');
+  return result.csrfToken;
+}
+
+export function fetchAuthSession() {
+  return clientFetch<AuthSessionRecord>('/auth/me');
+}
+
+export function signUp(payload: {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  csrfToken: string;
+}) {
+  return clientFetch<{ ok: true; message: string }>('/auth/sign-up', {
+    method: 'POST',
+    csrfToken: payload.csrfToken,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
   });
 }
 
-export async function fetchRun(id: string) {
-  return safeFetch<ClassificationRunRecord>(`/classification-runs/${id}`, mockRun);
+export function signIn(payload: {
+  email: string;
+  password: string;
+  inviteToken?: string;
+  csrfToken: string;
+}) {
+  return clientFetch<{ ok: true; next: string }>('/auth/sign-in', {
+    method: 'POST',
+    csrfToken: payload.csrfToken,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
 }
 
-export async function createDocumentFromText(payload: {
+export function signOut(csrfToken: string) {
+  return clientFetch('/auth/sign-out', {
+    method: 'POST',
+    csrfToken,
+  });
+}
+
+export function verifyEmail(payload: { token: string; csrfToken: string }) {
+  return clientFetch<{ ok: true; next: string }>('/auth/verify-email', {
+    method: 'POST',
+    csrfToken: payload.csrfToken,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      token: payload.token,
+    }),
+  });
+}
+
+export function resendVerification(payload: { email: string; csrfToken: string }) {
+  return clientFetch<{ ok: true; message: string }>('/auth/resend-verification', {
+    method: 'POST',
+    csrfToken: payload.csrfToken,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email: payload.email }),
+  });
+}
+
+export function forgotPassword(payload: { email: string; csrfToken: string }) {
+  return clientFetch<{ ok: true; message: string }>('/auth/forgot-password', {
+    method: 'POST',
+    csrfToken: payload.csrfToken,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email: payload.email }),
+  });
+}
+
+export function resetPassword(payload: {
+  token: string;
+  password: string;
+  confirmPassword: string;
+  csrfToken: string;
+}) {
+  return clientFetch<{ ok: true; message: string }>('/auth/reset-password', {
+    method: 'POST',
+    csrfToken: payload.csrfToken,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateProfile(payload: {
+  name: string;
+  csrfToken: string;
+}) {
+  return clientFetch('/auth/profile', {
+    method: 'PATCH',
+    csrfToken: payload.csrfToken,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: payload.name,
+    }),
+  });
+}
+
+export function changePassword(payload: {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+  csrfToken: string;
+}) {
+  return clientFetch('/auth/change-password', {
+    method: 'POST',
+    csrfToken: payload.csrfToken,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function revokeAllSessions(csrfToken: string) {
+  return clientFetch('/auth/sessions/revoke-all', {
+    method: 'POST',
+    csrfToken,
+  });
+}
+
+export function updateOnboarding(payload: {
+  organizationName: string;
+  industry?: string;
+  csrfToken: string;
+}) {
+  return clientFetch('/organizations/current/onboarding', {
+    method: 'POST',
+    csrfToken: payload.csrfToken,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateWorkspaceSettings(payload: {
+  name: string;
+  industry?: string;
+  csrfToken: string;
+}) {
+  return clientFetch('/organizations/current', {
+    method: 'PATCH',
+    csrfToken: payload.csrfToken,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createDocumentFromText(payload: {
   title: string;
   fileName: string;
   rawText: string;
+  csrfToken: string;
 }) {
-  const response = await fetch(`${API_BASE}/documents`, {
+  return clientFetch<DocumentRecord>('/documents', {
     method: 'POST',
+    csrfToken: payload.csrfToken,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -76,18 +241,13 @@ export async function createDocumentFromText(payload: {
       sourceType: 'manual',
     }),
   });
-
-  if (!response.ok) {
-    throw new Error(await readJsonError(response));
-  }
-
-  return (await response.json()) as DocumentRecord;
 }
 
-export async function uploadDocument(payload: {
+export function uploadDocument(payload: {
   title: string;
   rawText?: string;
   file: File;
+  csrfToken: string;
 }) {
   const form = new FormData();
   form.set('title', payload.title);
@@ -96,53 +256,45 @@ export async function uploadDocument(payload: {
   }
   form.set('file', payload.file);
 
-  const response = await fetch(`${API_BASE}/documents/upload`, {
+  return clientFetch<DocumentRecord>('/documents/upload', {
     method: 'POST',
+    csrfToken: payload.csrfToken,
     body: form,
   });
-
-  if (!response.ok) {
-    throw new Error(await readJsonError(response));
-  }
-
-  return (await response.json()) as DocumentRecord;
 }
 
-export async function createSampleDocument() {
-  const response = await fetch(`${API_BASE}/documents/sample`, {
+export function createSampleDocument(csrfToken: string) {
+  return clientFetch<DocumentRecord>('/documents/sample', {
     method: 'POST',
+    csrfToken,
   });
-
-  if (!response.ok) {
-    throw new Error(await readJsonError(response));
-  }
-
-  return (await response.json()) as DocumentRecord;
 }
 
-export async function startClassificationRun(documentId: string) {
-  const response = await fetch(`${API_BASE}/documents/${documentId}/classification-runs`, {
+export function startClassificationRun(documentId: string, csrfToken: string) {
+  return clientFetch<ClassificationRunRecord>(`/documents/${documentId}/classification-runs`, {
     method: 'POST',
+    csrfToken,
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ trigger: 'manual' }),
   });
-
-  if (!response.ok) {
-    throw new Error(await readJsonError(response));
-  }
-
-  return (await response.json()) as ClassificationRunRecord;
 }
 
-export async function submitReview(payload: {
+export function submitReview(payload: {
   runId: string;
-  status: 'pending_review' | 'reviewed' | 'needs_more_information' | 'rejected';
+  status:
+    | 'pending_review'
+    | 'reviewed'
+    | 'needs_more_information'
+    | 'approved'
+    | 'rejected';
   note: string;
+  csrfToken: string;
 }) {
-  const response = await fetch(`${API_BASE}/classification-runs/${payload.runId}/review`, {
+  return clientFetch(`/classification-runs/${payload.runId}/review`, {
     method: 'POST',
+    csrfToken: payload.csrfToken,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -151,10 +303,42 @@ export async function submitReview(payload: {
       note: payload.note,
     }),
   });
-
-  if (!response.ok) {
-    throw new Error(await readJsonError(response));
-  }
-
-  return response.json();
 }
+
+export function createInvite(payload: {
+  email: string;
+  role: MembershipRecord['role'];
+  csrfToken: string;
+}) {
+  return clientFetch<{ invite: InviteRecord }>('/organizations/current/invites', {
+    method: 'POST',
+    csrfToken: payload.csrfToken,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email: payload.email,
+      role: payload.role,
+    }),
+  });
+}
+
+export function acceptInvite(payload: { token: string; csrfToken: string }) {
+  return clientFetch<{ ok: true; organizationId: string }>(
+    `/invites/${payload.token}/accept`,
+    {
+      method: 'POST',
+      csrfToken: payload.csrfToken,
+    },
+  );
+}
+
+export type {
+  AuditEventRecord,
+  AuthSessionRecord,
+  ClassificationRunRecord,
+  DocumentRecord,
+  InviteRecord,
+  MemoListRecord,
+  TeamMemberRecord,
+};

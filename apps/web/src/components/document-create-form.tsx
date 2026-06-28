@@ -2,7 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import { ChangeEvent, useState, useTransition } from 'react';
-import { createDocumentFromText, uploadDocument } from '../lib/api';
+import { createDocumentFromText, fetchCsrfToken, uploadDocument } from '../lib/api';
+import { InlineNotice } from './ui';
 
 const sampleTitle = 'Asteria A112 Edge Accelerator Datasheet';
 
@@ -52,6 +53,15 @@ export function DocumentCreateForm() {
         const file = form.get('file');
         const rawText = String(form.get('rawText') ?? '').trim();
 
+        if (!submittedTitle) {
+          setError('Document title is required.');
+          return;
+        }
+        if (!(file instanceof File && file.size > 0) && !rawText) {
+          setError('Upload a file or paste source text to continue.');
+          return;
+        }
+
         startTransition(async () => {
           try {
             setStatusMessage(
@@ -62,15 +72,21 @@ export function DocumentCreateForm() {
 
             const document =
               file instanceof File && file.size > 0
-                ? await uploadDocument({ title: submittedTitle, rawText, file })
+                ? await uploadDocument({
+                    title: submittedTitle,
+                    rawText,
+                    file,
+                    csrfToken: await fetchCsrfToken(),
+                  })
                 : await createDocumentFromText({
                     title: submittedTitle,
                     fileName: `${submittedTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.txt`,
                     rawText,
+                    csrfToken: await fetchCsrfToken(),
                   });
 
             setStatusMessage('Document ready. Opening review workspace...');
-            router.push(`/documents/${document.id}`);
+            router.push(`/app/documents/${document.id}`);
           } catch (submissionError) {
             setError(
               submissionError instanceof Error
@@ -108,10 +124,9 @@ export function DocumentCreateForm() {
         </label>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-        <p className="text-sm font-medium text-ink">Document intake status</p>
-        <p className="mt-2 text-sm text-slate-600">{statusMessage}</p>
-      </div>
+      <InlineNotice tone="default" title="Document intake status">
+        {statusMessage}
+      </InlineNotice>
 
       <label className="space-y-2">
         <span className="text-sm font-medium text-ink">
@@ -127,11 +142,7 @@ export function DocumentCreateForm() {
         />
       </label>
 
-      {error ? (
-        <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
 
       <button
         type="submit"

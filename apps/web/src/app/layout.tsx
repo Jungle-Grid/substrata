@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import './globals.css';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Substrata',
   description: 'AI-native export control review assistant for hardware teams.',

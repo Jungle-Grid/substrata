@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
-import { startClassificationRun } from '../lib/api';
+import { fetchCsrfToken, startClassificationRun } from '../lib/api';
 
 export function StartClassificationButton({ documentId }: { documentId: string }) {
   const router = useRouter();
@@ -22,8 +22,11 @@ export function StartClassificationButton({ documentId }: { documentId: string }
           setError(null);
           startTransition(async () => {
             try {
-              const run = await startClassificationRun(documentId);
-              router.push(`/classification-runs/${run.id}`);
+              const run = await startClassificationRun(
+                documentId,
+                await fetchCsrfToken(),
+              );
+              router.push(`/app/reviews/${run.id}`);
             } catch (runError) {
               setError(
                 runError instanceof Error

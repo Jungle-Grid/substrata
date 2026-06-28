@@ -8,6 +8,7 @@
     "dev:api": "corepack pnpm --filter @substrata/api dev",
     "build": "corepack pnpm -r build",
     "lint": "corepack pnpm -r lint",
+    "test": "corepack pnpm --filter @substrata/api test",
     "typecheck": "corepack pnpm -r typecheck",
     "db:generate": "corepack pnpm --filter @substrata/db prisma:generate",
     "db:migrate": "corepack pnpm --filter @substrata/db prisma:migrate",

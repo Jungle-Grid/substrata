@@ -1,6 +1,6 @@
 # Substrata Monorepo
 
-Substrata is an AI-native export control and trade compliance review assistant for semiconductor and advanced hardware teams. This repository contains a validation-ready MVP for datasheet upload, local text extraction, export-relevant spec extraction, ECCN candidate drafting, citations, memo generation, and mandatory human review tracking.
+Substrata is an ECCN review assistant for semiconductor and advanced hardware teams. This repository now contains a multi-tenant compliance workspace with account sign-in, organization membership, document upload, classification review runs, memo drafting, invitations, and auditable human review tracking.
 
 ## Monorepo Layout
 
@@ -12,54 +12,103 @@ Substrata is an AI-native export control and trade compliance review assistant f
 - `docs`: product, architecture, compliance, and engineering docs
 - `infra`: local infrastructure for development
 
+## Authentication and Workspace Model
+
+- The Express API is the authorization boundary for workspace data.
+- Sessions are opaque, server-managed, and stored in Postgres as hashed tokens.
+- Browser auth uses `httpOnly` session cookies plus CSRF protection for state-changing requests.
+- New password users verify email before accessing workspace data.
+- Google sign-in uses the OAuth authorization-code flow with the API as callback owner.
+- Users belong to organizations through memberships with roles: `OWNER`, `ADMIN`, `REVIEWER`, `ANALYST`, `VIEWER`.
+- Classification outputs remain draft analysis with recommended ECCN review paths and required human review.
+
+## Frontend Workspace Notes
+
+- The authenticated workspace lives under `/app` and uses server-guarded redirects for auth and onboarding.
+- Auth pages redirect authenticated users back into `/app` or `/app/onboarding`.
+- Unauthenticated access to `/app/*` is redirected to `/sign-in` with a safe return path.
+- Mobile workspace navigation uses a drawer pattern; desktop uses a persistent sidebar.
+- Review states are intentionally phrased as review workflow states, not final legal determinations.
+
 ## Local Development
 
 1. Copy `.env.example` to `.env`.
-2. Start Postgres:
-   - `docker compose -f infra/docker-compose.yml up -d`
-   - if your Docker install does not support `docker compose`, use `docker-compose -f infra/docker-compose.yml up -d`
-3. Install JavaScript dependencies:
-   - `COREPACK_HOME=/tmp/corepack corepack pnpm install`
-   - if the npm registry times out, retry the same command; `.npmrc` now increases retry/timeouts
-4. Generate Prisma client:
-   - `COREPACK_HOME=/tmp/corepack corepack pnpm db:generate`
-5. Create the development schema:
-   - `COREPACK_HOME=/tmp/corepack corepack pnpm db:migrate`
-6. Seed the database with a development organization, user, sample document, completed classification run, citations, memo, human review record, and audit events:
-   - `COREPACK_HOME=/tmp/corepack corepack pnpm db:seed`
-7. Start the API:
-   - `COREPACK_HOME=/tmp/corepack corepack pnpm dev:api`
-8. Start the frontend in a second terminal:
-   - `COREPACK_HOME=/tmp/corepack corepack pnpm dev:web`
-9. Optionally run both with one command:
-   - `COREPACK_HOME=/tmp/corepack corepack pnpm dev`
-10. Run the sample Python worker locally:
-   - `COREPACK_HOME=/tmp/corepack corepack pnpm worker:sample`
-11. Verify the API manually:
-   - `COREPACK_HOME=/tmp/corepack corepack pnpm smoke:api`
+2. Set `SESSION_SECRET` before using sign-in flows.
+3. Optional: configure Google OAuth and ZeptoMail if you want real Google sign-in or transactional email delivery.
+4. Start Postgres:
+  - `docker compose -f infra/docker-compose.yml up -d`
+  - if your Docker install does not support `docker compose`, use `docker-compose -f infra/docker-compose.yml up -d`
+5. Install JavaScript dependencies:
+  - `COREPACK_HOME=/tmp/corepack corepack pnpm install`
+  - if the npm registry times out, retry the same command; `.npmrc` now increases retry/timeouts
+6. Generate Prisma client:
+  - `COREPACK_HOME=/tmp/corepack corepack pnpm db:generate`
+7. Create the development schema:
+  - `COREPACK_HOME=/tmp/corepack corepack pnpm db:migrate`
+8. Seed the database with a development owner, reviewer, organization, sample document, completed classification run, citations, memo, human review record, and audit events:
+  - `COREPACK_HOME=/tmp/corepack corepack pnpm db:seed`
+9. Start the API:
+  - `COREPACK_HOME=/tmp/corepack corepack pnpm dev:api`
+10. Start the frontend in a second terminal:
+  - `COREPACK_HOME=/tmp/corepack corepack pnpm dev:web`
+11. Optionally run both with one command:
+  - `COREPACK_HOME=/tmp/corepack corepack pnpm dev`
+12. Run the sample Python worker locally:
+  - `COREPACK_HOME=/tmp/corepack corepack pnpm worker:sample`
+13. Verify the API manually:
+  - `COREPACK_HOME=/tmp/corepack corepack pnpm smoke:api`
+
+## Environment Variables
+
+- `APP_URL`: browser-facing web origin, used for verification, reset, and invite links.
+- `API_URL`: browser-facing API origin.
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`: Google OAuth client settings. The redirect URI must exactly match the API callback route.
+- `SESSION_SECRET`: required in any environment that uses real auth. Used to hash session and one-time auth tokens.
+- `SESSION_COOKIE_NAME`: opaque session cookie name.
+- `ZEPTO_MAIL_API_TOKEN`: ZeptoMail HTTP API token for transactional email.
+- `EMAIL_FROM`: verified sender used for auth and invite mail.
 
 ## Acceptance Paths
 
 - API health: `GET http://localhost:4000/health`
-- Dashboard: `http://localhost:3000/dashboard`
-- Upload flow: `http://localhost:3000/documents/new`
-- Sample datasheet demo: use `Try sample datasheet` from the dashboard
-- Seeded document: `http://localhost:3000/documents/doc_seed_orion_x7`
-- Seeded run: `http://localhost:3000/classification-runs/run_seed_orion_x7`
+- Sign in: `http://localhost:3000/sign-in`
+- Sign up: `http://localhost:3000/sign-up`
+- Verify email: `http://localhost:3000/verify-email`
+- Workspace overview: `http://localhost:3000/app`
+- Upload flow: `http://localhost:3000/app/documents/new`
+- Seeded document: `http://localhost:3000/app/documents/doc_seed_orion_x7`
+- Seeded run: `http://localhost:3000/app/reviews/run_seed_orion_x7`
 - Worker sample output: `workers/classifier/samples/output-sample.json`
 
 ## Demo Workflow
 
-1. Open `http://localhost:3000/dashboard`.
-2. Either click `Try sample datasheet` for the bundled public/sample demo file, or go to `Upload` and submit a PDF or text datasheet.
-3. Open the created document and start a classification run.
-4. Review the extracted specs, ECCN candidate cards, citations, reviewer questions, and draft memo.
-5. Record a reviewer disposition and note from the run page.
-6. Download the memo Markdown from the run page when you want the full expert-review artifact.
+1. Open `http://localhost:3000/sign-in`.
+2. Seeded local users after `pnpm db:seed`:
+   - `owner@substrata.local / SubstrataDemoPass123!`
+   - `reviewer@substrata.local / SubstrataDemoPass123!`
+3. Open the workspace overview and review queue.
+4. Upload a PDF or text datasheet, or use the seeded sample document.
+5. Open the document and start a classification review.
+6. Review extracted technical facts, recommended ECCN review paths, citations, uncertainty flags, and the memo draft.
+7. Record a human review decision from the review page.
+8. Invite a teammate from the Team page if email delivery is configured.
+
+## Frontend Validation Status
+
+- Lint and full monorepo typecheck pass.
+- The web production build completes compile, lint/typecheck, and static-page generation, but in this environment it may stall at `Collecting build traces ...` instead of exiting cleanly.
+- Browser-tested unauthenticated flows include:
+  - `/sign-in`
+  - `/sign-up`
+  - `/forgot-password`
+  - `/reset-password`
+  - `/auth/callback`
+  - unauthenticated redirect from `/app`
+- Authenticated browser validation currently depends on a working local Postgres connection. If the API cannot connect to Postgres, sign-in will fail and authenticated route smoke tests cannot complete.
 
 ## Notes
 
-- Real auth is intentionally deferred.
 - Human review is mandatory for every classification output.
 - The upload flow stores original files locally and extracts PDF text with local tooling when available.
 - Jungle Grid is a future execution target; local execution is the MVP default.
+- Google OAuth and ZeptoMail require manual dashboard setup and verified sender/client configuration outside the repository.

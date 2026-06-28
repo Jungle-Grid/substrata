@@ -17,6 +17,17 @@ type RunWithRelations = ClassificationRun & {
   humanReviews: Array<HumanReview & { reviewer?: User | null }>;
 };
 
+type DocumentWithRunRelations = Document & {
+  classificationRuns?: Array<
+    ClassificationRun & {
+      extractedSpecs?: ExtractedSpec[];
+      eccnCandidates?: Array<ECCNCandidate & { citations?: Citation[] }>;
+      reviewMemo?: ReviewMemo | null;
+      humanReviews?: Array<HumanReview & { reviewer?: User | null }>;
+    }
+  >;
+};
+
 function presentCitation(citation: Citation) {
   return {
     id: citation.id,
@@ -96,7 +107,7 @@ export function presentRun(run: RunWithRelations) {
   };
 }
 
-export function presentDocument(document: any) {
+export function presentDocument(document: DocumentWithRunRelations) {
   return {
     id: document.id,
     title: document.title,
@@ -107,7 +118,7 @@ export function presentDocument(document: any) {
     sourceType: document.sourceType,
     rawText: document.rawText,
     createdAt: document.createdAt,
-    classificationRuns: document.classificationRuns?.map((run: any) => ({
+    classificationRuns: document.classificationRuns?.map((run) => ({
       id: run.id,
       status: run.status,
       confidence: run.confidence ?? null,
@@ -127,7 +138,7 @@ export function presentDocument(document: any) {
         summary: document.rawText?.slice(0, 420) ?? null,
       },
       extractedSpecs:
-        run.extractedSpecs?.map((spec: any) => ({
+        run.extractedSpecs?.map((spec) => ({
           id: spec.id,
           name: spec.name,
           value: spec.value,
@@ -138,7 +149,7 @@ export function presentDocument(document: any) {
           confidence: spec.confidenceLevel,
         })) ?? [],
       eccnCandidates:
-        run.eccnCandidates?.map((candidate: any) => ({
+        run.eccnCandidates?.map((candidate) => ({
           id: candidate.id,
           eccn: candidate.eccn,
           title: candidate.title,
@@ -162,7 +173,7 @@ export function presentDocument(document: any) {
           }
         : null,
       humanReviews:
-        run.humanReviews?.map((review: any) => ({
+        run.humanReviews?.map((review) => ({
           id: review.id,
           status: review.status,
           notes: review.notes,

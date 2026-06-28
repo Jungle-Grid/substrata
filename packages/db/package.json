@@ -18,7 +18,8 @@
     "seed": "/bin/bash -lc 'set -a && source ../../.env && set +a && tsx prisma/seed.ts'"
   },
   "dependencies": {
-    "@prisma/client": "^6.10.1"
+    "@prisma/client": "^6.10.1",
+    "bcrypt": "^6.0.0"
   },
   "devDependencies": {
     "prisma": "^6.10.1",

@@ -1,6 +1,13 @@
 import { z } from 'zod';
 
 export const confidenceLevelSchema = z.enum(['high', 'medium', 'low']);
+export const membershipRoleSchema = z.enum([
+  'OWNER',
+  'ADMIN',
+  'REVIEWER',
+  'ANALYST',
+  'VIEWER',
+]);
 
 export const uncertaintyFlagSchema = z.enum([
   'missing_key_specs',
@@ -29,9 +36,103 @@ export const reviewSubmissionSchema = z.object({
     'pending_review',
     'reviewed',
     'needs_more_information',
+    'approved',
     'rejected',
   ]),
   note: z.string().trim().max(4000).optional().default(''),
+});
+
+const passwordSchema = z.string().min(12).max(256);
+
+export const signUpSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    email: z.string().trim().email().max(320),
+    password: passwordSchema,
+    confirmPassword: z.string().max(256),
+    inviteToken: z.string().trim().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.password !== value.confirmPassword) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['confirmPassword'],
+        message: 'Passwords do not match.',
+      });
+    }
+  });
+
+export const signInSchema = z.object({
+  email: z.string().trim().email().max(320),
+  password: z.string().max(256),
+  inviteToken: z.string().trim().optional(),
+});
+
+export const verifyEmailSchema = z.object({
+  token: z.string().trim().min(1).max(512),
+});
+
+export const resendVerificationSchema = z.object({
+  email: z.string().trim().email().max(320),
+});
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().email().max(320),
+});
+
+export const resetPasswordSchema = z
+  .object({
+    token: z.string().trim().min(1).max(512),
+    password: passwordSchema,
+    confirmPassword: z.string().max(256),
+  })
+  .superRefine((value, ctx) => {
+    if (value.password !== value.confirmPassword) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['confirmPassword'],
+        message: 'Passwords do not match.',
+      });
+    }
+  });
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().max(256),
+    newPassword: passwordSchema,
+    confirmPassword: z.string().max(256),
+  })
+  .superRefine((value, ctx) => {
+    if (value.newPassword !== value.confirmPassword) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['confirmPassword'],
+        message: 'Passwords do not match.',
+      });
+    }
+  });
+
+export const onboardingSchema = z.object({
+  organizationName: z.string().trim().min(1).max(120),
+  industry: z.string().trim().max(120).optional().or(z.literal('')),
+});
+
+export const organizationUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  industry: z.string().trim().max(120).optional().or(z.literal('')),
+});
+
+export const inviteCreateSchema = z.object({
+  email: z.string().trim().email().max(320),
+  role: membershipRoleSchema.default('REVIEWER'),
+});
+
+export const inviteAcceptSchema = z.object({
+  token: z.string().trim().min(1).max(512),
+});
+
+export const profileUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(120),
 });
 
 export const extractedSpecSchema = z.object({
@@ -133,5 +234,17 @@ export type ClassificationRunCreateInput = z.infer<
   typeof classificationRunCreateSchema
 >;
 export type ReviewSubmissionInput = z.infer<typeof reviewSubmissionSchema>;
+export type SignUpInput = z.infer<typeof signUpSchema>;
+export type SignInInput = z.infer<typeof signInSchema>;
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+export type OnboardingInput = z.infer<typeof onboardingSchema>;
+export type OrganizationUpdateInput = z.infer<typeof organizationUpdateSchema>;
+export type InviteCreateInput = z.infer<typeof inviteCreateSchema>;
+export type InviteAcceptInput = z.infer<typeof inviteAcceptSchema>;
+export type ProfileUpdateInput = z.infer<typeof profileUpdateSchema>;
 export type WorkerOutput = z.infer<typeof workerOutputSchema>;
 export type WorkerCliOutput = z.infer<typeof workerCliOutputSchema>;

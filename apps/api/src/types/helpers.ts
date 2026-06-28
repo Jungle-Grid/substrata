@@ -1,3 +1,3 @@
-export type AwaitedReturn<T extends (...args: any[]) => unknown> = Awaited<
+export type AwaitedReturn<T extends (...args: never[]) => unknown> = Awaited<
   ReturnType<T>
 >;

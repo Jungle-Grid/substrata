@@ -8,6 +8,8 @@ export function errorHandler(
   res: Response,
   _next: NextFunction,
 ) {
+  void _next;
+
   if (error instanceof HttpError) {
     console.error('HTTP error response', {
       method: req.method,
@@ -31,18 +33,15 @@ export function errorHandler(
     });
   }
 
-  const message =
-    error instanceof Error ? error.message : 'An unexpected error occurred.';
-
   console.error('Unhandled error response', {
     method: req.method,
     path: req.originalUrl,
-    message,
+    message: error instanceof Error ? error.message : 'An unexpected error occurred.',
     error,
   });
 
   return res.status(500).json({
     error: 'InternalServerError',
-    message,
+    message: 'Request did not complete.',
   });
 }

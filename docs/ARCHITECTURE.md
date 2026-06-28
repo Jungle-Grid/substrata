@@ -18,6 +18,8 @@ Substrata is a single monorepo with one frontend app, one backend API, one Pytho
 
 The frontend is responsible for:
 
+- auth flows and protected-route redirects
+- workspace shell, responsive navigation, and role-aware controls
 - document and classification run views
 - upload flows
 - memo and citation display
@@ -29,6 +31,9 @@ It should not contain classification logic.
 
 The API is responsible for:
 
+- authentication and session management
+- CSRF validation and role-based authorization
+- organization membership resolution
 - request validation
 - persistence
 - upload metadata handling
@@ -55,7 +60,8 @@ The worker must emit reproducible structured outputs and attach explicit uncerta
 
 Postgres stores durable system-of-record entities:
 
-- organizations and users
+- users, credentials, OAuth identities, sessions, and one-time auth tokens
+- organizations, memberships, and workspace invites
 - documents and runs
 - extracted specifications
 - ECCN candidates
@@ -66,16 +72,43 @@ Postgres stores durable system-of-record entities:
 
 ## Datasheet-to-Run Flow
 
-1. User uploads a document through the web app.
-2. API stores document metadata and a storage path reference.
-3. User starts a classification run.
-4. API creates a `ClassificationRun` with `pending` status.
-5. API calls a worker client abstraction.
-6. In MVP mode, the worker client uses a local stub.
-7. The worker processes the document and emits structured JSON plus memo/artifact outputs.
-8. API persists extracted specs, candidates, citations, and memo.
-9. Frontend renders the run for human review.
-10. Reviewer records outcome and notes.
+1. User signs in with Google or email/password.
+2. API resolves the active session, selected organization, membership, and role.
+3. User uploads a document through the web app.
+4. API stores document metadata and a storage path reference.
+5. User starts a classification run.
+6. API creates a `ClassificationRun` with `pending` status.
+7. API calls a worker client abstraction.
+8. The worker processes the document and emits structured JSON plus memo/artifact outputs.
+9. API persists extracted specs, candidates, citations, and memo under the current organization.
+10. Frontend renders the run for human review.
+11. Reviewer records outcome and notes.
+
+## Auth and Tenancy Flow
+
+1. Password sign-up creates a user, organization, owner membership, and verification token.
+2. Verification and password reset mail goes through a transactional email provider abstraction.
+3. Google OAuth callback is owned by the API and requires a verified Google email claim.
+4. Sessions are opaque cookies; only hashed session tokens are stored in Postgres.
+5. Every organization-owned request is scoped through the active session and membership.
+6. The frontend never receives direct database credentials or privileged tokens.
+7. Server-rendered `/app/*` routes redirect unauthenticated users to `/sign-in` with a safe return path.
+8. Auth pages redirect authenticated users back into `/app` or `/app/onboarding`.
+
+## Frontend Workspace Structure
+
+The authenticated workspace is organized around:
+
+- `AppShell` for persistent desktop navigation and mobile drawer navigation
+- server-side session guards in `apps/web/src/lib/server-auth.ts`
+- client-side API helpers that always send credentialed requests and CSRF headers for mutations
+- shared UI primitives for status badges, empty states, loading states, inline notices, and confirmation dialogs
+
+The frontend is intended to feel like a review-oriented compliance workspace:
+
+- documents, reviews, memos, audit events, and team state are all organization-scoped surfaces
+- review statuses are presented as workflow states such as `Needs human review` and `Needs more information`
+- consequential actions such as review disposition changes and revoke-all-sessions require explicit confirmation
 
 ## Artifact Storage
 

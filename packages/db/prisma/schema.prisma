@@ -30,31 +30,162 @@ enum HumanReviewStatus {
   rejected
 }
 
+enum MembershipRole {
+  OWNER
+  ADMIN
+  REVIEWER
+  ANALYST
+  VIEWER
+}
+
+enum OAuthProvider {
+  GOOGLE
+}
+
 model Organization {
   id                 String              @id @default(cuid())
   name               String
   slug               String              @unique
+  industry           String?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
-  users              User[]
+  memberships        Membership[]
   documents          Document[]
   classificationRuns ClassificationRun[]
+  extractedSpecs     ExtractedSpec[]
+  eccnCandidates     ECCNCandidate[]
+  citations          Citation[]
   reviewMemos        ReviewMemo[]
   humanReviews       HumanReview[]
   auditEvents        AuditEvent[]
+  sessions           Session[]
+  workspaceInvites   WorkspaceInvite[]
 }
 
 model User {
-  id             String        @id @default(cuid())
-  organizationId String
-  email          String        @unique
-  name           String
-  role           String        @default("reviewer")
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  reviews        HumanReview[]
-  auditEvents    AuditEvent[]
+  id                    String                   @id @default(cuid())
+  email                 String                   @unique
+  name                  String
+  emailVerifiedAt       DateTime?
+  onboardingCompletedAt DateTime?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  passwordCredential    PasswordCredential?
+  oauthIdentities       OAuthIdentity[]
+  sessions              Session[]
+  memberships           Membership[]
+  reviews               HumanReview[]
+  auditEvents           AuditEvent[]
+  verificationTokens    EmailVerificationToken[]
+  passwordResetTokens   PasswordResetToken[]
+  sentWorkspaceInvites  WorkspaceInvite[]        @relation("WorkspaceInviteInviter")
+  acceptedInvites       WorkspaceInvite[]        @relation("WorkspaceInviteAccepter")
+}
+
+model PasswordCredential {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model OAuthIdentity {
+  id                String        @id @default(cuid())
+  userId            String
+  provider          OAuthProvider
+  providerAccountId String
+  email             String
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id              String        @id @default(cuid())
+  userId          String
+  organizationId  String
+  tokenHash       String        @unique
+  csrfTokenHash   String
+  expiresAt       DateTime
+  lastAccessedAt  DateTime      @default(now())
+  revokedAt       DateTime?
+  userAgent       String?
+  ipAddress       String?
+  rotatedFromId   String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([organizationId, expiresAt])
+}
+
+model EmailVerificationToken {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model PasswordResetToken {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model Membership {
+  id               String          @id @default(cuid())
+  organizationId   String
+  userId           String
+  role             MembershipRole  @default(REVIEWER)
+  invitedByUserId  String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  organization     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId, role])
+}
+
+model WorkspaceInvite {
+  id               String          @id @default(cuid())
+  organizationId   String
+  email            String
+  role             MembershipRole  @default(REVIEWER)
+  tokenHash        String          @unique
+  invitedByUserId  String
+  acceptedByUserId String?
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  revokedAt        DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  organization     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedByUser    User            @relation("WorkspaceInviteInviter", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  acceptedByUser   User?           @relation("WorkspaceInviteAccepter", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, email])
+  @@index([organizationId, expiresAt])
 }
 
 model Document {
@@ -108,6 +239,7 @@ model ClassificationRun {
 
 model ExtractedSpec {
   id                  String             @id @default(cuid())
+  organizationId      String
   classificationRunId String
   name                String
   value               String
@@ -119,31 +251,41 @@ model ExtractedSpec {
   category            String             @default("product_identity")
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   classificationRun   ClassificationRun  @relation(fields: [classificationRunId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([classificationRunId])
 }
 
 model ECCNCandidate {
-  id                  String             @id @default(cuid())
-  classificationRunId String
-  eccn                String
-  title               String
-  rationale           String
-  confidence          Float
-  confidenceLevel     String             @default("medium")
+  id                    String             @id @default(cuid())
+  organizationId        String
+  classificationRunId   String
+  eccn                  String
+  title                 String
+  rationale             String
+  confidence            Float
+  confidenceLevel       String             @default("medium")
   matchedTechnicalFacts String[]
-  whyItMayApply       String
-  whyItMayNotApply    String
-  missingInformation  String[]
-  reviewerQuestions   String[]
-  uncertaintyFlags    String[]
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-  classificationRun   ClassificationRun  @relation(fields: [classificationRunId], references: [id], onDelete: Cascade)
-  citations           Citation[]
+  whyItMayApply         String
+  whyItMayNotApply      String
+  missingInformation    String[]
+  reviewerQuestions     String[]
+  uncertaintyFlags      String[]
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  organization          Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  classificationRun     ClassificationRun  @relation(fields: [classificationRunId], references: [id], onDelete: Cascade)
+  citations             Citation[]
+
+  @@index([organizationId, createdAt])
+  @@index([classificationRunId])
 }
 
 model Citation {
   id                  String             @id @default(cuid())
+  organizationId      String
   classificationRunId String
   eccnCandidateId     String?
   sourceTitle         String
@@ -153,8 +295,12 @@ model Citation {
   relevanceNote       String
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   classificationRun   ClassificationRun  @relation(fields: [classificationRunId], references: [id], onDelete: Cascade)
   eccnCandidate       ECCNCandidate?     @relation(fields: [eccnCandidateId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([classificationRunId])
 }
 
 model ReviewMemo {
@@ -167,6 +313,8 @@ model ReviewMemo {
   updatedAt           DateTime           @updatedAt
   organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   classificationRun   ClassificationRun  @relation(fields: [classificationRunId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
 }
 
 model HumanReview {
@@ -182,6 +330,9 @@ model HumanReview {
   organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   classificationRun   ClassificationRun  @relation(fields: [classificationRunId], references: [id], onDelete: Cascade)
   reviewer            User               @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([classificationRunId, createdAt])
 }
 
 model AuditEvent {

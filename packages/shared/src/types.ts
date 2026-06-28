@@ -21,3 +21,5 @@ export type UncertaintyFlag =
   | 'requires_engineering_confirmation';
 
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
+
+export type MembershipRole = 'OWNER' | 'ADMIN' | 'REVIEWER' | 'ANALYST' | 'VIEWER';

@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
-import { createSampleDocument } from '../lib/api';
+import { createSampleDocument, fetchCsrfToken } from '../lib/api';
 
 export function SampleDatasheetButton() {
   const router = useRouter();
@@ -19,8 +19,8 @@ export function SampleDatasheetButton() {
           setError(null);
           startTransition(async () => {
             try {
-              const document = await createSampleDocument();
-              router.push(`/documents/${document.id}`);
+              const document = await createSampleDocument(await fetchCsrfToken());
+              router.push(`/app/documents/${document.id}`);
             } catch (creationError) {
               setError(
                 creationError instanceof Error
