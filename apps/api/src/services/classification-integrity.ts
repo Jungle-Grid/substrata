@@ -53,6 +53,8 @@ export function deriveProcessingLabel(status: ClassificationRunStatus) {
       return 'Needs attention';
     case 'running':
       return 'Processing';
+    case 'unknown':
+      return 'Unknown';
     case 'queued':
       return 'Queued';
     case 'failed':
