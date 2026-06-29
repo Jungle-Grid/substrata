@@ -15,18 +15,24 @@ import { authRouter } from './routes/auth';
 import { organizationsRouter } from './routes/organizations';
 import { invitesRouter } from './routes/invites';
 import { auditLogRouter } from './routes/audit-log';
+import { publicRouter } from './routes/public';
+
+export function buildCorsOptions() {
+  return {
+    origin: env.apiCorsOrigin,
+    credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'X-CSRF-Token'],
+    exposedHeaders: ['x-substrata-csrf-refresh'],
+  };
+}
 
 export function createApp() {
   const app = express();
   const v1 = express.Router();
 
   app.use(requestLogger);
-  app.use(
-    cors({
-      origin: env.apiCorsOrigin,
-      credentials: true,
-    }),
-  );
+  app.use(cors(buildCorsOptions()));
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: false }));
 
@@ -34,6 +40,7 @@ export function createApp() {
   app.use(sessionMiddleware);
 
   v1.use('/auth', authRouter);
+  v1.use('/public', publicRouter);
   v1.use('/organizations', organizationsRouter);
   v1.use('/invites', invitesRouter);
   v1.use('/audit-log', auditLogRouter);

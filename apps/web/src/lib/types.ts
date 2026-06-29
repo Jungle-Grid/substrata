@@ -112,6 +112,48 @@ export interface ClassificationRunRecord {
   humanReviews: HumanReviewRecord[];
 }
 
+export interface PublicClassificationRunRecord {
+  id: string;
+  status: string;
+  confidence?: number | null;
+  uncertaintyFlags: string[];
+  requiresHumanReview: boolean;
+  publicTitle: string;
+  publicSummary?: string | null;
+  sourceDocumentDisplayName?: string | null;
+  canonicalUrl: string;
+  publishedAt?: string | null;
+  createdAt?: string;
+  completedAt?: string | null;
+  document: {
+    title: string;
+    mimeType?: string | null;
+    sizeBytes?: number | null;
+    sourceType?: string;
+    summary?: string | null;
+  };
+  extractedSpecs: ExtractedSpecRecord[];
+  eccnCandidates: ECCNCandidateRecord[];
+  reviewMemo?: ReviewMemoRecord | null;
+  latestReview?: {
+    status: string;
+    notes?: string | null;
+    reviewedAt?: string | null;
+  } | null;
+}
+
+export interface DemoPublicationStatusRecord {
+  canPublish: boolean;
+  isPublished: boolean;
+  publishedAt?: string | null;
+  publicTitle?: string | null;
+  publicSummary?: string | null;
+  sourceDocumentDisplayName?: string | null;
+  canonicalUrl: string;
+  activeDemoRunId?: string | null;
+  willReplaceActiveDemo: boolean;
+}
+
 export interface DocumentRecord {
   id: string;
   title: string;

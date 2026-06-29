@@ -5,6 +5,7 @@ import type {
   ECCNCandidate,
   ExtractedSpec,
   HumanReview,
+  PublicDemoPublication,
   ReviewMemo,
   User,
 } from '@substrata/db';
@@ -15,6 +16,18 @@ type RunWithRelations = ClassificationRun & {
   eccnCandidates: (ECCNCandidate & { citations: Citation[] })[];
   reviewMemo: ReviewMemo | null;
   humanReviews: Array<HumanReview & { reviewer?: User | null }>;
+};
+
+type PublicDemoRunWithPublication = PublicDemoPublication & {
+  activeClassificationRun:
+    | (ClassificationRun & {
+        document: Document;
+        extractedSpecs: ExtractedSpec[];
+        eccnCandidates: (ECCNCandidate & { citations: Citation[] })[];
+        reviewMemo: ReviewMemo | null;
+        humanReviews: Array<HumanReview & { reviewer?: User | null }>;
+      })
+    | null;
 };
 
 type DocumentWithRunRelations = Document & {
@@ -60,7 +73,7 @@ export function presentRun(run: RunWithRelations) {
       sourceType: run.document.sourceType,
       summary: run.document.rawText?.slice(0, 420) ?? null,
     },
-    extractedSpecs: run.extractedSpecs.map((spec) => ({
+    extractedSpecs: run.extractedSpecs.map((spec: ExtractedSpec) => ({
       id: spec.id,
       name: spec.name,
       value: spec.value,
@@ -70,7 +83,7 @@ export function presentRun(run: RunWithRelations) {
       category: spec.category,
       confidence: spec.confidenceLevel,
     })),
-    eccnCandidates: run.eccnCandidates.map((candidate) => ({
+    eccnCandidates: run.eccnCandidates.map((candidate: ECCNCandidate & { citations: Citation[] }) => ({
       id: candidate.id,
       eccn: candidate.eccn,
       title: candidate.title,
@@ -104,6 +117,93 @@ export function presentRun(run: RunWithRelations) {
           }
         : null,
     })),
+  };
+}
+
+export function presentPublicDemoRun(publication: PublicDemoRunWithPublication) {
+  const run = publication.activeClassificationRun;
+
+  if (!run) {
+    throw new Error('Public demo publication is missing its active classification run.');
+  }
+
+  const latestReview = run.humanReviews[0] ?? null;
+
+  return {
+    id: run.id,
+    status: run.status,
+    confidence: run.confidence,
+    uncertaintyFlags: run.uncertaintyFlags,
+    requiresHumanReview: run.requiresHumanReview,
+    publicTitle: publication.publicTitle ?? run.document.title,
+    publicSummary: publication.publicSummary,
+    sourceDocumentDisplayName: publication.sourceDocumentDisplayName,
+    canonicalUrl: `/classification-runs/${run.id}`,
+    publishedAt: publication.publishedAt,
+    createdAt: run.createdAt,
+    completedAt: run.completedAt,
+    document: {
+      title: run.document.title,
+      mimeType: run.document.mimeType,
+      sizeBytes: run.document.sizeBytes,
+      sourceType: run.document.sourceType,
+      summary: run.document.rawText?.slice(0, 420) ?? null,
+    },
+    extractedSpecs: run.extractedSpecs.map((spec) => ({
+      id: spec.id,
+      name: spec.name,
+      value: spec.value,
+      unit: spec.unit,
+      sourceSnippet: spec.sourceSnippet,
+      importance: spec.importance,
+      category: spec.category,
+      confidence: spec.confidenceLevel,
+    })),
+    eccnCandidates: run.eccnCandidates.map((candidate) => ({
+      id: candidate.id,
+      eccn: candidate.eccn,
+      title: candidate.title,
+      confidence: candidate.confidenceLevel,
+      matchedTechnicalFacts: candidate.matchedTechnicalFacts,
+      regulatoryCitations: candidate.citations.map(presentCitation),
+      whyItMayApply: candidate.whyItMayApply,
+      whyItMayNotApply: candidate.whyItMayNotApply,
+      missingInformation: candidate.missingInformation,
+      uncertaintyFlags: candidate.uncertaintyFlags,
+      reviewerQuestions: candidate.reviewerQuestions,
+    })),
+    reviewMemo: run.reviewMemo
+      ? {
+          contentMarkdown: run.reviewMemo.contentMarkdown,
+          updatedAt: run.reviewMemo.updatedAt,
+        }
+      : null,
+    latestReview: latestReview
+      ? {
+          status: latestReview.status,
+          notes: latestReview.notes,
+          reviewedAt: latestReview.reviewedAt,
+        }
+      : null,
+  };
+}
+
+export function presentPublicDemoMetadata(publication: PublicDemoRunWithPublication) {
+  const run = publication.activeClassificationRun;
+
+  if (!run) {
+    throw new Error('Public demo publication is missing its active classification run.');
+  }
+
+  return {
+    runId: run.id,
+    status: publication.status,
+    publishedAt: publication.publishedAt,
+    publicTitle: publication.publicTitle ?? run.document.title,
+    publicSummary: publication.publicSummary,
+    sourceDocumentDisplayName: publication.sourceDocumentDisplayName,
+    completedAt: run.completedAt,
+    canonicalUrl: `/classification-runs/${run.id}`,
   };
 }
 

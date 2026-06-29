@@ -1,5 +1,6 @@
 'use client';
 
+import { buildSignInHref, getSafeReturnPath } from './paths';
 import type {
   AuditEventRecord,
   AuthSessionRecord,
@@ -19,6 +20,35 @@ function buildUrl(path: string) {
   return `${API_BASE}${path}`;
 }
 
+export class SessionExpiredError extends Error {
+  readonly returnPath: string;
+
+  constructor(returnPath: string) {
+    super('Your session has expired. Redirecting to sign in.');
+    this.name = 'SessionExpiredError';
+    this.returnPath = returnPath;
+  }
+}
+
+function currentBrowserReturnPath() {
+  if (typeof window === 'undefined') {
+    return '/app';
+  }
+
+  return getSafeReturnPath(
+    `${window.location.pathname}${window.location.search}`,
+    '/app',
+  );
+}
+
+function redirectToSignIn(returnPath = currentBrowserReturnPath()) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.location.assign(buildSignInHref(returnPath));
+}
+
 async function readJsonError(response: Response) {
   const payload = await response.json().catch(() => null);
   return payload?.message ?? payload?.error ?? 'Request did not complete.';
@@ -26,7 +56,10 @@ async function readJsonError(response: Response) {
 
 async function clientFetch<T>(
   path: string,
-  init?: RequestInit & { csrfToken?: string },
+  init?: RequestInit & {
+    csrfToken?: string;
+    requiresAuth?: boolean;
+  },
 ) {
   const headers = new Headers(init?.headers);
   if (init?.csrfToken) {
@@ -38,6 +71,12 @@ async function clientFetch<T>(
     headers,
     credentials: 'include',
   });
+
+  if (response.status === 401 && init?.requiresAuth) {
+    const returnPath = currentBrowserReturnPath();
+    redirectToSignIn(returnPath);
+    throw new SessionExpiredError(returnPath);
+  }
 
   if (!response.ok) {
     throw new Error(await readJsonError(response));
@@ -96,6 +135,7 @@ export function signOut(csrfToken: string) {
   return clientFetch('/auth/sign-out', {
     method: 'POST',
     csrfToken,
+    requiresAuth: true,
   });
 }
 
@@ -157,6 +197,7 @@ export function updateProfile(payload: {
   return clientFetch('/auth/profile', {
     method: 'PATCH',
     csrfToken: payload.csrfToken,
+    requiresAuth: true,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -175,6 +216,7 @@ export function changePassword(payload: {
   return clientFetch('/auth/change-password', {
     method: 'POST',
     csrfToken: payload.csrfToken,
+    requiresAuth: true,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -186,6 +228,7 @@ export function revokeAllSessions(csrfToken: string) {
   return clientFetch('/auth/sessions/revoke-all', {
     method: 'POST',
     csrfToken,
+    requiresAuth: true,
   });
 }
 
@@ -197,6 +240,7 @@ export function updateOnboarding(payload: {
   return clientFetch('/organizations/current/onboarding', {
     method: 'POST',
     csrfToken: payload.csrfToken,
+    requiresAuth: true,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -212,6 +256,7 @@ export function updateWorkspaceSettings(payload: {
   return clientFetch('/organizations/current', {
     method: 'PATCH',
     csrfToken: payload.csrfToken,
+    requiresAuth: true,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -228,6 +273,7 @@ export function createDocumentFromText(payload: {
   return clientFetch<DocumentRecord>('/documents', {
     method: 'POST',
     csrfToken: payload.csrfToken,
+    requiresAuth: true,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -259,6 +305,7 @@ export function uploadDocument(payload: {
   return clientFetch<DocumentRecord>('/documents/upload', {
     method: 'POST',
     csrfToken: payload.csrfToken,
+    requiresAuth: true,
     body: form,
   });
 }
@@ -267,6 +314,7 @@ export function createSampleDocument(csrfToken: string) {
   return clientFetch<DocumentRecord>('/documents/sample', {
     method: 'POST',
     csrfToken,
+    requiresAuth: true,
   });
 }
 
@@ -274,6 +322,7 @@ export function startClassificationRun(documentId: string, csrfToken: string) {
   return clientFetch<ClassificationRunRecord>(`/documents/${documentId}/classification-runs`, {
     method: 'POST',
     csrfToken,
+    requiresAuth: true,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -295,6 +344,7 @@ export function submitReview(payload: {
   return clientFetch(`/classification-runs/${payload.runId}/review`, {
     method: 'POST',
     csrfToken: payload.csrfToken,
+    requiresAuth: true,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -302,6 +352,38 @@ export function submitReview(payload: {
       status: payload.status,
       note: payload.note,
     }),
+  });
+}
+
+export function publishDemo(payload: {
+  runId: string;
+  confirmation: true;
+  publicTitle?: string;
+  publicSummary?: string;
+  sourceDocumentDisplayName?: string;
+  csrfToken: string;
+}) {
+  return clientFetch(`/classification-runs/${payload.runId}/publish-demo`, {
+    method: 'POST',
+    csrfToken: payload.csrfToken,
+    requiresAuth: true,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      confirmation: payload.confirmation,
+      publicTitle: payload.publicTitle ?? '',
+      publicSummary: payload.publicSummary ?? '',
+      sourceDocumentDisplayName: payload.sourceDocumentDisplayName ?? '',
+    }),
+  });
+}
+
+export function unpublishDemo(payload: { runId: string; csrfToken: string }) {
+  return clientFetch(`/classification-runs/${payload.runId}/unpublish-demo`, {
+    method: 'POST',
+    csrfToken: payload.csrfToken,
+    requiresAuth: true,
   });
 }
 
@@ -313,6 +395,7 @@ export function createInvite(payload: {
   return clientFetch<{ invite: InviteRecord }>('/organizations/current/invites', {
     method: 'POST',
     csrfToken: payload.csrfToken,
+    requiresAuth: true,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -329,6 +412,7 @@ export function acceptInvite(payload: { token: string; csrfToken: string }) {
     {
       method: 'POST',
       csrfToken: payload.csrfToken,
+      requiresAuth: true,
     },
   );
 }

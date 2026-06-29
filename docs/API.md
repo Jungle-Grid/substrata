@@ -42,6 +42,16 @@
 - `GET /classification-runs/:id`
   - fetch a single run with extracted specs, candidates, citations, memo, and review status
 
+- `GET /classification-runs/:id/demo-publication-status`
+  - fetch admin-only public demo publication state for a run
+
+- `POST /classification-runs/:id/publish-demo`
+  - publish a completed run as the active public demo
+  - requires explicit public-sharing confirmation
+
+- `POST /classification-runs/:id/unpublish-demo`
+  - remove the currently active public demo publication for that run
+
 - `GET /classification-runs/:id/memo`
   - fetch the memo Markdown and related review metadata
 
@@ -54,6 +64,16 @@
 
 - `GET /classification-runs/:id/artifacts`
   - fetch stored artifact paths and best-effort previews for extracted text and memo artifacts
+
+### Public Demo
+
+- `GET /public/demo`
+  - returns metadata for the active public demo and its canonical URL
+  - returns `404` when no public demo is active
+
+- `GET /public/classification-runs/:runId`
+  - unauthenticated sanitized projection for the one active published demo run
+  - returns `404` for every non-published or replaced run ID
 
 ## Future Endpoints
 

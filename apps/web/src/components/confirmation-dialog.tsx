@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
 
 export function ConfirmationDialog({
@@ -10,6 +11,7 @@ export function ConfirmationDialog({
   cancelLabel = 'Cancel',
   tone = 'default',
   pending = false,
+  children,
   onConfirm,
   onClose,
 }: {
@@ -20,6 +22,7 @@ export function ConfirmationDialog({
   cancelLabel?: string;
   tone?: 'default' | 'destructive';
   pending?: boolean;
+  children?: ReactNode;
   onConfirm: () => void;
   onClose: () => void;
 }) {
@@ -55,6 +58,7 @@ export function ConfirmationDialog({
       <div className="p-6">
         <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
+        {children ? <div className="mt-4">{children}</div> : null}
         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
             type="button"

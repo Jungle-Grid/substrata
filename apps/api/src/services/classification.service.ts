@@ -6,6 +6,37 @@ import { createStorageDriver } from './storage';
 import { runLocalWorker } from './worker-runtime';
 
 const storage = createStorageDriver();
+const PUBLIC_DEMO_PUBLICATION_ID = 'global-public-demo';
+
+const classificationRunInclude = {
+  document: true,
+  extractedSpecs: {
+    orderBy: {
+      createdAt: 'asc',
+    },
+  },
+  eccnCandidates: {
+    include: {
+      citations: {
+        orderBy: {
+          createdAt: 'asc',
+        },
+      },
+    },
+    orderBy: {
+      createdAt: 'asc',
+    },
+  },
+  reviewMemo: true,
+  humanReviews: {
+    include: {
+      reviewer: true,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  },
+} as const;
 
 function confidenceLevelToScore(level: string) {
   switch (level) {
@@ -34,6 +65,11 @@ function generatedByForWorker(output: Awaited<ReturnType<typeof runLocalWorker>>
     return 'python_local_worker:heuristic_fallback';
   }
   return 'python_local_worker:heuristic';
+}
+
+function normalizeOptionalText(value?: string | null) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 }
 
 export async function createClassificationRun(input: {
@@ -341,6 +377,227 @@ export async function submitClassificationReview(input: {
   return updatedReview;
 }
 
+export async function publishClassificationRunAsPublicDemo(input: {
+  classificationRunId: string;
+  organizationId: string;
+  actorUserId: string;
+  confirmation: boolean;
+  publicTitle?: string | null;
+  publicSummary?: string | null;
+  sourceDocumentDisplayName?: string | null;
+}) {
+  if (!input.confirmation) {
+    throw new HttpError(
+      400,
+      'Public demo publication requires the explicit public-sharing confirmation.',
+    );
+  }
+
+  const existingRun = await getClassificationRun(
+    input.organizationId,
+    input.classificationRunId,
+  );
+
+  if (!existingRun) {
+    throw new HttpError(404, 'Classification run not found.');
+  }
+
+  if (existingRun.status !== 'completed' || !existingRun.completedAt) {
+    throw new HttpError(409, 'Only completed classification runs can be published.');
+  }
+
+  if (!existingRun.reviewMemo) {
+    throw new HttpError(409, 'A classification memo draft is required before publishing.');
+  }
+
+  const publication = await prisma.$transaction(async (tx) => {
+    const current = await tx.publicDemoPublication.findUnique({
+      where: { id: PUBLIC_DEMO_PUBLICATION_ID },
+    });
+
+    return tx.publicDemoPublication.upsert({
+      where: { id: PUBLIC_DEMO_PUBLICATION_ID },
+      create: {
+        id: PUBLIC_DEMO_PUBLICATION_ID,
+        status: 'published',
+        activeClassificationRunId: existingRun.id,
+        publishedAt: new Date(),
+        publishedByUserId: input.actorUserId,
+        publicTitle: normalizeOptionalText(input.publicTitle) ?? existingRun.document.title,
+        publicSummary: normalizeOptionalText(input.publicSummary),
+        sourceDocumentDisplayName: normalizeOptionalText(
+          input.sourceDocumentDisplayName,
+        ),
+      },
+      update: {
+        status: 'published',
+        activeClassificationRunId: existingRun.id,
+        publishedAt: new Date(),
+        publishedByUserId: input.actorUserId,
+        publicTitle: normalizeOptionalText(input.publicTitle) ?? existingRun.document.title,
+        publicSummary: normalizeOptionalText(input.publicSummary),
+        sourceDocumentDisplayName: normalizeOptionalText(
+          input.sourceDocumentDisplayName,
+        ),
+      },
+      include: {
+        activeClassificationRun: {
+          include: classificationRunInclude,
+        },
+      },
+    }).then((result) => ({
+      publication: result,
+      previousActiveRunId: current?.status === 'published' ? current.activeClassificationRunId : null,
+    }));
+  });
+
+  await recordAuditEvent({
+    organizationId: input.organizationId,
+    actorUserId: input.actorUserId,
+    actor: 'user',
+    action:
+      publication.previousActiveRunId &&
+      publication.previousActiveRunId !== input.classificationRunId
+        ? 'public_demo.replaced'
+        : 'public_demo.published',
+    entityType: 'ClassificationRun',
+    entityId: input.classificationRunId,
+    metadata: {
+      replacedRunId:
+        publication.previousActiveRunId &&
+        publication.previousActiveRunId !== input.classificationRunId
+          ? publication.previousActiveRunId
+          : null,
+      publicTitle: publication.publication.publicTitle,
+      sourceDocumentDisplayName: publication.publication.sourceDocumentDisplayName,
+    },
+  });
+
+  return publication.publication;
+}
+
+export async function unpublishClassificationRunAsPublicDemo(input: {
+  classificationRunId: string;
+  organizationId: string;
+  actorUserId: string;
+}) {
+  const existingRun = await getClassificationRun(
+    input.organizationId,
+    input.classificationRunId,
+  );
+
+  if (!existingRun) {
+    throw new HttpError(404, 'Classification run not found.');
+  }
+
+  const current = await prisma.publicDemoPublication.findUnique({
+    where: { id: PUBLIC_DEMO_PUBLICATION_ID },
+  });
+
+  if (
+    !current ||
+    current.status !== 'published' ||
+    current.activeClassificationRunId !== input.classificationRunId
+  ) {
+    throw new HttpError(409, 'This run is not currently live as the public demo.');
+  }
+
+  const publication = await prisma.publicDemoPublication.update({
+    where: { id: PUBLIC_DEMO_PUBLICATION_ID },
+    data: {
+      status: 'unpublished',
+      activeClassificationRunId: null,
+      publishedAt: null,
+      publishedByUserId: input.actorUserId,
+      publicTitle: null,
+      publicSummary: null,
+      sourceDocumentDisplayName: null,
+    },
+  });
+
+  await recordAuditEvent({
+    organizationId: input.organizationId,
+    actorUserId: input.actorUserId,
+    actor: 'user',
+    action: 'public_demo.unpublished',
+    entityType: 'ClassificationRun',
+    entityId: input.classificationRunId,
+    metadata: {
+      previousPublishedAt: current.publishedAt,
+    },
+  });
+
+  return publication;
+}
+
+export async function getClassificationRunDemoPublicationStatus(
+  organizationId: string,
+  classificationRunId: string,
+) {
+  const run = await getClassificationRun(organizationId, classificationRunId);
+
+  if (!run) {
+    return null;
+  }
+
+  const publication = await prisma.publicDemoPublication.findUnique({
+    where: { id: PUBLIC_DEMO_PUBLICATION_ID },
+  });
+
+  const isPublished =
+    publication?.status === 'published' &&
+    publication.activeClassificationRunId === classificationRunId;
+
+  return {
+    canPublish: run.status === 'completed' && Boolean(run.reviewMemo),
+    isPublished,
+    publishedAt: isPublished ? publication?.publishedAt ?? null : null,
+    publicTitle: isPublished ? publication?.publicTitle ?? null : null,
+    publicSummary: isPublished ? publication?.publicSummary ?? null : null,
+    sourceDocumentDisplayName: isPublished
+      ? publication?.sourceDocumentDisplayName ?? null
+      : null,
+    canonicalUrl: `/classification-runs/${classificationRunId}`,
+    activeDemoRunId:
+      publication?.status === 'published' ? publication.activeClassificationRunId : null,
+    willReplaceActiveDemo:
+      publication?.status === 'published' &&
+      publication.activeClassificationRunId !== classificationRunId,
+  };
+}
+
+export async function getPublicDemoClassificationRun(runId: string) {
+  return prisma.publicDemoPublication.findFirst({
+    where: {
+      id: PUBLIC_DEMO_PUBLICATION_ID,
+      status: 'published',
+      activeClassificationRunId: runId,
+    },
+    include: {
+      activeClassificationRun: {
+        include: classificationRunInclude,
+      },
+    },
+  });
+}
+
+export async function getActivePublicDemo() {
+  return prisma.publicDemoPublication.findFirst({
+    where: {
+      id: PUBLIC_DEMO_PUBLICATION_ID,
+      status: 'published',
+      activeClassificationRunId: {
+        not: null,
+      },
+    },
+    include: {
+      activeClassificationRun: {
+        include: classificationRunInclude,
+      },
+    },
+  });
+}
+
 export async function getClassificationRun(
   organizationId: string,
   classificationRunId: string,
@@ -350,22 +607,7 @@ export async function getClassificationRun(
       id: classificationRunId,
       organizationId,
     },
-    include: {
-      document: true,
-      extractedSpecs: true,
-      eccnCandidates: {
-        include: {
-          citations: true,
-        },
-      },
-      reviewMemo: true,
-      humanReviews: {
-        orderBy: { createdAt: 'desc' },
-        include: {
-          reviewer: true,
-        },
-      },
-    },
+    include: classificationRunInclude,
   });
 }
 
@@ -374,24 +616,7 @@ export async function listClassificationRuns(organizationId: string) {
     where: {
       organizationId,
     },
-    include: {
-      document: true,
-      extractedSpecs: true,
-      eccnCandidates: {
-        include: {
-          citations: true,
-        },
-      },
-      reviewMemo: true,
-      humanReviews: {
-        orderBy: {
-          createdAt: 'desc',
-        },
-        include: {
-          reviewer: true,
-        },
-      },
-    },
+    include: classificationRunInclude,
     orderBy: {
       updatedAt: 'desc',
     },
@@ -404,24 +629,7 @@ export async function listReviewQueue(organizationId: string) {
       organizationId,
       requiresHumanReview: true,
     },
-    include: {
-      document: true,
-      extractedSpecs: true,
-      humanReviews: {
-        orderBy: {
-          createdAt: 'desc',
-        },
-        include: {
-          reviewer: true,
-        },
-      },
-      eccnCandidates: {
-        include: {
-          citations: true,
-        },
-      },
-      reviewMemo: true,
-    },
+    include: classificationRunInclude,
     orderBy: {
       updatedAt: 'asc',
     },

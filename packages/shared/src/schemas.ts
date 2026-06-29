@@ -42,6 +42,18 @@ export const reviewSubmissionSchema = z.object({
   note: z.string().trim().max(4000).optional().default(''),
 });
 
+export const publicDemoPublishSchema = z.object({
+  confirmation: z.literal(true),
+  publicTitle: z.string().trim().max(160).optional().or(z.literal('')),
+  publicSummary: z.string().trim().max(600).optional().or(z.literal('')),
+  sourceDocumentDisplayName: z
+    .string()
+    .trim()
+    .max(255)
+    .optional()
+    .or(z.literal('')),
+});
+
 const passwordSchema = z.string().min(12).max(256);
 
 export const signUpSchema = z
@@ -234,6 +246,7 @@ export type ClassificationRunCreateInput = z.infer<
   typeof classificationRunCreateSchema
 >;
 export type ReviewSubmissionInput = z.infer<typeof reviewSubmissionSchema>;
+export type PublicDemoPublishInput = z.infer<typeof publicDemoPublishSchema>;
 export type SignUpInput = z.infer<typeof signUpSchema>;
 export type SignInInput = z.infer<typeof signInSchema>;
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;

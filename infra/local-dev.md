@@ -98,7 +98,15 @@ COREPACK_HOME=/tmp/corepack corepack pnpm smoke:api
   - add `http://localhost:4000/v1/auth/google/callback` as an authorized redirect URI
   - copy the client ID and secret into `.env`
 - ZeptoMail:
-  - create an API token in ZeptoMail
-  - verify the sender domain and sender address used in `EMAIL_FROM`
-  - copy the API token into `.env`
-- If ZeptoMail is not configured locally, Substrata falls back to deterministic console-logged mail attempts for development.
+  - create or select the ZeptoMail Agent you want Substrata to use
+  - verify the sender domain and the sender address configured in `EMAIL_FROM_ADDRESS`
+  - open `Agents -> SMTP/API` and copy the Send Mail Token from the API section into `ZEPTOMAIL_SEND_MAIL_TOKEN`
+  - set `EMAIL_PROVIDER=zeptomail` in the environment where you want real delivery
+  - keep `WEB_APP_URL` aligned with the public web app origin used in verification and reset links
+  - manually test sign-up, resend verification, and forgot password in production after the Agent token and sender identity are live
+- Local console mode:
+  - keep `EMAIL_PROVIDER=console` for local development
+  - console mode never calls ZeptoMail; it logs a masked recipient preview and a masked verification or reset URL instead
+- Public demo classification run:
+  - leave `PUBLIC_DEMO_CLASSIFICATION_RUN_ID` unset locally unless you intentionally want to expose one safe demo run without sign-in
+  - in production, set it only to a completed run backed by a public, non-confidential sample or seeded datasheet

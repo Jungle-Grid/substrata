@@ -1,4 +1,5 @@
 import type { MembershipRole } from '@substrata/db';
+import { env } from '../config/env';
 
 const roleRank: Record<MembershipRole, number> = {
   OWNER: 5,
@@ -33,4 +34,16 @@ export function canSubmitReview(role: MembershipRole) {
 
 export function canReadWorkspace(role: MembershipRole) {
   return roleRank[role] >= roleRank.VIEWER;
+}
+
+export function canManagePublicDemo(role: MembershipRole, email: string) {
+  if (!hasRole(role, ['OWNER', 'ADMIN'])) {
+    return false;
+  }
+
+  if (env.publicDemoAdminEmails.length === 0) {
+    return true;
+  }
+
+  return env.publicDemoAdminEmails.includes(email.trim().toLowerCase());
 }

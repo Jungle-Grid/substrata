@@ -1,8 +1,7 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { fetchCsrfToken, signOut } from '../lib/api';
+import { fetchCsrfToken, SessionExpiredError, signOut } from '../lib/api';
 
 export function SignOutButton({
   fullWidth = false,
@@ -11,7 +10,6 @@ export function SignOutButton({
   fullWidth?: boolean;
   onComplete?: () => void;
 }) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
 
   return (
@@ -24,8 +22,12 @@ export function SignOutButton({
           const csrfToken = await fetchCsrfToken();
           await signOut(csrfToken);
           onComplete?.();
-          router.replace('/sign-in');
-          router.refresh();
+          window.location.assign('/sign-in');
+        } catch (error) {
+          if (error instanceof SessionExpiredError) {
+            return;
+          }
+          throw error;
         } finally {
           setPending(false);
         }

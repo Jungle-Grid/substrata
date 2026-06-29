@@ -42,6 +42,11 @@ enum OAuthProvider {
   GOOGLE
 }
 
+enum PublicDemoPublicationStatus {
+  published
+  unpublished
+}
+
 model Organization {
   id                 String              @id @default(cuid())
   name               String
@@ -80,6 +85,7 @@ model User {
   passwordResetTokens   PasswordResetToken[]
   sentWorkspaceInvites  WorkspaceInvite[]        @relation("WorkspaceInviteInviter")
   acceptedInvites       WorkspaceInvite[]        @relation("WorkspaceInviteAccepter")
+  demoPublications      PublicDemoPublication[]
 }
 
 model PasswordCredential {
@@ -232,9 +238,27 @@ model ClassificationRun {
   reviewMemo            ReviewMemo?
   humanReviews          HumanReview[]
   citations             Citation[]
+  publicDemoPublication PublicDemoPublication?
 
   @@index([organizationId, createdAt])
   @@index([documentId, createdAt])
+}
+
+model PublicDemoPublication {
+  id                        String                       @id
+  status                    PublicDemoPublicationStatus  @default(unpublished)
+  activeClassificationRunId String?                      @unique
+  publishedAt               DateTime?
+  publishedByUserId         String?
+  publicTitle               String?
+  publicSummary             String?
+  sourceDocumentDisplayName String?
+  createdAt                 DateTime                     @default(now())
+  updatedAt                 DateTime                     @updatedAt
+  activeClassificationRun   ClassificationRun?           @relation(fields: [activeClassificationRunId], references: [id], onDelete: SetNull)
+  publishedByUser           User?                        @relation(fields: [publishedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, updatedAt])
 }
 
 model ExtractedSpec {

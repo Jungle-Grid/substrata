@@ -6,13 +6,25 @@ export const csrfCookieName = `${env.sessionCookieName}_csrf`;
 export const oauthStateCookieName = `${env.sessionCookieName}_oauth_state`;
 export const oauthVerifierCookieName = `${env.sessionCookieName}_oauth_verifier`;
 
+export function buildCookieScope(input: {
+  isProduction: boolean;
+  sessionCookieDomain?: string;
+}) {
+  return {
+    sameSite: 'lax' as const,
+    secure: input.isProduction,
+    domain: input.sessionCookieDomain || undefined,
+    path: '/' as const,
+  };
+}
+
 function cookieOptions(httpOnly: boolean, maxAgeSeconds?: number) {
   return {
     httpOnly,
-    sameSite: 'lax' as const,
-    secure: env.isProduction,
-    domain: env.isProduction ? '.junglegrid.dev' : undefined,
-    path: '/',
+    ...buildCookieScope({
+      isProduction: env.isProduction,
+      sessionCookieDomain: env.sessionCookieDomain,
+    }),
     ...(maxAgeSeconds ? { maxAge: maxAgeSeconds } : {}),
   };
 }

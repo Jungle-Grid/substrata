@@ -65,6 +65,8 @@ Substrata is an ECCN review assistant for semiconductor and advanced hardware te
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`: Google OAuth client settings. The redirect URI must exactly match the API callback route.
 - `SESSION_SECRET`: required in any environment that uses real auth. Used to hash session and one-time auth tokens.
 - `SESSION_COOKIE_NAME`: opaque session cookie name.
+- `SESSION_COOKIE_DOMAIN`: required in production when the web app and API run on different subdomains and should share session cookies.
+- `PUBLIC_DEMO_ADMIN_EMAILS`: comma-separated internal email allowlist for public demo publishing. In production, the first demo publisher should be on this allowlist and also hold an `OWNER` or `ADMIN` membership in the internal Substrata workspace.
 - `ZEPTO_MAIL_API_TOKEN`: ZeptoMail HTTP API token for transactional email.
 - `EMAIL_FROM`: verified sender used for auth and invite mail.
 
@@ -92,6 +94,25 @@ Substrata is an ECCN review assistant for semiconductor and advanced hardware te
 6. Review extracted technical facts, recommended ECCN review paths, citations, uncertainty flags, and the memo draft.
 7. Record a human review decision from the review page.
 8. Invite a teammate from the Team page if email delivery is configured.
+
+## Public Demo Run
+
+- The canonical public demo URL uses the existing classification-run route: `/classification-runs/:runId`.
+- A run is never public by default. Anonymous access succeeds only for the one actively published demo run.
+- Public responses use a sanitized projection and exclude workspace IDs, user data, storage paths, artifact paths, signed URLs, and audit details.
+- In production, configure the first demo admin by setting `PUBLIC_DEMO_ADMIN_EMAILS` to the internal operator email and ensuring that user also has an `OWNER` or `ADMIN` membership in the internal workspace.
+
+### Admin Runbook
+
+1. Deploy the API, web app, and Prisma migration.
+2. Sign in as a configured public demo admin.
+3. Upload only a public, cleared-for-sharing PDF. Do not publish confidential, customer, personal, export-controlled, or sensitive documents.
+4. Run a normal classification and wait for the run to complete.
+5. Review the extracted technical facts, cited review paths, uncertainty flags, and classification memo draft.
+6. Open the completed run detail page and click `Publish as public demo`.
+7. Complete the public-sharing attestation and optional public presentation fields, then confirm.
+8. Open the canonical public URL in an incognito browser and verify the standalone preview loads without authentication.
+9. Later, publish a different completed run to replace the current demo or use `Unpublish demo` to remove public access.
 
 ## Frontend Validation Status
 

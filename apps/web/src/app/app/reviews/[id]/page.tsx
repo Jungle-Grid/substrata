@@ -1,10 +1,14 @@
 import Link from 'next/link';
 import { AppShell } from '../../../../components/app-shell';
+import { DemoPublicationControls } from '../../../../components/demo-publication-controls';
 import { MarkdownRenderer } from '../../../../components/markdown-renderer';
 import { ReviewActionForm } from '../../../../components/review-action-form';
 import { Badge, EmptyState, InlineNotice, Panel, StatusBadge } from '../../../../components/ui';
 import { requireCompletedOnboarding } from '../../../../lib/server-auth';
-import { fetchServerRun } from '../../../../lib/server-api';
+import {
+  fetchServerDemoPublicationStatus,
+  fetchServerRun,
+} from '../../../../lib/server-api';
 import { formatDateTime } from '../../../../lib/workspace';
 
 function confidenceTone(value: string) {
@@ -20,7 +24,12 @@ export default async function ReviewDetailPage({
 }) {
   const { id } = await params;
   const session = await requireCompletedOnboarding(`/app/reviews/${id}`);
-  const run = await fetchServerRun(id);
+  const [run, demoStatus] = await Promise.all([
+    fetchServerRun(id),
+    (session.membership?.role === 'OWNER' || session.membership?.role === 'ADMIN'
+      ? fetchServerDemoPublicationStatus(id).catch(() => null)
+      : Promise.resolve(null)),
+  ]);
   const latestReview = run.humanReviews[0];
   const canReview =
     session.membership?.role === 'OWNER' ||
@@ -159,6 +168,17 @@ export default async function ReviewDetailPage({
         </div>
         <div className="space-y-6">
           <Panel>
+            {demoStatus ? (
+              <div className="mb-6">
+                <DemoPublicationControls
+                  runId={run.id}
+                  documentTitle={run.document.title}
+                  documentFileName={run.document.fileName}
+                  status={demoStatus}
+                />
+              </div>
+            ) : null}
+
             <h2 className="text-lg font-semibold text-slate-950">Classification memo draft</h2>
             {run.reviewMemo?.contentMarkdown ? (
               <div className="mt-4 text-sm leading-7 text-slate-700">

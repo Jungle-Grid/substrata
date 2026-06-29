@@ -5,9 +5,11 @@ import type {
   AuditEventRecord,
   AuthSessionRecord,
   ClassificationRunRecord,
+  DemoPublicationStatusRecord,
   DocumentRecord,
   InviteRecord,
   MemoListRecord,
+  PublicClassificationRunRecord,
   TeamMemberRecord,
 } from './types';
 
@@ -29,6 +31,26 @@ async function serverFetch<T>(path: string) {
       headers: {
         cookie: cookieStore.toString(),
       },
+      cache: 'no-store',
+    });
+  } catch {
+    throw new ServerApiUnavailableError();
+  }
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const message = payload?.message ?? payload?.error ?? 'Request failed.';
+    throw new Error(message);
+  }
+
+  return (await response.json()) as T;
+}
+
+async function publicServerFetch<T>(path: string) {
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
       cache: 'no-store',
     });
   } catch {
@@ -77,6 +99,30 @@ export function fetchServerRuns() {
 
 export function fetchServerRun(id: string) {
   return serverFetch<ClassificationRunRecord>(`/classification-runs/${id}`);
+}
+
+export function fetchPublicServerRun(id: string) {
+  return publicServerFetch<PublicClassificationRunRecord>(
+    `/public/classification-runs/${id}`,
+  );
+}
+
+export async function fetchPublicServerRunSafe(id: string) {
+  try {
+    return await fetchPublicServerRun(id);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Request failed.';
+    if (message === 'Public classification demo not found.') {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export function fetchServerDemoPublicationStatus(id: string) {
+  return serverFetch<DemoPublicationStatusRecord>(
+    `/classification-runs/${id}/demo-publication-status`,
+  );
 }
 
 export function fetchServerReviewQueue() {

@@ -8,6 +8,7 @@ import {
 import { parseBody } from '../lib/http';
 import { HttpError } from '../lib/errors';
 import { canCreateClassification } from '../lib/authz';
+import { requireCsrf } from '../middleware/auth';
 import {
   createDocument,
   getDocument,
@@ -44,7 +45,7 @@ function deriveTitleFromFileName(fileName: string) {
     .trim();
 }
 
-documentsRouter.post('/', async (req, res) => {
+documentsRouter.post('/', requireCsrf, async (req, res) => {
   const input = parseBody(documentCreateSchema, req);
   const { organization, user, membership } = req.authContext!;
 
@@ -74,7 +75,7 @@ documentsRouter.post('/', async (req, res) => {
   res.status(201).json(presentDocument(document));
 });
 
-documentsRouter.post('/upload', upload.single('file'), async (req, res) => {
+documentsRouter.post('/upload', requireCsrf, upload.single('file'), async (req, res) => {
   const { organization, user, membership } = req.authContext!;
   if (!canCreateClassification(membership.role)) {
     throw new HttpError(403, 'You do not have access to upload documents.');
@@ -205,7 +206,7 @@ documentsRouter.post('/upload', upload.single('file'), async (req, res) => {
   res.status(201).json(presentDocument(document));
 });
 
-documentsRouter.post('/sample', async (req, res) => {
+documentsRouter.post('/sample', requireCsrf, async (req, res) => {
   const { organization, user, membership } = req.authContext!;
   if (!canCreateClassification(membership.role)) {
     throw new HttpError(403, 'You do not have access to create documents.');
@@ -252,7 +253,7 @@ documentsRouter.get('/:id', async (req, res) => {
   return res.json(presentDocument(document));
 });
 
-documentsRouter.post('/:id/classification-runs', async (req, res) => {
+documentsRouter.post('/:id/classification-runs', requireCsrf, async (req, res) => {
   const input = parseBody(classificationRunCreateSchema, req);
   const { organization, user, membership } = req.authContext!;
 
@@ -261,7 +262,7 @@ documentsRouter.post('/:id/classification-runs', async (req, res) => {
   }
 
   const run = await workerClient.createRun({
-    documentId: req.params.id,
+    documentId: String(req.params.id),
     organizationId: organization.id,
     actorUserId: user.id,
     trigger: input.trigger ?? 'manual',

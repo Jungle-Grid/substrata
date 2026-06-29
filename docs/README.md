@@ -43,3 +43,4 @@ Datasheet review is frequent, repetitive, high-stakes, and evidence-heavy. Teams
 - [VALIDATION_PLAN.md](./VALIDATION_PLAN.md): one-week market validation plan
 - [SECURITY.md](./SECURITY.md): security and document handling assumptions
 - [HUMAN_REVIEW_POLICY.md](./HUMAN_REVIEW_POLICY.md): mandatory human review policy
+- [PUBLIC_DEMO_RUNBOOK.md](./PUBLIC_DEMO_RUNBOOK.md): controlled publication workflow for the public product demo
