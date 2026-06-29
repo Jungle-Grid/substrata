@@ -36,7 +36,11 @@ export default async function DocumentDetailPage({
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-950">Classification reviews</h2>
               {canCreateClassification ? (
-                <StartClassificationButton documentId={document.id} />
+                <StartClassificationButton
+                  documentId={document.id}
+                  documentOrigin={document.origin}
+                  documentVisibility={document.visibility}
+                />
               ) : null}
             </div>
             <div className="mt-4 space-y-3">

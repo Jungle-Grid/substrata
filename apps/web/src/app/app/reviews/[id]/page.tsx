@@ -65,7 +65,7 @@ export default async function ReviewDetailPage({
       <div className="grid gap-6 xl:h-[calc(100vh-13rem)] xl:grid-cols-[0.95fr_1.05fr]">
         <div className="space-y-6 xl:min-h-0 xl:overflow-y-auto xl:pr-2">
           <Panel>
-            <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-5">
               <div className="min-h-28 rounded-lg border border-slate-200 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                   Processing status
@@ -93,7 +93,36 @@ export default async function ReviewDetailPage({
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-950">{run.factIssues.length}</p>
               </div>
+              <div className="min-h-28 rounded-lg border border-slate-200 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Execution backend
+                </p>
+                <p className="mt-2 text-sm font-semibold text-slate-950">
+                  {run.backendUsed ? run.backendUsed.replace(/_/g, ' ') : 'Not recorded'}
+                </p>
+                {run.underlyingProvider ? (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Provider: {run.underlyingProvider}
+                  </p>
+                ) : null}
+              </div>
             </div>
+            {run.backendReason ? (
+              <div className="mt-4">
+                <InlineNotice tone={run.status === 'unknown' ? 'warning' : 'info'} title="Backend execution note">
+                  {run.backendReason}
+                  {typeof run.costUsd === 'number' || typeof run.latencyMs === 'number' || typeof run.tokensUsed === 'number'
+                    ? ` ${[
+                        typeof run.costUsd === 'number' ? `Cost $${run.costUsd.toFixed(6)}` : null,
+                        typeof run.latencyMs === 'number' ? `Latency ${Math.round(run.latencyMs)} ms` : null,
+                        typeof run.tokensUsed === 'number' ? `Tokens ${run.tokensUsed}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' / ')}.`
+                    : null}
+                </InlineNotice>
+              </div>
+            ) : null}
           </Panel>
           <Panel>
             <div className="flex flex-wrap items-start justify-between gap-3">
