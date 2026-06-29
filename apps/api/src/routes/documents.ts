@@ -271,6 +271,7 @@ documentsRouter.post('/:id/classification-runs', requireCsrf, async (req, res) =
     organizationId: organization.id,
     actorUserId: user.id,
     trigger: input.trigger ?? 'manual',
+    executionPreference: input.executionPreference ?? 'auto',
   });
 
   return res.status(201).json(run);

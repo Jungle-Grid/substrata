@@ -165,11 +165,14 @@ export async function runLocalWorker(input: {
   organizationId: string;
   sourceText: string;
   documentTitle: string;
+  executionPreference: 'local' | 'fireworks' | 'jungle_grid' | 'auto';
   documentMetadata: {
     fileName: string;
     mimeType: string;
     sizeBytes: number | null;
     sourceType: string;
+    origin: string;
+    visibility: string;
   };
 }) {
   const runDir = path.join(
@@ -192,6 +195,7 @@ export async function runLocalWorker(input: {
         file_path: textPath,
         organization_id: input.organizationId,
         document_metadata: input.documentMetadata,
+        execution_preference: input.executionPreference,
       },
       null,
       2,

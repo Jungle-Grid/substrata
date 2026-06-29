@@ -121,10 +121,21 @@ function isDevelopment() {
 function generatedByForWorker(output: Awaited<ReturnType<typeof runLocalWorker>>) {
   const metadata = output.runMetadata ?? {};
   const mode = metadata.classificationMode;
-  const provider = metadata.aiProvider;
-  const model = metadata.aiModel;
-  if (mode === 'ai_assisted' && provider === 'gemini' && typeof model === 'string') {
-    return `python_local_worker:gemini:${model}`;
+  const backend = metadata.backendUsed;
+  const provider = metadata.underlyingProvider;
+  const model = metadata.backendModel;
+  if (
+    mode === 'backend_assisted' &&
+    typeof backend === 'string' &&
+    typeof model === 'string' &&
+    backend !== 'jungle_grid'
+  ) {
+    return `python_worker:${backend}:${model}`;
+  }
+  if (mode === 'backend_assisted' && backend === 'jungle_grid') {
+    return typeof provider === 'string' && provider
+      ? `python_worker:jungle_grid:${provider}`
+      : 'python_worker:jungle_grid';
   }
   if (mode === 'heuristic_fallback') {
     return 'python_local_worker:heuristic_fallback';
@@ -247,6 +258,7 @@ export async function createClassificationRun(input: {
   organizationId: string;
   actorUserId: string;
   trigger: string;
+  executionPreference: 'local' | 'fireworks' | 'jungle_grid' | 'auto';
 }) {
   const document = await prisma.document.findFirstOrThrow({
     where: {
@@ -276,11 +288,12 @@ export async function createClassificationRun(input: {
     action: 'classification_run.started',
     entityType: 'ClassificationRun',
     entityId: run.id,
-    metadata: {
-      documentId: document.id,
-      trigger: input.trigger,
-    },
-  });
+      metadata: {
+        documentId: document.id,
+        trigger: input.trigger,
+        executionPreference: input.executionPreference,
+      },
+    });
 
   try {
     const sourceText =
@@ -299,11 +312,14 @@ export async function createClassificationRun(input: {
       organizationId: input.organizationId,
       sourceText,
       documentTitle: document.title,
+      executionPreference: input.executionPreference,
       documentMetadata: {
         fileName: document.fileName,
         mimeType: document.mimeType,
         sizeBytes: document.sizeBytes,
         sourceType: document.sourceType,
+        origin: document.origin,
+        visibility: document.visibility,
       },
     });
 
@@ -648,9 +664,13 @@ export async function createClassificationRun(input: {
         ...narrativeIssues,
         ...artifactValidationIssues,
       ];
-      const finalStatus = validationIssues.some((issue) => issue.severity === 'error')
-        ? 'needs_attention'
-        : 'completed';
+      const backendStatus = workerOutput.runMetadata?.backendStatus;
+      const finalStatus =
+        backendStatus === 'unknown'
+          ? 'unknown'
+          : validationIssues.some((issue) => issue.severity === 'error')
+            ? 'needs_attention'
+            : 'completed';
       const finalWorkflowState: ReviewWorkflowState =
         finalStatus === 'completed'
           ? 'awaiting_reviewer_assignment'
@@ -667,6 +687,30 @@ export async function createClassificationRun(input: {
           workerJobId: `local-worker-${run.id}`,
           workerVersion: 'python-local-v4',
           rulesVersion: 'ear-review-v4',
+          backendUsed:
+            typeof workerOutput.runMetadata?.backendUsed === 'string'
+              ? workerOutput.runMetadata.backendUsed
+              : null,
+          backendReason:
+            typeof workerOutput.runMetadata?.backendReason === 'string'
+              ? workerOutput.runMetadata.backendReason
+              : null,
+          underlyingProvider:
+            typeof workerOutput.runMetadata?.underlyingProvider === 'string'
+              ? workerOutput.runMetadata.underlyingProvider
+              : null,
+          costUsd:
+            typeof workerOutput.runMetadata?.costUsd === 'number'
+              ? workerOutput.runMetadata.costUsd
+              : null,
+          latencyMs:
+            typeof workerOutput.runMetadata?.latencyMs === 'number'
+              ? workerOutput.runMetadata.latencyMs
+              : null,
+          tokensUsed:
+            typeof workerOutput.runMetadata?.tokensUsed === 'number'
+              ? workerOutput.runMetadata.tokensUsed
+              : null,
           extractedTextPath: workerOutput.artifacts.extractedTextPath,
           structuredOutputPath: workerOutput.artifacts.structuredOutputPath,
           memoArtifactPath: workerOutput.artifacts.memoPath,
@@ -676,7 +720,10 @@ export async function createClassificationRun(input: {
             finalStatus === 'needs_attention'
               ? summarizeValidationIssues(validationIssues)
               : null,
-          completedAt: finalStatus === 'completed' ? new Date() : null,
+          completedAt:
+            finalStatus === 'completed' || finalStatus === 'needs_attention'
+              ? new Date()
+              : null,
         },
       });
 
@@ -690,6 +737,8 @@ export async function createClassificationRun(input: {
       action:
         updatedRun.status === 'completed'
           ? 'classification_run.completed'
+          : updatedRun.status === 'unknown'
+            ? 'classification_run.unknown'
           : 'classification_run.needs_attention',
       entityType: 'ClassificationRun',
       entityId: run.id,
@@ -698,6 +747,12 @@ export async function createClassificationRun(input: {
         confidence: workerOutput.confidence,
         workflowState: updatedRun.workflowState,
         processingLabel: deriveProcessingLabel(updatedRun.status),
+        backendUsed: updatedRun.backendUsed,
+        backendReason: updatedRun.backendReason,
+        underlyingProvider: updatedRun.underlyingProvider,
+        costUsd: updatedRun.costUsd,
+        latencyMs: updatedRun.latencyMs,
+        tokensUsed: updatedRun.tokensUsed,
         validationIssues: updatedRun.validationIssues ?? [],
       },
     });
