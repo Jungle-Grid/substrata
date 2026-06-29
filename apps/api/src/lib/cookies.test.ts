@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildCookieScope, clearSessionCookies, setSessionCookies } from './cookies';
+import {
+  buildCookieScope,
+  buildHostOnlyCookieScope,
+  clearSessionCookies,
+  setSessionCookies,
+} from './cookies';
 
 function createMockResponse() {
   const values: string[] = [];
@@ -39,6 +44,14 @@ test('cookie scope uses explicit production domain when provided', () => {
       path: '/',
     },
   );
+});
+
+test('host-only cookie scope omits domain for legacy cookie cleanup', () => {
+  assert.deepEqual(buildHostOnlyCookieScope({ isProduction: true }), {
+    sameSite: 'lax',
+    secure: true,
+    path: '/',
+  });
 });
 
 test('session cookies and cleared cookies use the same scope attributes', () => {
