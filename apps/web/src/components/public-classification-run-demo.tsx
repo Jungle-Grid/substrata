@@ -303,8 +303,3 @@ export function PublicClassificationRunDemo({
     </main>
   );
 }
-
-export const publicDemoCtaLinks = {
-  signInHref,
-  signUpHref,
-};
