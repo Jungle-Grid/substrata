@@ -68,9 +68,9 @@ export function requireVerifiedEmail(
   _res: Response,
   next: NextFunction,
 ) {
-  if (!req.authContext?.user.emailVerifiedAt) {
-    return next(new HttpError(403, 'Verify your email before accessing workspace data.'));
-  }
+  // if (!req.authContext?.user.emailVerifiedAt) {
+  //   return next(new HttpError(403, 'Verify your email before accessing workspace data.'));
+  // }
 
   return next();
 }

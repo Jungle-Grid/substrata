@@ -41,9 +41,9 @@ type AuthenticatedSession = Session & {
   organization: Organization;
 };
 
-function buildVerificationUrl(rawToken: string) {
-  return `${env.appUrl}/verify-email?token=${encodeURIComponent(rawToken)}`;
-}
+// function buildVerificationUrl(rawToken: string) {
+//   return `${env.appUrl}/verify-email?token=${encodeURIComponent(rawToken)}`;
+// }
 
 function buildResetUrl(rawToken: string) {
   return `${env.appUrl}/reset-password?token=${encodeURIComponent(rawToken)}`;
@@ -71,25 +71,25 @@ async function generateUniqueSlug(baseName: string) {
   return `${baseSlug}-${generateOpaqueToken(6).toLowerCase()}`;
 }
 
-async function issueEmailVerificationToken(user: User) {
-  await prisma.emailVerificationToken.deleteMany({
-    where: {
-      userId: user.id,
-      consumedAt: null,
-    },
-  });
+// async function issueEmailVerificationToken(user: User) {
+//   await prisma.emailVerificationToken.deleteMany({
+//     where: {
+//       userId: user.id,
+//       consumedAt: null,
+//     },
+//   });
 
-  const rawToken = generateOpaqueToken();
-  await prisma.emailVerificationToken.create({
-    data: {
-      userId: user.id,
-      tokenHash: hashOpaqueToken(rawToken),
-      expiresAt: addDays(new Date(), 1),
-    },
-  });
+//   const rawToken = generateOpaqueToken();
+//   await prisma.emailVerificationToken.create({
+//     data: {
+//       userId: user.id,
+//       tokenHash: hashOpaqueToken(rawToken),
+//       expiresAt: addDays(new Date(), 1),
+//     },
+//   });
 
-  return rawToken;
-}
+//   return rawToken;
+// }
 
 async function issuePasswordResetToken(user: User) {
   await prisma.passwordResetToken.deleteMany({
@@ -285,9 +285,9 @@ export async function signUpWithPassword(input: {
       data: {
         email,
         name: input.name.trim(),
+        emailVerifiedAt: new Date(),
       },
     });
-
     await tx.passwordCredential.create({
       data: {
         userId: user.id,
@@ -306,35 +306,35 @@ export async function signUpWithPassword(input: {
     return { user, organization };
   });
 
-  const verificationToken = await issueEmailVerificationToken(user);
+  // const verificationToken = await issueEmailVerificationToken(user);
 
-  try {
-    await emailService.sendVerificationEmail({
-      to: user.email,
-      name: user.name,
-      verificationUrl: buildVerificationUrl(verificationToken),
-    });
-  } catch (error) {
-    await recordAuditEvent({
-      organizationId: organization.id,
-      actorUserId: user.id,
-      actor: 'system',
-      action: 'auth.verification_email.failed',
-      entityType: 'User',
-      entityId: user.id,
-      metadata: {
-        email: user.email,
-        reason: error instanceof Error ? error.message : 'mail delivery failed',
-      },
-    });
+  // try {
+  //   await emailService.sendVerificationEmail({
+  //     to: user.email,
+  //     name: user.name,
+  //     verificationUrl: buildVerificationUrl(verificationToken),
+  //   });
+  // } catch (error) {
+  //   await recordAuditEvent({
+  //     organizationId: organization.id,
+  //     actorUserId: user.id,
+  //     actor: 'system',
+  //     action: 'auth.verification_email.failed',
+  //     entityType: 'User',
+  //     entityId: user.id,
+  //     metadata: {
+  //       email: user.email,
+  //       reason: error instanceof Error ? error.message : 'mail delivery failed',
+  //     },
+  //   });
 
-    if (env.isProduction) {
-      throw new HttpError(
-        503,
-        'Verification email could not be sent. Try again shortly.',
-      );
-    }
-  }
+  //   if (env.isProduction) {
+  //     throw new HttpError(
+  //       503,
+  //       'Verification email could not be sent. Try again shortly.',
+  //     );
+  //   }
+  // }
 
   await recordAuditEvent({
     organizationId: organization.id,
@@ -367,139 +367,139 @@ export async function signUpWithPassword(input: {
   };
 }
 
-export async function resendVerificationEmail(emailInput: string) {
-  const email = normalizeEmail(emailInput);
-  const user = await prisma.user.findUnique({
-    where: { email },
-    include: {
-      memberships: {
-        include: {
-          organization: true,
-        },
-        orderBy: {
-          createdAt: 'asc',
-        },
-      },
-    },
-  });
+// export async function resendVerificationEmail(emailInput: string) {
+//   const email = normalizeEmail(emailInput);
+//   const user = await prisma.user.findUnique({
+//     where: { email },
+//     include: {
+//       memberships: {
+//         include: {
+//           organization: true,
+//         },
+//         orderBy: {
+//           createdAt: 'asc',
+//         },
+//       },
+//     },
+//   });
 
-  if (!user || user.emailVerifiedAt) {
-    return;
-  }
+//   if (!user || user.emailVerifiedAt) {
+//     return;
+//   }
 
-  const primaryMembership = getPrimaryMembership(user.memberships);
-  if (!primaryMembership) {
-    return;
-  }
+//   const primaryMembership = getPrimaryMembership(user.memberships);
+//   if (!primaryMembership) {
+//     return;
+//   }
 
-  const verificationToken = await issueEmailVerificationToken(user);
+//   const verificationToken = await issueEmailVerificationToken(user);
 
-  try {
-    await emailService.sendVerificationEmail({
-      to: user.email,
-      name: user.name,
-      verificationUrl: buildVerificationUrl(verificationToken),
-    });
-  } catch (error) {
-    await recordAuditEvent({
-      organizationId: primaryMembership.organizationId,
-      actorUserId: user.id,
-      actor: 'system',
-      action: 'auth.verification_email.failed',
-      entityType: 'User',
-      entityId: user.id,
-      metadata: {
-        email: user.email,
-        reason: error instanceof Error ? error.message : 'mail delivery failed',
-      },
-    });
+//   try {
+//     await emailService.sendVerificationEmail({
+//       to: user.email,
+//       name: user.name,
+//       verificationUrl: buildVerificationUrl(verificationToken),
+//     });
+//   } catch (error) {
+//     await recordAuditEvent({
+//       organizationId: primaryMembership.organizationId,
+//       actorUserId: user.id,
+//       actor: 'system',
+//       action: 'auth.verification_email.failed',
+//       entityType: 'User',
+//       entityId: user.id,
+//       metadata: {
+//         email: user.email,
+//         reason: error instanceof Error ? error.message : 'mail delivery failed',
+//       },
+//     });
 
-    if (env.isProduction) {
-      throw new HttpError(
-        503,
-        'Verification email could not be sent. Try again shortly.',
-      );
-    }
-  }
-}
+//     if (env.isProduction) {
+//       throw new HttpError(
+//         503,
+//         'Verification email could not be sent. Try again shortly.',
+//       );
+//     }
+//   }
+// }
 
-export async function verifyEmailToken(input: {
-  token: string;
-  actor: SessionActorInput;
-}) {
-  const token = await prisma.emailVerificationToken.findFirst({
-    where: {
-      tokenHash: hashOpaqueToken(input.token),
-      consumedAt: null,
-      expiresAt: {
-        gt: new Date(),
-      },
-    },
-    include: {
-      user: {
-        include: {
-          memberships: {
-            include: {
-              organization: true,
-            },
-            orderBy: {
-              createdAt: 'asc',
-            },
-          },
-        },
-      },
-    },
-  });
+// export async function verifyEmailToken(input: {
+//   token: string;
+//   actor: SessionActorInput;
+// }) {
+//   const token = await prisma.emailVerificationToken.findFirst({
+//     where: {
+//       tokenHash: hashOpaqueToken(input.token),
+//       consumedAt: null,
+//       expiresAt: {
+//         gt: new Date(),
+//       },
+//     },
+//     include: {
+//       user: {
+//         include: {
+//           memberships: {
+//             include: {
+//               organization: true,
+//             },
+//             orderBy: {
+//               createdAt: 'asc',
+//             },
+//           },
+//         },
+//       },
+//     },
+//   });
 
-  if (!token) {
-    throw new HttpError(400, 'That verification link is invalid or expired.');
-  }
+//   if (!token) {
+//     throw new HttpError(400, 'That verification link is invalid or expired.');
+//   }
 
-  const membership = getPrimaryMembership(token.user.memberships);
-  if (!membership) {
-    throw new HttpError(400, 'No workspace membership is available for this user.');
-  }
+//   const membership = getPrimaryMembership(token.user.memberships);
+//   if (!membership) {
+//     throw new HttpError(400, 'No workspace membership is available for this user.');
+//   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.emailVerificationToken.update({
-      where: { id: token.id },
-      data: {
-        consumedAt: new Date(),
-      },
-    });
+//   await prisma.$transaction(async (tx) => {
+//     await tx.emailVerificationToken.update({
+//       where: { id: token.id },
+//       data: {
+//         consumedAt: new Date(),
+//       },
+//     });
 
-    await tx.user.update({
-      where: { id: token.userId },
-      data: {
-        emailVerifiedAt: new Date(),
-      },
-    });
-  });
+//     await tx.user.update({
+//       where: { id: token.userId },
+//       data: {
+//         emailVerifiedAt: new Date(),
+//       },
+//     });
+//   });
 
-  const createdSession = await createSessionForUser({
-    userId: token.userId,
-    organizationId: membership.organizationId,
-    actor: input.actor,
-  });
+//   const createdSession = await createSessionForUser({
+//     userId: token.userId,
+//     organizationId: membership.organizationId,
+//     actor: input.actor,
+//   });
 
-  await recordAuditEvent({
-    organizationId: membership.organizationId,
-    actorUserId: token.userId,
-    actor: 'user',
-    action: 'auth.email_verified',
-    entityType: 'User',
-    entityId: token.userId,
-    metadata: {
-      email: token.user.email,
-    },
-  });
+//   await recordAuditEvent({
+//     organizationId: membership.organizationId,
+//     actorUserId: token.userId,
+//     actor: 'user',
+//     action: 'auth.email_verified',
+//     entityType: 'User',
+//     entityId: token.userId,
+//     metadata: {
+//       email: token.user.email,
+//     },
+//   });
 
-  return {
-    session: createdSession,
-    organization: membership.organization,
-    user: token.user,
-  };
-}
+//   return {
+//     session: createdSession,
+//     organization: membership.organization,
+//     user: token.user,
+//   };
+// }
 
 export async function signInWithPassword(input: {
   email: string;
@@ -534,9 +534,9 @@ export async function signInWithPassword(input: {
     throw new HttpError(401, 'Invalid email or password.');
   }
 
-  if (!user.emailVerifiedAt) {
-    throw new HttpError(403, 'Verify your email before accessing workspace data.');
-  }
+  // if (!user.emailVerifiedAt) {
+  //   throw new HttpError(403, 'Verify your email before accessing workspace data.');
+  // }
 
   const membership = getPrimaryMembership(user.memberships);
   if (!membership) {
@@ -585,7 +585,7 @@ export async function requestPasswordReset(emailInput: string) {
     },
   });
 
-  if (!user?.passwordCredential || !user.emailVerifiedAt) {
+  if (!user?.passwordCredential) {
     return;
   }
 
