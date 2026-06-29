@@ -7,7 +7,7 @@ import {
 import { canManageTeam, canManageWorkspace } from '../lib/authz';
 import { HttpError } from '../lib/errors';
 import { parseBody } from '../lib/http';
-import { requireAuth, requireCsrf, requireVerifiedEmail } from '../middleware/auth';
+import { requireAuth, requireCsrf} from '../middleware/auth';
 import {
   completeOnboarding,
   createWorkspaceInvite,
@@ -19,7 +19,7 @@ import { assertRateLimit } from '../services/rate-limit.service';
 
 export const organizationsRouter = Router();
 
-organizationsRouter.get('/current', requireAuth, requireVerifiedEmail, async (req, res) => {
+organizationsRouter.get('/current', requireAuth, async (req, res) => {
   res.json({
     organization: req.authContext!.organization,
     membership: req.authContext!.membership,
@@ -30,8 +30,7 @@ organizationsRouter.patch(
   '/current',
   requireCsrf,
   requireAuth,
-  requireVerifiedEmail,
-  async (req, res) => {
+    async (req, res) => {
     if (!canManageWorkspace(req.authContext!.membership.role)) {
       throw new HttpError(403, 'You do not have access to workspace settings.');
     }
@@ -51,7 +50,6 @@ organizationsRouter.post(
   '/current/onboarding',
   requireCsrf,
   requireAuth,
-  requireVerifiedEmail,
   async (req, res) => {
     const input = parseBody(onboardingSchema, req);
     const result = await completeOnboarding({
@@ -68,7 +66,6 @@ organizationsRouter.post(
 organizationsRouter.get(
   '/current/members',
   requireAuth,
-  requireVerifiedEmail,
   async (req, res) => {
     const [members, invites] = await Promise.all([
       listCurrentOrganizationMembers(req.authContext!.organization.id),
@@ -114,7 +111,6 @@ organizationsRouter.post(
   '/current/invites',
   requireCsrf,
   requireAuth,
-  requireVerifiedEmail,
   async (req, res) => {
     if (!canManageTeam(req.authContext!.membership.role)) {
       throw new HttpError(403, 'You do not have access to invite teammates.');

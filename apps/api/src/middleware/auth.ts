@@ -63,17 +63,17 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   return next();
 }
 
-export function requireVerifiedEmail(
-  req: Request,
-  _res: Response,
-  next: NextFunction,
-) {
-  // if (!req.authContext?.user.emailVerifiedAt) {
-  //   return next(new HttpError(403, 'Verify your email before accessing workspace data.'));
-  // }
+// export function requireVerifiedEmail(
+//   req: Request,
+//   _res: Response,
+//   next: NextFunction,
+// ) {
+//   // if (!req.authContext?.user.emailVerifiedAt) {
+//   //   return next(new HttpError(403, 'Verify your email before accessing workspace data.'));
+//   // }
 
-  return next();
-}
+//   return next();
+// }
 
 export function requireRole(roles: MembershipRole[]) {
   return async function roleMiddleware(

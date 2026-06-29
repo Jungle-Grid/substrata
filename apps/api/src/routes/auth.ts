@@ -25,7 +25,7 @@ import {
 import { HttpError } from '../lib/errors';
 import { parseBody } from '../lib/http';
 import { generateOpaqueToken, hashOpaqueToken } from '../lib/security';
-import { requireAuth, requireCsrf, requireVerifiedEmail } from '../middleware/auth';
+import { requireAuth, requireCsrf } from '../middleware/auth';
 import {
   acceptWorkspaceInvite,
   changePassword,
@@ -296,8 +296,7 @@ authRouter.post(
   '/change-password',
   requireCsrf,
   requireAuth,
-  requireVerifiedEmail,
-  async (req, res) => {
+    async (req, res) => {
     const input = parseBody(changePasswordSchema, req);
     await changePassword({
       userId: req.authContext!.user.id,
@@ -313,8 +312,7 @@ authRouter.patch(
   '/profile',
   requireCsrf,
   requireAuth,
-  requireVerifiedEmail,
-  async (req, res) => {
+    async (req, res) => {
     const input = parseBody(profileUpdateSchema, req);
     const user = await updateProfile({
       userId: req.authContext!.user.id,
@@ -337,8 +335,7 @@ authRouter.post(
   '/sessions/revoke-all',
   requireCsrf,
   requireAuth,
-  requireVerifiedEmail,
-  async (req, res) => {
+    async (req, res) => {
     await revokeAllUserSessions(req.authContext!.user.id);
     clearSessionCookies(res);
     res.json({ ok: true });

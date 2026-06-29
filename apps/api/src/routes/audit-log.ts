@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { prisma } from '@substrata/db';
-import { requireAuth, requireVerifiedEmail } from '../middleware/auth';
+import { requireAuth} from '../middleware/auth';
 
 export const auditLogRouter = Router();
 
-auditLogRouter.get('/', requireAuth, requireVerifiedEmail, async (req, res) => {
+auditLogRouter.get('/', requireAuth, async (req, res) => {
   const events = await prisma.auditEvent.findMany({
     where: {
       organizationId: req.authContext!.organization.id,

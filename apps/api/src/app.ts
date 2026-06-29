@@ -3,7 +3,7 @@ import express from 'express';
 import { env } from './config/env';
 import {
   requireAuth,
-  requireVerifiedEmail,
+
   sessionMiddleware,
 } from './middleware/auth';
 import { errorHandler } from './middleware/error-handler';
@@ -37,7 +37,7 @@ export function createApp() {
   v1.use('/organizations', organizationsRouter);
   v1.use('/invites', invitesRouter);
   v1.use('/audit-log', auditLogRouter);
-  v1.use(requireAuth, requireVerifiedEmail);
+  v1.use(requireAuth);
   v1.use('/documents', documentsRouter);
   v1.use('/classification-runs', classificationRunsRouter);
 
