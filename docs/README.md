@@ -32,6 +32,7 @@ Datasheet review is frequent, repetitive, high-stakes, and evidence-heavy. Teams
 
 ## What This Documentation Covers
 
+- [../README.md](../README.md): repository setup, local development, and production deployment runbook
 - [PRODUCT.md](./PRODUCT.md): product thesis, user workflow, and MVP boundaries
 - [ARCHITECTURE.md](./ARCHITECTURE.md): system boundaries and data flow
 - [ROADMAP.md](./ROADMAP.md): staged product evolution

@@ -58,6 +58,35 @@ Substrata is an ECCN review assistant for semiconductor and advanced hardware te
 13. Verify the API manually:
   - `COREPACK_HOME=/tmp/corepack corepack pnpm smoke:api`
 
+## Production Deployment
+
+Production Docker Compose config lives in `infra/docker-compose.prod.yml`, not at the repository root. Run the production commands from the repository root and pass both the compose file and production env file explicitly.
+
+1. SSH into the VPS and enter the repository:
+  - `cd /opt/substrata`
+2. Pull the latest code:
+  - `git pull origin main`
+3. Rebuild and start the production stack. The stack includes a one-shot `migrate` service; `api` waits for that service to complete successfully before it starts:
+  - `docker compose --env-file infra/.env.production -f infra/docker-compose.prod.yml down`
+  - `docker compose --env-file infra/.env.production -f infra/docker-compose.prod.yml build --no-cache`
+  - `docker compose --env-file infra/.env.production -f infra/docker-compose.prod.yml up -d`
+4. Check the migration log if the stack does not become healthy:
+  - `docker logs --tail=100 substrata-migrate`
+5. Backfill classification integrity after deployments that change classification-run persistence or publication data:
+  - `docker compose --env-file infra/.env.production -f infra/docker-compose.prod.yml exec api pnpm backfill:classification-integrity --dry-run --all`
+  - `docker compose --env-file infra/.env.production -f infra/docker-compose.prod.yml exec api pnpm backfill:classification-integrity --all`
+6. Restart the application services after migrations and backfills:
+  - `docker compose --env-file infra/.env.production -f infra/docker-compose.prod.yml restart api web`
+7. Check the service logs:
+  - `docker logs --tail=100 substrata-api`
+  - `docker logs --tail=100 substrata-web`
+
+Do not run `docker compose` without `-f infra/docker-compose.prod.yml` from the repository root; Docker will report `no configuration file provided: not found` because there is no root-level compose file.
+
+For production databases, use Prisma deploy migrations through the Compose `migrate` service. Do not use `pnpm db:migrate` or `pnpm --filter @substrata/db prisma:migrate` in production, because that script runs Prisma's development migration flow.
+
+The production web container starts the standalone Next.js server with `node apps/web/.next/standalone/apps/web/server.js`. If logs still show a `next start` standalone warning after deployment, the old image is still running; rebuild with `--no-cache` and recreate the stack with the production compose command above.
+
 ## Environment Variables
 
 - Local development uses `.env`.
@@ -108,7 +137,7 @@ Substrata is an ECCN review assistant for semiconductor and advanced hardware te
 
 ### Admin Runbook
 
-1. Deploy the API, web app, and Prisma migration.
+1. Deploy the API, web app, and Prisma migration using the production deployment commands above.
 2. Sign in as a configured public demo admin.
 3. Upload only a public, cleared-for-sharing PDF. Do not publish confidential, customer, personal, export-controlled, or sensitive documents.
 4. Run a normal classification and wait for the run to complete.

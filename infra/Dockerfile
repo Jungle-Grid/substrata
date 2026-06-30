@@ -40,4 +40,4 @@ FROM web-build AS web
 ENV NODE_ENV=production
 EXPOSE 3100
 
-CMD ["node", "apps/web/.next/standalone/server.js"]
+CMD ["node", "apps/web/.next/standalone/apps/web/server.js"]

@@ -23,7 +23,7 @@ Configure the first production demo admin with both of the following:
 
 ## Publish the First Demo
 
-1. Deploy the Prisma migration and application code.
+1. Deploy the Prisma migration and application code using the root README `Production Deployment` runbook.
 2. Sign in as a configured public demo admin.
 3. Open the completed run at `/app/reviews/cmqj7n97d003vmw10si9skovh`.
 4. Review the extracted technical facts, recommended review paths, citations, uncertainty flags, and classification memo draft.
