@@ -34,6 +34,10 @@ ARG NEXT_PUBLIC_API_BASE_URL
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 
 RUN pnpm --filter @substrata/web build
+RUN mkdir -p apps/web/.next/standalone/apps/web/public \
+    && cp -R apps/web/public/. apps/web/.next/standalone/apps/web/public/ \
+    && mkdir -p apps/web/.next/standalone/apps/web/.next/static \
+    && cp -R apps/web/.next/static/. apps/web/.next/standalone/apps/web/.next/static/
 
 FROM web-build AS web
 
