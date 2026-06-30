@@ -14,6 +14,7 @@
     "db:migrate": "corepack pnpm --filter @substrata/db prisma:migrate",
     "db:studio": "corepack pnpm --filter @substrata/db prisma:studio",
     "db:seed": "corepack pnpm --filter @substrata/db seed",
+    "backfill:classification-integrity": "corepack pnpm --filter @substrata/api exec tsx src/scripts/backfill-classification-integrity.ts",
     "worker:sample": "python3 workers/classifier/src/main.py workers/classifier/samples/sample-input.json",
     "worker:run-sample": "corepack pnpm worker:sample",
     "worker:validate-sample": "node scripts/validate-worker-output.mjs workers/classifier/samples/output-sample.json --min-specs=8",

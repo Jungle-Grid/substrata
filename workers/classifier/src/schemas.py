@@ -135,6 +135,26 @@ class ReviewPath:
 
 
 @dataclass
+class WorkerCapabilitySignal:
+    key: str
+    detected: bool
+    confidence: str
+    summary: str
+    supporting_fact_names: list[str]
+    supporting_citation_labels: list[str]
+
+
+@dataclass
+class ValidationIssueRecord:
+    code: str
+    severity: str
+    message: str
+    path: str
+    supporting_fact_names: list[str]
+    supporting_citation_labels: list[str]
+
+
+@dataclass
 class ECCNCandidate:
     eccn: str
     title: str
@@ -172,6 +192,8 @@ class WorkerOutput:
     fact_issues: list[FactIssue]
     review_paths: list[ReviewPath]
     eccn_candidates: list[ECCNCandidate]
+    capability_signals: list[WorkerCapabilitySignal]
+    validation_issues: list[ValidationIssueRecord]
     memo_markdown: str
     artifacts: dict[str, str]
     run_metadata: dict[str, Any] | None = None

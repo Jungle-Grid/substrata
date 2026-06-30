@@ -11,24 +11,37 @@ type RoutePath =
   | '/:id/demo-publication-status'
   | '/:id/publish-demo'
   | '/:id/unpublish-demo'
+  | '/:id/memo/download'
   | '/:id';
 
 type MockResponse = {
   statusCode: number;
   body: unknown;
+  headers: Record<string, string>;
   status: (code: number) => MockResponse;
   json: (payload: unknown) => MockResponse;
+  setHeader: (name: string, value: string) => MockResponse;
+  send: (payload: unknown) => MockResponse;
 };
 
 function createMockResponse(): MockResponse {
   return {
     statusCode: 200,
     body: undefined,
+    headers: {},
     status(code) {
       this.statusCode = code;
       return this;
     },
     json(payload) {
+      this.body = payload;
+      return this;
+    },
+    setHeader(name, value) {
+      this.headers[name] = value;
+      return this;
+    },
+    send(payload) {
       this.body = payload;
       return this;
     },
@@ -244,6 +257,51 @@ test('publishing status stays scoped to the authenticated organization run', asy
   } finally {
     env.publicDemoAdminEmails.splice(0, env.publicDemoAdminEmails.length, ...original);
   }
+});
+
+test('authorized members can download a private memo', async () => {
+  const response = await invokeRoute({
+    method: 'get',
+    path: '/:id/memo/download',
+    runId: 'run_1',
+    deps: {
+      getMemoDownload: async () =>
+        ({
+          content: '# Memo',
+          filename: 'substrata-eccn-review-public-edge-accelerator.md',
+        }) as never,
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.match(
+    response.headers['Content-Disposition'] ?? '',
+    /attachment; filename="substrata-eccn-review-public-edge-accelerator\.md"/,
+  );
+});
+
+test('private memo download returns a structured 404 when the memo is missing', async () => {
+  const response = await invokeRoute({
+    method: 'get',
+    path: '/:id/memo/download',
+    runId: 'run_1',
+    deps: {
+      getMemoDownload: async () => {
+        throw Object.assign(new Error('A memo has not been generated for this run yet.'), {
+          statusCode: 404,
+          details: { code: 'MEMO_NOT_FOUND' },
+        });
+      },
+    },
+  });
+
+  assert.equal(response.statusCode, 404);
+  assert.deepEqual(response.body, {
+    error: {
+      code: 'MEMO_NOT_FOUND',
+      message: 'A memo has not been generated for this run yet.',
+    },
+  });
 });
 
 test('normal authenticated private-run access still works', async () => {

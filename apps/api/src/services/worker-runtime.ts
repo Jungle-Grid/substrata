@@ -134,6 +134,22 @@ function mapCliOutput(output: WorkerCliOutput): WorkerOutput {
       alternativeCandidates: candidate.alternative_candidates,
       reviewPathKey: candidate.review_path_key ?? null,
     })),
+    capabilitySignals: output.capability_signals.map((signal) => ({
+      key: signal.key,
+      detected: signal.detected,
+      confidence: signal.confidence,
+      summary: signal.summary,
+      supportingFactNames: signal.supporting_fact_names,
+      supportingCitationLabels: signal.supporting_citation_labels,
+    })),
+    validationIssues: output.validation_issues.map((issue) => ({
+      code: issue.code,
+      severity: issue.severity,
+      message: issue.message,
+      path: issue.path,
+      supportingFactNames: issue.supporting_fact_names,
+      supportingCitationLabels: issue.supporting_citation_labels,
+    })),
     memoMarkdown: output.memo_markdown,
     artifacts: {
       extractedTextPath: output.artifacts.extracted_text_path,

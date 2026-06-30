@@ -31,6 +31,8 @@ test('demo publication status allows completed upload-backed runs with memo draf
         extractedTextPath: null,
         structuredOutputPath: null,
         memoArtifactPath: null,
+        capabilitySignals: null,
+        validationIssues: null,
         errorMessage: null,
         completedAt: new Date('2026-06-30T12:00:00.000Z'),
         createdAt: new Date('2026-06-30T11:55:00.000Z'),
@@ -81,7 +83,7 @@ test('demo publication status allows completed upload-backed runs with memo draf
         reviewerActions: [],
       }) as Awaited<ReturnType<typeof prisma.classificationRun.findFirst>>) as typeof prisma.classificationRun.findFirst;
 
-    prisma.publicDemoPublication.findUnique = (async () => null) as typeof prisma.publicDemoPublication.findUnique;
+    prisma.publicDemoPublication.findUnique = (async () => null) as unknown as typeof prisma.publicDemoPublication.findUnique;
 
     const status = await getClassificationRunDemoPublicationStatus('org_1', 'run_upload_demo');
 

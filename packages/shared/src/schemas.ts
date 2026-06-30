@@ -102,6 +102,23 @@ export const reviewSubmissionStatusSchema = z.enum([
   'rejected',
 ]);
 
+export const capabilitySignalKeySchema = z.enum([
+  'hasCryptography',
+  'hasEncryption',
+  'hasDecryption',
+  'hasKeyManagement',
+  'hasCryptographicAccelerator',
+  'hasSecureBoot',
+  'hasTrustedExecution',
+  'hasSecureKeyStorage',
+  'hasHardwareSecurityModule',
+  'hasAuthenticationSecurityFeatures',
+  'hasHighSpeedInterfaces',
+  'hasProgrammableLogic',
+  'hasAdvancedProcessor',
+  'hasRFOrWirelessCapability',
+]);
+
 export const documentCreateSchema = z.object({
   title: z.string().min(1).max(255),
   fileName: z.string().min(1).max(255),
@@ -356,11 +373,47 @@ export const alternativeCandidateSchema = z.object({
   rationale: z.string().trim().min(1).max(1000),
 });
 
+export const capabilitySignalSchema = z.object({
+  key: capabilitySignalKeySchema,
+  detected: z.boolean(),
+  confidence: confidenceLevelSchema,
+  summary: z.string().trim().min(1).max(2000),
+  supportingFactIds: z.array(z.string().trim().min(1).max(255)).max(50),
+  supportingCitationIds: z.array(z.string().trim().min(1).max(255)).max(50),
+});
+
+export const workerCapabilitySignalSchema = z.object({
+  key: capabilitySignalKeySchema,
+  detected: z.boolean(),
+  confidence: confidenceLevelSchema,
+  summary: z.string().trim().min(1).max(2000),
+  supportingFactNames: z.array(z.string().trim().min(1).max(255)).max(50),
+  supportingCitationLabels: z.array(z.string().trim().min(1).max(255)).max(50),
+});
+
+export const runValidationIssueSchema = z.object({
+  code: z.string().trim().min(1).max(120),
+  severity: z.enum(['error', 'warning']),
+  message: z.string().trim().min(1).max(4000),
+  path: z.string().trim().min(1).max(255),
+  supportingFactIds: z.array(z.string().trim().min(1).max(255)).max(50).default([]),
+  supportingCitationIds: z.array(z.string().trim().min(1).max(255)).max(50).default([]),
+});
+
+export const workerValidationIssueSchema = z.object({
+  code: z.string().trim().min(1).max(120),
+  severity: z.enum(['error', 'warning']),
+  message: z.string().trim().min(1).max(4000),
+  path: z.string().trim().min(1).max(255),
+  supportingFactNames: z.array(z.string().trim().min(1).max(255)).max(50).default([]),
+  supportingCitationLabels: z.array(z.string().trim().min(1).max(255)).max(50).default([]),
+});
+
 export const eccnCandidateSchema = z.object({
   eccn: z
     .string()
     .trim()
-    .regex(/^[0-9][A-Z][0-9]{3}[a-zA-Z0-9]*$/)
+    .regex(/^[0-9][A-Z][0-9]{3}(?:\.[a-zA-Z0-9]+|[a-zA-Z0-9]*)$/)
     .max(32),
   title: z.string().trim().min(1).max(255),
   officialTitle: z.string().trim().min(1).max(255),
@@ -398,6 +451,8 @@ export const workerOutputSchema = z
     factIssues: z.array(factIssueSchema).default([]),
     reviewPaths: z.array(reviewPathSchema).default([]),
     eccnCandidates: z.array(eccnCandidateSchema).default([]),
+    capabilitySignals: z.array(workerCapabilitySignalSchema).default([]),
+    validationIssues: z.array(workerValidationIssueSchema).default([]),
     memoMarkdown: z.string(),
     artifacts: z.object({
       extractedTextPath: z.string(),
@@ -554,6 +609,26 @@ export const workerCliOutputSchema = z.object({
         }),
       ),
       review_path_key: z.string().nullable().optional(),
+    }),
+  ),
+  capability_signals: z.array(
+    z.object({
+      key: capabilitySignalKeySchema,
+      detected: z.boolean(),
+      confidence: confidenceLevelSchema,
+      summary: z.string(),
+      supporting_fact_names: z.array(z.string()),
+      supporting_citation_labels: z.array(z.string()),
+    }),
+  ),
+  validation_issues: z.array(
+    z.object({
+      code: z.string(),
+      severity: z.enum(['error', 'warning']),
+      message: z.string(),
+      path: z.string(),
+      supporting_fact_names: z.array(z.string()).default([]),
+      supporting_citation_labels: z.array(z.string()).default([]),
     }),
   ),
   memo_markdown: z.string(),

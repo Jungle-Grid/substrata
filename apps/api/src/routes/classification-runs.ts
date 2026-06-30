@@ -13,6 +13,7 @@ import {
   claimClassificationRun,
   getClassificationRun,
   getClassificationRunDemoPublicationStatus,
+  getAuthenticatedMemoDownload,
   listClassificationRuns,
   listReviewMemos,
   listReviewQueue,
@@ -38,6 +39,7 @@ type ClassificationRunsRouterDeps = {
   publishDemo?: typeof publishClassificationRunAsPublicDemo;
   unpublishDemo?: typeof unpublishClassificationRunAsPublicDemo;
   getDemoStatus?: typeof getClassificationRunDemoPublicationStatus;
+  getMemoDownload?: typeof getAuthenticatedMemoDownload;
 };
 
 export function createClassificationRunsRouter(
@@ -56,6 +58,7 @@ export function createClassificationRunsRouter(
   const publishDemo = deps.publishDemo ?? publishClassificationRunAsPublicDemo;
   const unpublishDemo = deps.unpublishDemo ?? unpublishClassificationRunAsPublicDemo;
   const getDemoStatus = deps.getDemoStatus ?? getClassificationRunDemoPublicationStatus;
+  const getMemoDownload = deps.getMemoDownload ?? getAuthenticatedMemoDownload;
 
   classificationRunsRouter.get('/', async (req, res) => {
     const runs = await listRuns(req.authContext!.organization.id);
@@ -207,28 +210,34 @@ export function createClassificationRunsRouter(
 
   classificationRunsRouter.get('/:id/memo/download', async (req, res) => {
     const { organization } = req.authContext!;
-    const run = await loadClassificationRun(organization.id, req.params.id);
+    try {
+      const payload = await getMemoDownload({
+        organizationId: organization.id,
+        classificationRunId: req.params.id,
+      });
 
-    if (!run || !run.reviewMemo) {
-      return res.status(404).json({ error: 'Classification memo not found' });
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${payload.filename}"`,
+      );
+
+      return res.send(payload.content);
+    } catch (error) {
+      if (error instanceof Error && 'statusCode' in error) {
+        const typedError = error as Error & {
+          statusCode: number;
+          details?: { code?: string };
+        };
+        return res.status(typedError.statusCode).json({
+          error: {
+            code: typedError.details?.code ?? 'MEMO_DOWNLOAD_FAILED',
+            message: typedError.message,
+          },
+        });
+      }
+      throw error;
     }
-
-    const markdown = run.reviewMemo.contentMarkdown;
-    const baseName = run.document.fileName
-      .replace(/\.[^.]+$/, '')
-      .replace(/[^a-zA-Z0-9._-]+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-      .toLowerCase();
-    const safeTitle = baseName || run.document.title.replace(/[^a-zA-Z0-9._-]+/g, '-');
-
-    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="substrata-eccn-review-${safeTitle}.md"`,
-    );
-
-    return res.send(markdown);
   });
 
   classificationRunsRouter.post('/:id/review', async (req, res) => {

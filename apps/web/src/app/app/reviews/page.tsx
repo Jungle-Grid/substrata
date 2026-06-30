@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { AppShell } from '../../../components/app-shell';
-import { ActionLink, EmptyState, Panel, StatusBadge, TableContainer } from '../../../components/ui';
+import { ActionLink, Badge, EmptyState, Panel, StatusBadge, TableContainer } from '../../../components/ui';
 import { requireCompletedOnboarding } from '../../../lib/server-auth';
 import { fetchServerRuns } from '../../../lib/server-api';
 import { formatDateTime } from '../../../lib/workspace';
@@ -32,9 +32,9 @@ export default async function ReviewsPage() {
                     <Link href={`/app/reviews/${run.id}`} className="block truncate font-medium text-slate-950">
                       {run.document.title}
                     </Link>
-                    <p className="mt-1 text-xs text-slate-500">{run.reviewPaths.length} review paths / {run.eccnCandidates.length} potential ECCN candidates</p>
+                    <p className="mt-1 text-xs text-slate-500">{run.reviewPaths.length} recommended review paths / {run.eccnCandidates.length} potential ECCN candidates</p>
                   </div>
-                  <StatusBadge status={run.humanReviewStatus} />
+                  <StatusBadge status={run.reviewStatus ?? run.humanReviewStatus} />
                 </div>
                 <dl className="mt-4 grid gap-3 text-sm">
                   <div>
@@ -80,7 +80,12 @@ export default async function ReviewsPage() {
                         {run.uncertaintyFlags.length > 0 ? `${run.uncertaintyFlags.length} flags` : 'No open flags'}
                       </td>
                       <td className="px-4 py-4">
-                        <StatusBadge status={run.humanReviewStatus} />
+                        <div className="space-y-1">
+                          <Badge tone={run.status === 'completed' ? 'success' : run.status === 'needs_attention' ? 'danger' : 'info'}>
+                            {run.processingLabel ?? run.status}
+                          </Badge>
+                          <StatusBadge status={run.reviewStatus ?? run.humanReviewStatus} />
+                        </div>
                       </td>
                       <td className="px-4 py-4 text-slate-600">{formatDateTime(run.completedAt ?? run.createdAt)}</td>
                     </tr>

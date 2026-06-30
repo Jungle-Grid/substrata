@@ -47,8 +47,11 @@ export default async function ReviewDetailPage({
       description="Inspect source-backed technical facts, review paths, potential ECCN candidates, uncertainty, reviewer activity, and the draft review memo."
       actions={
         <div className="flex flex-wrap gap-2">
+          <Badge tone={run.status === 'completed' ? 'success' : run.status === 'needs_attention' ? 'danger' : 'info'}>
+            {run.processingLabel ?? run.status}
+          </Badge>
           <Badge tone={run.hasReviewerConclusion ? 'success' : 'warning'}>
-            {run.workflowLabel}
+            {run.reviewStatusDetail ?? run.workflowLabel}
           </Badge>
           <Link
             href={`/app/documents/${run.document.id}`}
@@ -65,9 +68,10 @@ export default async function ReviewDetailPage({
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-lg border border-slate-200 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  Review state
+                  Processing status
                 </p>
-                <p className="mt-2 text-sm font-semibold text-slate-950">{run.workflowLabel}</p>
+                <p className="mt-2 text-sm font-semibold text-slate-950">{run.processingLabel ?? run.status}</p>
+                <p className="mt-1 text-xs text-slate-500">{run.reviewStatusDetail ?? run.workflowLabel}</p>
               </div>
               <div className="rounded-lg border border-slate-200 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
@@ -279,6 +283,13 @@ export default async function ReviewDetailPage({
             <p className="mt-2 text-sm text-slate-600">
               Record authenticated reviewer actions, caveats, and internal recommendation. Only recorded reviewer actions can move this workup into a human-reviewed state.
             </p>
+            {run.validationIssues && run.validationIssues.length > 0 ? (
+              <div className="mt-4">
+                <InlineNotice tone="error" title="Validation requires attention">
+                  {run.validationIssues.map((issue) => issue.message).join(' ')}
+                </InlineNotice>
+              </div>
+            ) : null}
             {run.uncertaintyFlags.length > 0 ? (
               <div className="mt-4">
                 <InlineNotice tone="warning" title="Open uncertainty flags">

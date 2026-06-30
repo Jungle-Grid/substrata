@@ -4,7 +4,13 @@ import re
 from dataclasses import dataclass
 
 from labels import display_name_for_spec_name
-from schemas import ECCNCandidate, ExtractedSpec, WorkerOutput
+from schemas import (
+    ECCNCandidate,
+    ExtractedSpec,
+    ValidationIssueRecord,
+    WorkerCapabilitySignal,
+    WorkerOutput,
+)
 
 
 STALE_DEVICE_MARKERS = {
@@ -128,9 +134,12 @@ def _markdown_looks_malformed(markdown: str) -> str | None:
         "## 1. Document Summary",
         "## 2. Extracted Technical Facts",
         "## 3. Recommended Review Paths",
-        "## 4. Key Uncertainties",
-        "## 5. Reviewer Questions",
-        "## 6. ECCN Review Recommendation",
+        "## 4. Potential ECCN Candidates",
+        "## 5. Open Questions and Missing Evidence",
+        "## 6. Key Uncertainties",
+        "## 7. Reviewer Questions",
+        "## 8. ECCN Review Recommendation",
+        "## 9. Review State",
     ]
     positions = [markdown.find(section) for section in required_order]
     if any(position == -1 for position in positions) or positions != sorted(positions):
@@ -316,7 +325,7 @@ def collect_validation_issues(
         for spec in output.extracted_specs
     )
     if has_security_or_crypto_facts:
-        conclusion_start = output.memo_markdown.lower().find("## 6. eccn review recommendation")
+        conclusion_start = output.memo_markdown.lower().find("## 8. eccn review recommendation")
         conclusion_text = output.memo_markdown[conclusion_start:].lower() if conclusion_start != -1 else output.memo_markdown.lower()
         if "category 5 part 2" not in conclusion_text:
             issues.append(
@@ -329,20 +338,18 @@ def collect_validation_issues(
             )
 
     if is_mcu_processor_soc:
-        candidate_titles = " ".join(candidate.title for candidate in output.eccn_candidates).lower()
+        review_path_titles = " ".join(path.title for path in output.review_paths).lower()
         reviewer_questions = " ".join(
             question
-            for candidate in output.eccn_candidates
-            for question in candidate.reviewer_questions
+            for path in output.review_paths
+            for question in path.reviewer_questions
         ).lower()
         candidate_text = " ".join(
             [
-                *(candidate.title for candidate in output.eccn_candidates),
-                *(candidate.why_it_may_apply for candidate in output.eccn_candidates),
-                *(candidate.why_it_may_not_apply for candidate in output.eccn_candidates),
-                *(fact for candidate in output.eccn_candidates for fact in candidate.matched_technical_facts),
-                *(item for candidate in output.eccn_candidates for item in candidate.missing_information),
-                *(question for candidate in output.eccn_candidates for question in candidate.reviewer_questions),
+                *(path.title for path in output.review_paths),
+                *(path.why_triggered for path in output.review_paths),
+                *(item for path in output.review_paths for item in path.missing_information),
+                *(question for path in output.review_paths for question in path.reviewer_questions),
             ]
         ).lower()
         has_processor_or_interface_facts = any(
@@ -370,20 +377,20 @@ def collect_validation_issues(
             }
             for spec in output.extracted_specs
         )
-        if "category 3 electronics / mcu / processor / soc review path" not in candidate_titles:
+        if "category 3 electronics / mcu / processor / soc review path" not in review_path_titles:
             issues.append(
                 ValidationIssue(
-                    bad_string=candidate_titles or "missing",
-                    section="eccn_candidates.title",
+                    bad_string=review_path_titles or "missing",
+                    section="review_paths.title",
                     reason="MCU/processor output is missing the profile-specific Category 3 title.",
                     remediation="Use 'Category 3 electronics / MCU / processor / SoC review path' for mcu_processor_soc.",
                 )
             )
-        if "category 3" in candidate_titles and "programmable logic" in candidate_titles:
+        if "category 3" in review_path_titles and "programmable logic" in review_path_titles:
             issues.append(
                 ValidationIssue(
                     bad_string="programmable logic",
-                    section="eccn_candidates.title",
+                    section="review_paths.title",
                     reason="MCU/processor Category 3 title leaks programmable-logic wording.",
                     remediation="Use MCU/processor/SoC-specific wording unless programmable logic is extracted from the current document.",
                 )
@@ -772,6 +779,106 @@ def collect_validation_issues(
     return issues
 
 
+_NEGATIVE_CRYPTO_PATTERNS = (
+    "no cryptographic features were identified",
+    "security functionality was not found",
+    "no encryption capability was detected",
+    "cryptographic functionality was not identified",
+)
+
+
+def validate_narrative_consistency(
+    *,
+    capability_signals: list[WorkerCapabilitySignal],
+    review_paths: list,
+    eccn_candidates: list[ECCNCandidate],
+    uncertainty_flags: list[str],
+    memo_markdown: str,
+) -> list[ValidationIssueRecord]:
+    issues: list[ValidationIssueRecord] = []
+    crypto_signal = next(
+        (signal for signal in capability_signals if signal.key == "hasCryptography"),
+        None,
+    )
+    secure_boot_signal = next(
+        (signal for signal in capability_signals if signal.key == "hasSecureBoot"),
+        None,
+    )
+    crypto_accelerator_signal = next(
+        (signal for signal in capability_signals if signal.key == "hasCryptographicAccelerator"),
+        None,
+    )
+    memo_normalized = _normalize(memo_markdown)
+    review_text = " ".join(
+        [path.why_triggered for path in review_paths]
+        + [candidate.why_it_may_apply for candidate in eccn_candidates]
+        + [candidate.why_it_may_not_apply for candidate in eccn_candidates]
+    )
+    review_normalized = _normalize(review_text)
+
+    if crypto_signal and crypto_signal.detected:
+        for phrase in _NEGATIVE_CRYPTO_PATTERNS:
+            if phrase in memo_normalized or phrase in review_normalized:
+                issues.append(
+                    ValidationIssueRecord(
+                        code="CRYPTO_NARRATIVE_CONTRADICTION",
+                        severity="error",
+                        message="Cryptographic functionality was detected, but the narrative still denies it.",
+                        path="memo_markdown",
+                        supporting_fact_names=crypto_signal.supporting_fact_names,
+                        supporting_citation_labels=crypto_signal.supporting_citation_labels,
+                    )
+                )
+                break
+
+    if secure_boot_signal and secure_boot_signal.detected:
+        if "security functionality was not found" in memo_normalized:
+            issues.append(
+                ValidationIssueRecord(
+                    code="SECURE_BOOT_NARRATIVE_CONTRADICTION",
+                    severity="error",
+                    message="Secure-boot functionality was detected, but the memo still states that security functionality was not found.",
+                    path="memo_markdown",
+                    supporting_fact_names=secure_boot_signal.supporting_fact_names,
+                    supporting_citation_labels=secure_boot_signal.supporting_citation_labels,
+                )
+            )
+
+    if crypto_accelerator_signal and crypto_accelerator_signal.detected:
+        has_crypto_review_path = any("category 5 part 2" in path.title.lower() or "cryptograph" in path.title.lower() for path in review_paths)
+        has_crypto_uncertainty = "crypto_relevance_requires_qualified_review" in uncertainty_flags
+        if not has_crypto_review_path and not has_crypto_uncertainty:
+            issues.append(
+                ValidationIssueRecord(
+                    code="CRYPTO_REVIEW_PATH_MISSING",
+                    severity="error",
+                    message="Cryptographic acceleration was detected without a corresponding cryptography review path or uncertainty flag.",
+                    path="review_paths",
+                    supporting_fact_names=crypto_accelerator_signal.supporting_fact_names,
+                    supporting_citation_labels=crypto_accelerator_signal.supporting_citation_labels,
+                )
+            )
+
+    requires_review_language = (
+        "qualified reviewer" in memo_normalized
+        or "expert review required" in memo_normalized
+        or "expert review" in memo_normalized
+    )
+    if any(signal.detected for signal in capability_signals) and not requires_review_language:
+        issues.append(
+            ValidationIssueRecord(
+                code="REVIEW_LANGUAGE_MISSING",
+                severity="error",
+                message="The memo must explicitly require qualified review when controlled capabilities or uncertainty signals are present.",
+                path="memo_markdown",
+                supporting_fact_names=[],
+                supporting_citation_labels=[],
+            )
+        )
+
+    return issues
+
+
 def validate_worker_output(
     *,
     document_title: str,
@@ -817,6 +924,8 @@ def validate_memo_markdown(memo_markdown: str) -> None:
         "document summary",
         "extracted technical facts",
         "recommended review paths",
+        "potential eccn candidates",
+        "open questions and missing evidence",
         "key uncertainties",
         "reviewer questions",
         "eccn review recommendation",

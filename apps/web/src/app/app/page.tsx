@@ -69,7 +69,7 @@ export default async function AppOverviewPage() {
                           {run.reviewPaths.length} review paths / {run.uncertaintyFlags.length} uncertainty flags
                         </p>
                       </div>
-                      <StatusBadge status={run.humanReviewStatus} />
+                      <StatusBadge status={run.reviewStatus ?? run.humanReviewStatus} />
                     </div>
                   </Link>
                 ))}

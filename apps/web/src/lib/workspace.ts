@@ -2,7 +2,10 @@ import type { MembershipRecord } from './types';
 
 export function formatReviewStatus(status?: string | null) {
   if (status === 'uploaded') return 'Uploaded';
-  if (!status || status === 'pending_review') return 'Awaiting qualified reviewer';
+  if (!status || status === 'pending_review' || status === 'review_required') {
+    return 'Expert review required before classification sign-off';
+  }
+  if (status === 'under_review') return 'Under qualified reviewer review';
   if (status === 'approved') return 'Approved for internal use';
   if (status === 'reviewed') return 'Reviewer conclusion recorded';
   if (status === 'needs_more_information') return 'Needs more information';
@@ -13,9 +16,15 @@ export function formatReviewStatus(status?: string | null) {
 }
 
 export function reviewStatusTone(status?: string | null) {
-  if (!status || status === 'pending_review' || status === 'needs_more_information') {
+  if (
+    !status ||
+    status === 'pending_review' ||
+    status === 'needs_more_information' ||
+    status === 'review_required'
+  ) {
     return 'warning' as const;
   }
+  if (status === 'under_review') return 'info' as const;
   if (status === 'approved' || status === 'reviewed') {
     return 'success' as const;
   }
@@ -30,6 +39,7 @@ export function reviewStatusTone(status?: string | null) {
 
 export function formatRunLifecycle(status?: string | null) {
   if (!status) return 'Facts extracted';
+  if (status === 'needs_attention') return 'Needs attention';
   if (status === 'completed') return 'Memo drafted';
   if (status === 'running') return 'Facts extracted';
   if (status === 'queued') return 'Uploaded';

@@ -56,10 +56,10 @@ export default async function DocumentDetailPage({
                       <div className="min-w-0">
                         <p className="font-medium text-slate-950">{run.reviewMemo ? 'Review-ready memo available' : 'Review in progress'}</p>
                         <p className="mt-1 text-sm text-slate-500">
-                          {run.eccnCandidates.length} recommended review paths / {run.uncertaintyFlags.length} uncertainty flags
+                          {run.reviewPaths.length} recommended review paths / {run.eccnCandidates.length} potential ECCN candidates
                         </p>
                       </div>
-                      <StatusBadge status={run.humanReviews[0]?.status} />
+                      <StatusBadge status={run.reviewStatus ?? run.humanReviews[0]?.status} />
                     </div>
                   </Link>
                 ))

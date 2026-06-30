@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -9,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from ai_client import GeminiClient, GeminiClientError
+from capabilities import derive_capability_signals
 from eccn_rules import generate_eccn_candidates
 from extract_specs import extract_specs
 from extract_text import extract_text
@@ -30,7 +32,13 @@ from schemas import (
     WorkerOutput,
     validate_ai_extraction_payload,
 )
-from validation import validate_memo_markdown, validate_worker_output
+from validation import (
+    validate_memo_markdown,
+    validate_narrative_consistency,
+    validate_worker_output,
+)
+
+SPECIFIC_ECCN_PATTERN = re.compile(r"^[0-9][A-Z][0-9]{3}(?:\.[A-Za-z0-9]+|[A-Za-z0-9]*)$")
 
 
 def _log_worker_event(event: str, **fields: object) -> None:
@@ -440,6 +448,7 @@ def _run_ai_flow(
     )
     specs = _dedupe_interface_facts(_merge_ai_specs(extraction))
     candidates, uncertainty_flags, confidence = generate_eccn_candidates(specs, source_label=source_label)
+    capability_signals = derive_capability_signals(specs)
     _log_worker_event(
         "ai_flow.local_candidates_generated",
         document_id=worker_input.document_id,
@@ -454,6 +463,7 @@ def _run_ai_flow(
         specs,
         candidates,
         uncertainty_flags,
+        capability_signals,
     )
     _log_worker_event(
         "ai_flow.memo_rendered",
@@ -476,6 +486,7 @@ def _run_ai_flow(
 def _run_heuristic_flow(worker_input: Any, text: str, source_label: str, *, fallback_reason: str | None = None):
     specs = _dedupe_interface_facts(_ensure_profile_specs(extract_specs(text)))
     candidates, uncertainty_flags, confidence = generate_eccn_candidates(specs, source_label=source_label)
+    capability_signals = derive_capability_signals(specs)
     memo_markdown = generate_memo(
         worker_input.document_id,
         worker_input.document_title,
@@ -483,6 +494,7 @@ def _run_heuristic_flow(worker_input: Any, text: str, source_label: str, *, fall
         specs,
         candidates,
         uncertainty_flags,
+        capability_signals,
     )
     metadata = {
         "classificationMode": "heuristic_fallback" if fallback_reason else "heuristic",
@@ -612,13 +624,12 @@ def _specific_eccn_candidates(candidates: list[Any], specs: list[ExtractedSpec])
     specific: list[Any] = []
     seen_candidate_keys: set[str] = set()
     for candidate in candidates:
+        if not SPECIFIC_ECCN_PATTERN.fullmatch(candidate.eccn.strip()):
+            continue
         candidate_key = candidate.review_path_id or f"{candidate.eccn}:{candidate.title}"
         if candidate_key in seen_candidate_keys:
             continue
         seen_candidate_keys.add(candidate_key)
-        # Preserve canonical review-path candidates in the final output so a
-        # generic 3A991 fallback cannot become the only serialized candidate
-        # for profile-specific flows such as MCU/processor/SoC review.
         regulation_source = _regulation_source_from_citation(
             candidate.eccn,
             candidate.regulatory_citations[0] if candidate.regulatory_citations else None,
@@ -728,6 +739,14 @@ def run(payload_path: str) -> WorkerOutput:
     review_paths = _review_paths_from_candidates(candidates, specs)
     fact_issues = _fact_issues(specs, extraction)
     specific_candidates = _specific_eccn_candidates(candidates, specs)
+    capability_signals = derive_capability_signals(specs)
+    validation_issues = validate_narrative_consistency(
+        capability_signals=capability_signals,
+        review_paths=review_paths,
+        eccn_candidates=specific_candidates,
+        uncertainty_flags=uncertainty_flags,
+        memo_markdown=memo_markdown,
+    )
     confidence_rationale = (
         "Confidence reflects source specificity, missing threshold data, unresolved reviewer questions, and whether the current document appears family-level rather than ordering-code-specific."
     )
@@ -749,6 +768,8 @@ def run(payload_path: str) -> WorkerOutput:
         fact_issues=fact_issues,
         review_paths=review_paths,
         eccn_candidates=specific_candidates,
+        capability_signals=capability_signals,
+        validation_issues=validation_issues,
         memo_markdown=memo_markdown,
         artifacts={
             "extracted_text_path": str(extracted_text_path),

@@ -6,6 +6,7 @@ import {
 } from '../services/presenters';
 import { assertRateLimit } from '../services/rate-limit.service';
 import {
+  getPublicMemoDownload,
   getActivePublicDemo,
   getPublicDemoClassificationRun,
 } from '../services/classification.service';
@@ -13,6 +14,7 @@ import {
 type PublicRouterDeps = {
   loadPublicDemoRun?: (runId: string) => ReturnType<typeof getPublicDemoClassificationRun>;
   loadActivePublicDemo?: () => ReturnType<typeof getActivePublicDemo>;
+  loadPublicMemoDownload?: typeof getPublicMemoDownload;
   rateLimit?: typeof assertRateLimit;
 };
 
@@ -28,6 +30,7 @@ export function createPublicRouter(deps: PublicRouterDeps = {}) {
   const router = Router();
   const loadPublicDemoRun = deps.loadPublicDemoRun ?? getPublicDemoClassificationRun;
   const loadActivePublicDemo = deps.loadActivePublicDemo ?? getActivePublicDemo;
+  const loadPublicMemoDownload = deps.loadPublicMemoDownload ?? getPublicMemoDownload;
   const rateLimit = deps.rateLimit ?? assertRateLimit;
 
   function setPublicCacheHeaders() {
@@ -105,32 +108,39 @@ export function createPublicRouter(deps: PublicRouterDeps = {}) {
       );
     }
 
-    const publication = await loadPublicDemoRun(String(req.params.runId));
-
-    if (!publication?.activeClassificationRun?.reviewMemo?.contentMarkdown) {
-      return res.status(404).json({
-        error: 'NotFound',
-        message: 'Public classification memo not found.',
-      });
+    try {
+      const payload = await loadPublicMemoDownload(String(req.params.runId));
+      res.set(setPublicCacheHeaders());
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${payload.filename}"`,
+      );
+      return res.send(payload.content);
+    } catch (error) {
+      if (error instanceof HttpError) {
+        return res.status(error.statusCode).json({
+          error: {
+            code:
+              (error.details as { code?: string } | undefined)?.code ?? 'PUBLIC_MEMO_DOWNLOAD_FAILED',
+            message: error.message,
+          },
+        });
+      }
+      if (error instanceof Error && 'statusCode' in error) {
+        const typedError = error as Error & {
+          statusCode: number;
+          details?: { code?: string };
+        };
+        return res.status(typedError.statusCode).json({
+          error: {
+            code: typedError.details?.code ?? 'PUBLIC_MEMO_DOWNLOAD_FAILED',
+            message: typedError.message,
+          },
+        });
+      }
+      throw error;
     }
-
-    const run = publication.activeClassificationRun;
-    const baseName = (publication.sourceDocumentDisplayName ?? run.document.title)
-      .replace(/\.[^.]+$/, '')
-      .replace(/[^a-zA-Z0-9._-]+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-      .toLowerCase();
-    const safeTitle = baseName || run.id;
-
-    res.set(setPublicCacheHeaders());
-    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="substrata-eccn-review-${safeTitle}.md"`,
-    );
-
-    return res.send(run.reviewMemo?.contentMarkdown ?? '');
   });
 
   return router;

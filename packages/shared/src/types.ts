@@ -3,7 +3,8 @@ export type ClassificationStatus =
   | 'queued'
   | 'running'
   | 'completed'
-  | 'failed';
+  | 'failed'
+  | 'needs_attention';
 
 export type ReviewWorkflowState =
   | 'draft_generated'
@@ -84,3 +85,19 @@ export type ECCNCandidateStatus =
   | 'rejected'
   | 'modified'
   | 'review_required';
+
+export type CapabilitySignalKey =
+  | 'hasCryptography'
+  | 'hasEncryption'
+  | 'hasDecryption'
+  | 'hasKeyManagement'
+  | 'hasCryptographicAccelerator'
+  | 'hasSecureBoot'
+  | 'hasTrustedExecution'
+  | 'hasSecureKeyStorage'
+  | 'hasHardwareSecurityModule'
+  | 'hasAuthenticationSecurityFeatures'
+  | 'hasHighSpeedInterfaces'
+  | 'hasProgrammableLogic'
+  | 'hasAdvancedProcessor'
+  | 'hasRFOrWirelessCapability';

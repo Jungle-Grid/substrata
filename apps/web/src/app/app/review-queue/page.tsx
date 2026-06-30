@@ -48,7 +48,7 @@ export default async function ReviewQueuePage() {
                     Last updated {formatDateTime(run.completedAt ?? run.createdAt)}
                   </p>
                 </div>
-                <StatusBadge status={run.humanReviews[0]?.status} />
+                <StatusBadge status={run.reviewStatus ?? run.humanReviews[0]?.status} />
               </div>
             </Link>
           ))}

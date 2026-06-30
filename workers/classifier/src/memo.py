@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, UTC
+import re
 
 from fact_groups import CATEGORY_DISPLAY_NAMES, group_specs_by_category, infer_missing_review_points
 from labels import display_name_for_spec_name
-from schemas import ECCNCandidate, ExtractedSpec
+from schemas import ECCNCandidate, ExtractedSpec, WorkerCapabilitySignal
 
 
 def _profile_value(specs: list[ExtractedSpec]) -> str:
@@ -12,6 +13,13 @@ def _profile_value(specs: list[ExtractedSpec]) -> str:
         if spec.name == "product_profile":
             return spec.value
     return ""
+
+
+SPECIFIC_ECCN_PATTERN = re.compile(r"^[0-9][A-Z][0-9]{3}(?:\.[A-Za-z0-9]+|[A-Za-z0-9]*)$")
+
+
+def _is_specific_eccn(value: str) -> bool:
+    return bool(SPECIFIC_ECCN_PATTERN.fullmatch(value.strip()))
 
 
 def _recommended_path_summary(candidates: list[ECCNCandidate]) -> str:
@@ -40,6 +48,7 @@ def generate_memo(
     specs: list[ExtractedSpec],
     candidates: list[ECCNCandidate],
     uncertainty_flags: list[str],
+    capability_signals: list[WorkerCapabilitySignal],
 ) -> str:
     generated_at = datetime.now(UTC).replace(microsecond=0).isoformat()
     grouped_specs = group_specs_by_category(specs)
@@ -82,8 +91,33 @@ def generate_memo(
             missing_lines.append(f"- {item}")
         fact_sections.append("\n".join(missing_lines))
 
+    review_path_candidates = [candidate for candidate in candidates if not _is_specific_eccn(candidate.eccn)]
+    eccn_candidates = [candidate for candidate in candidates if _is_specific_eccn(candidate.eccn)]
+
+    review_path_sections: list[str] = []
+    for candidate in review_path_candidates:
+        matched_fact_lines = "\n".join(f"- {fact}" for fact in candidate.matched_technical_facts)
+        missing_info_lines = "\n".join(f"- {item}" for item in candidate.missing_information)
+        reviewer_question_lines = "\n".join(f"- {item}" for item in candidate.reviewer_questions)
+        review_path_sections.append(
+            f"""### {candidate.title}
+- Control area: {candidate.eccn}
+- Confidence: {candidate.confidence}
+- Why this path is open: {candidate.why_it_may_apply}
+
+#### Supporting facts
+{matched_fact_lines or "- No supporting facts recorded."}
+
+#### Missing information
+{missing_info_lines or "- No additional missing information recorded."}
+
+#### Reviewer questions
+{reviewer_question_lines or "- No reviewer questions recorded."}
+"""
+        )
+
     candidate_sections: list[str] = []
-    for candidate in candidates:
+    for candidate in eccn_candidates:
         citation_lines: list[str] = []
         for citation in candidate.regulatory_citations:
             citation_lines.extend(
@@ -125,7 +159,7 @@ def generate_memo(
         )
 
     reviewer_questions = []
-    for candidate in candidates:
+    for candidate in [*review_path_candidates, *eccn_candidates]:
         for question in candidate.reviewer_questions:
             if question not in reviewer_questions:
                 reviewer_questions.append(question)
@@ -136,10 +170,18 @@ def generate_memo(
             "Are there omitted security, environmental, or end-use details that could change the review path?",
         ]
 
-    has_category_3 = any(candidate.eccn in {"3A001", "Category 3"} for candidate in candidates)
-    has_category_5 = any(candidate.eccn == "Category 5 Part 2" for candidate in candidates)
+    has_category_3 = any(candidate.eccn == "Category 3" for candidate in review_path_candidates) or any(
+        candidate.eccn == "3A001" for candidate in eccn_candidates
+    )
+    has_category_5 = any(candidate.eccn == "Category 5 Part 2" for candidate in review_path_candidates)
     is_family_overview = any(spec.name == "is_family_overview" and spec.value.lower() == "true" for spec in specs)
     profile_value = _profile_value(specs)
+    crypto_signal = next((signal for signal in capability_signals if signal.key == "hasCryptography"), None)
+    security_summary = (
+        "Cryptographic and security functionality was identified in the source material. The available documentation does not yet establish all implementation details, performance characteristics, algorithm coverage, key-management behavior, or applicable regulatory thresholds. Qualified review is required to determine whether Category 5 Part 2 or another applicable control framework is implicated."
+        if crypto_signal and crypto_signal.detected
+        else "Cryptographic or security functionality was not identified in the reviewed source material. This remains a source-limited observation rather than a final exclusion."
+    )
     if has_category_3 and has_category_5:
         if profile_value == "mcu_processor_soc":
             conclusion_lines = [
@@ -154,11 +196,17 @@ def generate_memo(
                 else "A qualified reviewer should confirm the exact device variant, security functionality, and applicable CCL threshold mapping.",
             ]
     else:
-        recommended_paths = _recommended_path_summary(candidates)
+        recommended_paths = _recommended_path_summary(review_path_candidates or eccn_candidates)
         conclusion_lines = [
             f"Substrata recommends reviewing {recommended_paths or 'the extracted technical evidence'} based on the extracted datasheet evidence.",
             "A qualified reviewer should confirm the applicable threshold mapping, specialized design intent, missing information, and current CCL mapping.",
         ]
+
+    open_information = []
+    for candidate in [*review_path_candidates, *eccn_candidates]:
+        for item in candidate.missing_information:
+            if item not in open_information:
+                open_information.append(item)
 
     return f"""# Draft ECCN Review Memo — {document_title}
 
@@ -173,19 +221,28 @@ def generate_memo(
 {chr(10).join(fact_sections) if fact_sections else "- No technical facts were extracted from the provided datasheet text."}
 
 ## 3. Recommended Review Paths
-{chr(10).join(candidate_sections)}
+{chr(10).join(review_path_sections) if review_path_sections else "- No broader review paths were recorded."}
 
-## 4. Key Uncertainties
+## 4. Potential ECCN Candidates
+- Potential candidates are analytical starting points only and require qualified reviewer confirmation.
+{chr(10).join(candidate_sections) if candidate_sections else "- No specific ECCN-formatted candidates were recorded from the available source material."}
+
+## 5. Open Questions and Missing Evidence
+- Security and cryptography analysis: {security_summary}
+{chr(10).join(f"- {item}" for item in open_information) if open_information else "- No additional missing information recorded."}
+
+## 6. Key Uncertainties
 {chr(10).join(f"- {flag.replace('_', ' ')}" for flag in uncertainty_flags) if uncertainty_flags else "- No explicit run-level uncertainties were recorded."}
 
-## 5. Reviewer Questions
+## 7. Reviewer Questions
 {chr(10).join(f"- {question}" for question in reviewer_questions)}
 
-## 6. ECCN Review Recommendation
+## 8. ECCN Review Recommendation
 {chr(10).join(f"- {line}" for line in conclusion_lines)}
 
-## 7. Review State
-- Status: Needs human review
+## 9. Review State
+- Processing status: Completed analysis draft
+- Compliance status: Expert review required before classification sign-off
 - Reviewer: Unassigned
 - Note: No reviewer note recorded yet.
 """

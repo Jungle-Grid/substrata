@@ -182,6 +182,17 @@ export function buildMockWorkerOutput(input: {
         reviewPathKey: 'category_3_electronics_review',
       },
     ],
+    capabilitySignals: [
+      {
+        key: 'hasHighSpeedInterfaces',
+        detected: true,
+        confidence: 'medium',
+        summary: 'High-speed interface capabilities were identified in the reviewed source material.',
+        supportingFactNames: ['serdes_rate'],
+        supportingCitationLabels: [],
+      },
+    ],
+    validationIssues: [],
     memoMarkdown: `# Draft review memo — ${input.title}\n\n## 1. Executive summary\n- Product: ${input.title}\n- Review state: Draft generated\n- Reviewer conclusion: No reviewer conclusion recorded\n- Disclaimer: Classification support, not legal advice. Requires qualified reviewer confirmation.\n\n## 2. Source-document register\n- Source document: ${input.title}\n\n## 3. Material technical facts\n- Process node: 7 nm\n- Serial interface performance: ${hasHighSpeed ? '112 Gbps' : '56 Gbps'}\n- Radiation tolerance statement: ${hasRadiation ? 'present' : 'not stated'}\n\n## 4. Open information and contradictions\n- Precise architecture and control-text threshold mapping remains open.\n\n## 5. Review-path analysis\n- Category 3 electronics / processor review remains open pending qualified reviewer confirmation.\n\n## 6. ECCN candidate analysis\n- Potential ECCN candidate: 3A001, subject to current regulation mapping and reviewer confirmation.\n\n## 7. Reviewer conclusion\n- No reviewer conclusion recorded.\n\n## 8. Audit history\n- Draft memo generated from source-backed technical facts.`,
     artifacts: {
       extractedTextPath: `artifacts/${input.documentId}/extracted-text.txt`,

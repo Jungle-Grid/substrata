@@ -10,6 +10,12 @@ import {
   type ReviewerActionType,
 } from '@substrata/db';
 import { recordAuditEvent } from './audit.service';
+import {
+  deriveProcessingLabel,
+  normalizeCapabilitySignals,
+  summarizeValidationIssues,
+  validateNarrativeConsistency,
+} from './classification-integrity';
 import { HttpError } from '../lib/errors';
 import { createStorageDriver } from './storage';
 import { runLocalWorker } from './worker-runtime';
@@ -129,6 +135,35 @@ function generatedByForWorker(output: Awaited<ReturnType<typeof runLocalWorker>>
 function normalizeOptionalText(value?: string | null) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+function memoDownloadFileName(input: { fileName?: string | null; title: string; runId: string }) {
+  const baseName = (input.fileName ?? input.title)
+    .replace(/\.[^.]+$/, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+  return `substrata-eccn-review-${baseName || input.runId}.md`;
+}
+
+async function resolveMemoContent(input: {
+  memoArtifactPath?: string | null;
+  memoMarkdown?: string | null;
+}) {
+  if (input.memoArtifactPath) {
+    try {
+      return await fs.readFile(storage.resolve(input.memoArtifactPath), 'utf8');
+    } catch {
+      // Fall back to the stored memo body below.
+    }
+  }
+
+  if (input.memoMarkdown?.trim()) {
+    return input.memoMarkdown;
+  }
+
+  return null;
 }
 
 async function createReviewerAction(input: {
@@ -282,24 +317,6 @@ export async function createClassificationRun(input: {
     }
 
     const updatedRun = await prisma.$transaction(async (tx) => {
-      const runRecord = await tx.classificationRun.update({
-        where: { id: run.id },
-        data: {
-          status: 'completed',
-          workflowState: 'awaiting_reviewer_assignment',
-          confidence: workerOutput.confidence,
-          confidenceRationale: workerOutput.confidenceRationale,
-          uncertaintyFlags: workerOutput.uncertaintyFlags,
-          workerJobId: `local-worker-${run.id}`,
-          workerVersion: 'python-local-v4',
-          rulesVersion: 'ear-review-v4',
-          extractedTextPath: workerOutput.artifacts.extractedTextPath,
-          structuredOutputPath: workerOutput.artifacts.structuredOutputPath,
-          memoArtifactPath: workerOutput.artifacts.memoPath,
-          completedAt: new Date(),
-        },
-      });
-
       const createdFacts = await Promise.all(
         workerOutput.extractedSpecs.map((spec) =>
           tx.extractedSpec.create({
@@ -328,6 +345,11 @@ export async function createClassificationRun(input: {
           }),
         ),
       );
+      const createdCitations: Array<{
+        id: string;
+        sourceTitle: string;
+        classificationRunId: string;
+      }> = [];
 
       const factByName = new Map<string, typeof createdFacts>();
       for (const fact of createdFacts) {
@@ -395,7 +417,7 @@ export async function createClassificationRun(input: {
             input.organizationId,
             citation.regulationSource,
           );
-          await tx.citation.create({
+          const createdCitation = await tx.citation.create({
             data: {
               organizationId: input.organizationId,
               classificationRunId: run.id,
@@ -409,8 +431,21 @@ export async function createClassificationRun(input: {
               relevanceNote: citation.relevance,
             },
           });
+          createdCitations.push({
+            id: createdCitation.id,
+            sourceTitle: createdCitation.sourceTitle,
+            classificationRunId: createdCitation.classificationRunId,
+          });
         }
       }
+
+      const createdCandidates: Array<{
+        id: string;
+        eccn: string;
+        whyItMayApply: string;
+        whyItMayNotApply: string;
+        classificationRunId: string;
+      }> = [];
 
       for (const candidate of workerOutput.eccnCandidates) {
         const regulationSource = await ensureRegulationSource(
@@ -450,6 +485,13 @@ export async function createClassificationRun(input: {
             isSpecificEccn: true,
           },
         });
+        createdCandidates.push({
+          id: createdCandidate.id,
+          eccn: createdCandidate.eccn,
+          whyItMayApply: createdCandidate.whyItMayApply,
+          whyItMayNotApply: createdCandidate.whyItMayNotApply,
+          classificationRunId: createdCandidate.classificationRunId,
+        });
 
         for (const mapping of candidate.factMappings) {
           const fact = factByName.get(mapping.factName)?.[0];
@@ -468,7 +510,7 @@ export async function createClassificationRun(input: {
           });
         }
 
-        await tx.citation.create({
+        const createdCitation = await tx.citation.create({
           data: {
             organizationId: input.organizationId,
             classificationRunId: run.id,
@@ -483,6 +525,11 @@ export async function createClassificationRun(input: {
             quotedText: regulationSource.citationText,
             relevanceNote: candidate.whyItMayApply,
           },
+        });
+        createdCitations.push({
+          id: createdCitation.id,
+          sourceTitle: createdCitation.sourceTitle,
+          classificationRunId: createdCitation.classificationRunId,
         });
       }
 
@@ -538,6 +585,101 @@ export async function createClassificationRun(input: {
         },
       });
 
+      const normalizedIntegrity = normalizeCapabilitySignals({
+        workerSignals: workerOutput.capabilitySignals,
+        workerValidationIssues: workerOutput.validationIssues,
+        facts: createdFacts.map((fact) => ({ id: fact.id, name: fact.name })),
+        citations: createdCitations.map((citation) => ({
+          id: citation.id,
+          label: citation.sourceTitle,
+        })),
+      });
+
+      const memoSections = workerOutput.memoMarkdown
+        .split(/\n##\s+/)
+        .map((section, index) => ({
+          key: index === 0 ? 'root' : section.split('\n')[0]?.trim() ?? `section_${index}`,
+          content: index === 0 ? section : `## ${section}`,
+        }));
+
+      const narrativeIssues = validateNarrativeConsistency({
+        extractedFacts: createdFacts.map((fact) => ({
+          id: fact.id,
+          classificationRunId: fact.classificationRunId,
+          name: fact.name,
+        })),
+        capabilitySignals: normalizedIntegrity.capabilitySignals,
+        uncertaintyFlags: workerOutput.uncertaintyFlags,
+        reviewPaths: (await tx.reviewPath.findMany({
+          where: { classificationRunId: run.id },
+          select: {
+            id: true,
+            title: true,
+            whyTriggered: true,
+            classificationRunId: true,
+          },
+        })) as Array<{
+          id: string;
+          title: string;
+          whyTriggered: string;
+          classificationRunId: string;
+        }>,
+        eccnCandidates: createdCandidates,
+        memoSections,
+        citations: createdCitations,
+      });
+
+      const artifactValidationIssues = await fs
+        .access(storage.resolve(workerOutput.artifacts.memoPath))
+        .then(() => [] as typeof narrativeIssues)
+        .catch(() => [
+          {
+            code: 'MEMO_ARTIFACT_MISSING',
+            severity: 'error' as const,
+            message: 'The generated memo artifact path is not readable.',
+            path: 'artifacts.memo',
+            supportingFactIds: [],
+            supportingCitationIds: [],
+          },
+        ]);
+
+      const validationIssues = [
+        ...normalizedIntegrity.validationIssues,
+        ...narrativeIssues,
+        ...artifactValidationIssues,
+      ];
+      const finalStatus = validationIssues.some((issue) => issue.severity === 'error')
+        ? 'needs_attention'
+        : 'completed';
+      const finalWorkflowState: ReviewWorkflowState =
+        finalStatus === 'completed'
+          ? 'awaiting_reviewer_assignment'
+          : 'draft_generated';
+
+      const runRecord = await tx.classificationRun.update({
+        where: { id: run.id },
+        data: {
+          status: finalStatus,
+          workflowState: finalWorkflowState,
+          confidence: workerOutput.confidence,
+          confidenceRationale: workerOutput.confidenceRationale,
+          uncertaintyFlags: workerOutput.uncertaintyFlags,
+          workerJobId: `local-worker-${run.id}`,
+          workerVersion: 'python-local-v4',
+          rulesVersion: 'ear-review-v4',
+          extractedTextPath: workerOutput.artifacts.extractedTextPath,
+          structuredOutputPath: workerOutput.artifacts.structuredOutputPath,
+          memoArtifactPath: workerOutput.artifacts.memoPath,
+          capabilitySignals: normalizedIntegrity.capabilitySignals as Prisma.InputJsonValue,
+          validationIssues: validationIssues as Prisma.InputJsonValue,
+          errorMessage:
+            finalStatus === 'needs_attention'
+              ? summarizeValidationIssues(validationIssues)
+              : null,
+          completedAt: finalStatus === 'completed' ? new Date() : null,
+        },
+      });
+
       return runRecord;
     });
 
@@ -545,13 +687,18 @@ export async function createClassificationRun(input: {
       organizationId: input.organizationId,
       actorUserId: input.actorUserId,
       actor: 'worker',
-      action: 'classification_run.completed',
+      action:
+        updatedRun.status === 'completed'
+          ? 'classification_run.completed'
+          : 'classification_run.needs_attention',
       entityType: 'ClassificationRun',
       entityId: run.id,
       metadata: {
         workerJobId: `local-worker-${run.id}`,
         confidence: workerOutput.confidence,
-        workflowState: 'awaiting_reviewer_assignment',
+        workflowState: updatedRun.workflowState,
+        processingLabel: deriveProcessingLabel(updatedRun.status),
+        validationIssues: updatedRun.validationIssues ?? [],
       },
     });
 
@@ -1034,6 +1181,13 @@ export async function publishClassificationRunAsPublicDemo(input: {
     throw new HttpError(409, 'A draft review memo is required before publishing.');
   }
 
+  if (Array.isArray(existingRun.validationIssues) && existingRun.validationIssues.length > 0) {
+    throw new HttpError(
+      409,
+      'Runs with unresolved validation issues cannot be published publicly.',
+    );
+  }
+
   const publication = await prisma.$transaction(async (tx) => {
     const current = await tx.publicDemoPublication.findUnique({
       where: { id: PUBLIC_DEMO_PUBLICATION_ID },
@@ -1184,7 +1338,10 @@ export async function getClassificationRunDemoPublicationStatus(
     publication.activeClassificationRunId === classificationRunId;
 
   return {
-    canPublish: run.status === 'completed' && Boolean(run.reviewMemo),
+    canPublish:
+      run.status === 'completed' &&
+      Boolean(run.reviewMemo) &&
+      (!Array.isArray(run.validationIssues) || run.validationIssues.length === 0),
     isPublished,
     publishedAt: isPublished ? publication?.publishedAt ?? null : null,
     publicTitle: isPublished ? publication?.publicTitle ?? null : null,
@@ -1214,6 +1371,87 @@ export async function getPublicDemoClassificationRun(runId: string) {
       },
     },
   });
+}
+
+export async function getAuthenticatedMemoDownload(input: {
+  organizationId: string;
+  classificationRunId: string;
+}) {
+  const run = await getClassificationRun(input.organizationId, input.classificationRunId);
+  if (!run) {
+    throw new HttpError(404, 'Classification run not found.', {
+      code: 'RUN_NOT_FOUND',
+    });
+  }
+
+  const content = await resolveMemoContent({
+    memoArtifactPath: run.memoArtifactPath,
+    memoMarkdown: run.reviewMemo?.contentMarkdown ?? null,
+  });
+  if (!content) {
+    throw new HttpError(404, 'A memo has not been generated for this run yet.', {
+      code: 'MEMO_NOT_FOUND',
+    });
+  }
+
+  return {
+    content,
+    filename: memoDownloadFileName({
+      fileName: run.document.fileName,
+      title: run.document.title,
+      runId: run.id,
+    }),
+  };
+}
+
+export async function getPublicMemoDownload(runId: string) {
+  const publication = await prisma.publicDemoPublication.findFirst({
+    where: {
+      id: PUBLIC_DEMO_PUBLICATION_ID,
+      status: 'published',
+      activeClassificationRunId: runId,
+    },
+    include: {
+      activeClassificationRun: {
+        include: classificationRunInclude,
+      },
+    },
+  });
+
+  if (!publication?.activeClassificationRun) {
+    const existingRun = await prisma.classificationRun.findUnique({
+      where: { id: runId },
+      select: { id: true },
+    });
+    if (existingRun) {
+      throw new HttpError(403, 'This memo is not publicly available.', {
+        code: 'PUBLIC_ACCESS_DISABLED',
+      });
+    }
+    throw new HttpError(404, 'Public classification run not found.', {
+      code: 'RUN_NOT_FOUND',
+    });
+  }
+
+  const run = publication.activeClassificationRun;
+  const content = await resolveMemoContent({
+    memoArtifactPath: run.memoArtifactPath,
+    memoMarkdown: run.reviewMemo?.contentMarkdown ?? null,
+  });
+  if (!content) {
+    throw new HttpError(404, 'A memo has not been generated for this run yet.', {
+      code: 'MEMO_NOT_FOUND',
+    });
+  }
+
+  return {
+    content,
+    filename: memoDownloadFileName({
+      fileName: publication.sourceDocumentDisplayName ?? run.document.fileName,
+      title: run.document.title,
+      runId: run.id,
+    }),
+  };
 }
 
 export async function getActivePublicDemo() {

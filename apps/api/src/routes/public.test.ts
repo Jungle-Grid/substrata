@@ -236,11 +236,13 @@ async function invokePublicRoute(options: {
   runId?: string;
   loadPublicDemoRun?: PublicRouterDeps['loadPublicDemoRun'];
   loadActivePublicDemo?: PublicRouterDeps['loadActivePublicDemo'];
+  loadPublicMemoDownload?: PublicRouterDeps['loadPublicMemoDownload'];
   rateLimit?: PublicRouterDeps['rateLimit'];
 }) {
   const router = createPublicRouter({
     loadPublicDemoRun: options.loadPublicDemoRun,
     loadActivePublicDemo: options.loadActivePublicDemo,
+    loadPublicMemoDownload: options.loadPublicMemoDownload,
     rateLimit: options.rateLimit,
   });
   const layer = router.stack.find(
@@ -319,7 +321,10 @@ test('public memo download endpoint returns markdown attachment for the active d
   const response = await invokePublicRoute({
     path: '/classification-runs/:runId/memo/download',
     runId: 'cmqj7n97d003vmw10si9skovh',
-    loadPublicDemoRun: async () => createDemoPublication() as never,
+    loadPublicMemoDownload: async () => ({
+      content: '# Draft memo\n\nPublic demo memo content.',
+      filename: 'substrata-eccn-review-public-edge-accelerator.md',
+    }),
     rateLimit: () => undefined,
   });
 
@@ -330,6 +335,28 @@ test('public memo download endpoint returns markdown attachment for the active d
     /attachment; filename="substrata-eccn-review-public-edge-accelerator\.md"/,
   );
   assert.equal(response.body, '# Draft memo\n\nPublic demo memo content.');
+});
+
+test('public memo download endpoint returns clear error for non-public runs', async () => {
+  const response = await invokePublicRoute({
+    path: '/classification-runs/:runId/memo/download',
+    runId: 'private-run-id',
+    loadPublicMemoDownload: async () => {
+      throw Object.assign(new Error('This memo is not publicly available.'), {
+        statusCode: 403,
+        details: { code: 'PUBLIC_ACCESS_DISABLED' },
+      });
+    },
+    rateLimit: () => undefined,
+  });
+
+  assert.equal(response.statusCode, 403);
+  assert.deepEqual(response.body, {
+    error: {
+      code: 'PUBLIC_ACCESS_DISABLED',
+      message: 'This memo is not publicly available.',
+    },
+  });
 });
 
 test('public demo metadata endpoint returns the canonical public URL', async () => {

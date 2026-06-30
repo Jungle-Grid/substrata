@@ -60,6 +60,7 @@ enum ClassificationRunStatus {
   running
   completed
   failed
+  needs_attention
 }
 
 enum HumanReviewStatus {
@@ -360,6 +361,8 @@ model ClassificationRun {
   extractedTextPath     String?
   structuredOutputPath  String?
   memoArtifactPath      String?
+  capabilitySignals     Json?
+  validationIssues      Json?
   errorMessage          String?
   completedAt           DateTime?
   createdAt             DateTime                 @default(now())

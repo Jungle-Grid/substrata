@@ -10,11 +10,16 @@ SRC_DIR = Path(__file__).resolve().parents[1] / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+from capabilities import derive_capability_signals
 from eccn_rules import generate_eccn_candidates
 from main import _review_paths_from_candidates, _specific_eccn_candidates
 from memo import generate_memo
 from schemas import ExtractedSpec, WorkerOutput
-from validation import validate_memo_markdown, validate_worker_output
+from validation import (
+    validate_memo_markdown,
+    validate_narrative_consistency,
+    validate_worker_output,
+)
 
 
 MCU_CATEGORY_3_TITLE = "Category 3 electronics / MCU / processor / SoC review path"
@@ -54,6 +59,7 @@ def _build_output(
         specs,
         source_label="Uploaded datasheet text",
     )
+    capability_signals = derive_capability_signals(specs)
     memo_markdown = generate_memo(
         document_id,
         document_title,
@@ -61,8 +67,18 @@ def _build_output(
         specs,
         candidates,
         uncertainty_flags,
+        capability_signals,
     )
     validate_memo_markdown(memo_markdown)
+    review_paths = _review_paths_from_candidates(candidates, specs)
+    specific_candidates = _specific_eccn_candidates(candidates, specs)
+    validation_issues = validate_narrative_consistency(
+        capability_signals=capability_signals,
+        review_paths=review_paths,
+        eccn_candidates=specific_candidates,
+        uncertainty_flags=uncertainty_flags,
+        memo_markdown=memo_markdown,
+    )
     output = WorkerOutput(
         document_id=document_id,
         organization_id="org_test",
@@ -72,8 +88,10 @@ def _build_output(
         uncertainty_flags=uncertainty_flags,
         extracted_specs=specs,
         fact_issues=[],
-        review_paths=_review_paths_from_candidates(candidates, specs),
-        eccn_candidates=_specific_eccn_candidates(candidates, specs),
+        review_paths=review_paths,
+        eccn_candidates=specific_candidates,
+        capability_signals=capability_signals,
+        validation_issues=validation_issues,
         memo_markdown=memo_markdown,
         artifacts={},
         run_metadata={"classificationMode": "test"},
@@ -128,15 +146,13 @@ class WorkerPipelineRegressionTests(unittest.TestCase):
             specs=specs,
         )
 
-        serialized_titles = [candidate["title"] for candidate in output.to_dict()["eccn_candidates"]]
-        self.assertEqual(serialized_titles.count(MCU_CATEGORY_3_TITLE), 1)
-        self.assertIn(GENERAL_FALLBACK_TITLE, serialized_titles)
+        serialized_review_path_titles = [path["title"] for path in output.to_dict()["review_paths"]]
+        serialized_candidate_codes = [candidate["eccn"] for candidate in output.to_dict()["eccn_candidates"]]
+        self.assertEqual(serialized_review_path_titles.count(MCU_CATEGORY_3_TITLE), 1)
+        self.assertIn(GENERAL_FALLBACK_TITLE, serialized_review_path_titles)
+        self.assertEqual(serialized_candidate_codes, ["3A991"])
         self.assertEqual(
-            [
-                candidate.title
-                for candidate in output.eccn_candidates
-                if candidate.review_path_id == "category_3_mcu_processor_soc"
-            ],
+            [path.title for path in output.review_paths if path.path_key == "category_3_mcu_processor_soc"],
             [MCU_CATEGORY_3_TITLE],
         )
         self.assertTrue(all(spec.display_name for spec in output.extracted_specs))
@@ -174,8 +190,8 @@ class WorkerPipelineRegressionTests(unittest.TestCase):
             specs=specs,
         )
 
-        serialized_titles = [candidate["title"] for candidate in output.to_dict()["eccn_candidates"]]
-        self.assertIn(GENERAL_FALLBACK_TITLE, serialized_titles)
+        serialized_review_path_titles = [path["title"] for path in output.to_dict()["review_paths"]]
+        self.assertIn(GENERAL_FALLBACK_TITLE, serialized_review_path_titles)
 
     def test_fpga_soc_profile_keeps_programmable_logic_category_3_path(self) -> None:
         extracted_text = """
@@ -205,9 +221,9 @@ class WorkerPipelineRegressionTests(unittest.TestCase):
             specs=specs,
         )
 
-        serialized_titles = [candidate["title"] for candidate in output.to_dict()["eccn_candidates"]]
-        self.assertEqual(serialized_titles.count(FPGA_CATEGORY_3_TITLE), 1)
-        self.assertIn(GENERAL_FALLBACK_TITLE, serialized_titles)
+        serialized_review_path_titles = [path["title"] for path in output.to_dict()["review_paths"]]
+        self.assertEqual(serialized_review_path_titles.count(FPGA_CATEGORY_3_TITLE), 1)
+        self.assertIn(GENERAL_FALLBACK_TITLE, serialized_review_path_titles)
 
     def test_specific_candidate_serialization_dedupes_repeated_review_paths(self) -> None:
         candidates, _, _ = generate_eccn_candidates(
@@ -224,9 +240,69 @@ class WorkerPipelineRegressionTests(unittest.TestCase):
         serialized_titles = [candidate.title for candidate in serialized_candidates]
         serialized_review_path_ids = [candidate.review_path_id for candidate in serialized_candidates]
 
-        self.assertEqual(serialized_titles.count(MCU_CATEGORY_3_TITLE), 1)
+        self.assertNotIn(MCU_CATEGORY_3_TITLE, serialized_titles)
         self.assertEqual(serialized_titles.count(GENERAL_FALLBACK_TITLE), 1)
         self.assertEqual(len(serialized_review_path_ids), len(set(serialized_review_path_ids)))
+
+    def test_crypto_signal_blocks_negative_crypto_narrative(self) -> None:
+        specs = [
+            _spec("secure_boot", "secure boot", category="security_cryptography", source_snippet="Supports secure boot."),
+            _spec("cryptographic_algorithm", "AES", category="security_cryptography", source_snippet="AES engine present."),
+            _spec("caam", "CAAM", category="security_cryptography", source_snippet="CAAM hardware accelerator."),
+            _spec("pkha", "PKHA", category="security_cryptography", source_snippet="PKHA public key accelerator."),
+            _spec("puf", "PUF", category="security_cryptography", source_snippet="PUF-backed key handling."),
+        ]
+        capability_signals = derive_capability_signals(specs)
+        issues = validate_narrative_consistency(
+            capability_signals=capability_signals,
+            review_paths=[],
+            eccn_candidates=[],
+            uncertainty_flags=[],
+            memo_markdown="No cryptographic features were identified in the reviewed source material.",
+        )
+        self.assertTrue(any(issue.code == "CRYPTO_NARRATIVE_CONTRADICTION" for issue in issues))
+
+    def test_secure_boot_signal_blocks_negative_security_narrative(self) -> None:
+        specs = [
+            _spec("secure_boot", "secure boot", category="security_cryptography", source_snippet="Supports secure boot."),
+        ]
+        capability_signals = derive_capability_signals(specs)
+        issues = validate_narrative_consistency(
+            capability_signals=capability_signals,
+            review_paths=[],
+            eccn_candidates=[],
+            uncertainty_flags=[],
+            memo_markdown="Security functionality was not found in the reviewed source material.",
+        )
+        self.assertTrue(any(issue.code == "SECURE_BOOT_NARRATIVE_CONTRADICTION" for issue in issues))
+
+    def test_no_crypto_signal_allows_cautious_absence_language(self) -> None:
+        specs = [
+            _spec("product_family", "Acme controller", category="product_identity", source_snippet="Acme controller family."),
+        ]
+        capability_signals = derive_capability_signals(specs)
+        issues = validate_narrative_consistency(
+            capability_signals=capability_signals,
+            review_paths=[],
+            eccn_candidates=[],
+            uncertainty_flags=[],
+            memo_markdown="Cryptographic functionality was not identified in the reviewed source material.",
+        )
+        self.assertEqual(issues, [])
+
+    def test_ambiguous_security_language_requires_conservative_review_text(self) -> None:
+        specs = [
+            _spec("security_feature", "secure debug", category="security_cryptography", source_snippet="Includes secure debug controls."),
+        ]
+        capability_signals = derive_capability_signals(specs)
+        issues = validate_narrative_consistency(
+            capability_signals=capability_signals,
+            review_paths=[],
+            eccn_candidates=[],
+            uncertainty_flags=["crypto_relevance_requires_qualified_review"],
+            memo_markdown="Security functionality was identified. A qualified reviewer must confirm whether Category 5 Part 2 or another framework is implicated.",
+        )
+        self.assertEqual(issues, [])
 
 
 if __name__ == "__main__":

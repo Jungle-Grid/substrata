@@ -175,6 +175,38 @@ export interface ECCNCandidateRecord {
   regulatoryCitations: RegulatoryCitationRecord[];
 }
 
+export interface CapabilitySignalRecord {
+  key:
+    | 'hasCryptography'
+    | 'hasEncryption'
+    | 'hasDecryption'
+    | 'hasKeyManagement'
+    | 'hasCryptographicAccelerator'
+    | 'hasSecureBoot'
+    | 'hasTrustedExecution'
+    | 'hasSecureKeyStorage'
+    | 'hasHardwareSecurityModule'
+    | 'hasAuthenticationSecurityFeatures'
+    | 'hasHighSpeedInterfaces'
+    | 'hasProgrammableLogic'
+    | 'hasAdvancedProcessor'
+    | 'hasRFOrWirelessCapability';
+  detected: boolean;
+  confidence: 'high' | 'medium' | 'low';
+  summary: string;
+  supportingFactIds: string[];
+  supportingCitationIds: string[];
+}
+
+export interface ValidationIssueRecord {
+  code: string;
+  severity: 'error' | 'warning';
+  message: string;
+  path: string;
+  supportingFactIds: string[];
+  supportingCitationIds: string[];
+}
+
 export interface HumanReviewRecord {
   id: string;
   status: string;
@@ -249,6 +281,8 @@ export interface ReviewerActionRecord {
 export interface ClassificationRunRecord {
   id: string;
   status: string;
+  processingStatus?: string;
+  processingLabel?: string;
   workflowState:
     | 'draft_generated'
     | 'awaiting_reviewer_assignment'
@@ -259,6 +293,9 @@ export interface ClassificationRunRecord {
     | 'approved_for_internal_use'
     | 'closed';
   workflowLabel: string;
+  reviewStatus?: string;
+  reviewStatusLabel?: string;
+  reviewStatusDetail?: string;
   confidence?: number | null;
   confidenceRationale?: string | null;
   uncertaintyFlags: string[];
@@ -270,6 +307,8 @@ export interface ClassificationRunRecord {
   extractedTextPath?: string | null;
   structuredOutputPath?: string | null;
   memoArtifactPath?: string | null;
+  capabilitySignals?: CapabilitySignalRecord[];
+  validationIssues?: ValidationIssueRecord[];
   createdAt?: string;
   completedAt?: string | null;
   lastReviewerActionAt?: string | null;
@@ -308,8 +347,13 @@ export interface ClassificationRunRecord {
 export interface PublicClassificationRunRecord {
   id: string;
   status: string;
+  processingStatus?: string;
+  processingLabel?: string;
   workflowState: ClassificationRunRecord['workflowState'];
   workflowLabel: string;
+  reviewStatus?: string;
+  reviewStatusLabel?: string;
+  reviewStatusDetail?: string;
   confidence?: number | null;
   confidenceRationale?: string | null;
   uncertaintyFlags: string[];
@@ -322,6 +366,8 @@ export interface PublicClassificationRunRecord {
   createdAt?: string;
   completedAt?: string | null;
   demoBanner: string;
+  capabilitySignals?: CapabilitySignalRecord[];
+  validationIssues?: ValidationIssueRecord[];
   document: {
     title: string;
     displayFileName?: string | null;

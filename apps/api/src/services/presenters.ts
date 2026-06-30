@@ -16,6 +16,11 @@ import type {
   ReviewerAction,
   User,
 } from '@substrata/db';
+import {
+  deriveProcessingLabel,
+  deriveReviewStatus,
+  isValidSpecificEccn,
+} from './classification-integrity';
 
 type CitationWithSource = Citation & {
   regulationSource?: RegulationSource | null;
@@ -74,9 +79,9 @@ function formatWorkflowLabel(
 
   switch (workflowState) {
     case 'awaiting_reviewer_assignment':
-      return 'Awaiting qualified reviewer';
+      return 'Completed analysis';
     case 'in_technical_review':
-      return 'In technical review';
+      return 'Under qualified reviewer review';
     case 'needs_additional_documentation':
       return 'Needs more documentation';
     case 'escalated':
@@ -91,6 +96,14 @@ function formatWorkflowLabel(
     default:
       return 'Draft generated';
   }
+}
+
+function presentCapabilitySignals(value: unknown) {
+  return Array.isArray(value) ? value : [];
+}
+
+function presentValidationIssues(value: unknown) {
+  return Array.isArray(value) ? value : [];
 }
 
 function safeDemoDocumentName(publication: PublicDemoPublication, document: Document) {
@@ -301,12 +314,18 @@ function presentFactIssue(issue: FactIssue) {
 
 export function presentRun(run: RunWithRelations) {
   const review = latestReview(run);
+  const reviewStatus = deriveReviewStatus(review, run.requiresHumanReview);
 
   return {
     id: run.id,
     status: run.status,
+    processingStatus: run.status,
+    processingLabel: deriveProcessingLabel(run.status),
     workflowState: run.workflowState,
     workflowLabel: formatWorkflowLabel(run.workflowState, review),
+    reviewStatus: reviewStatus.code,
+    reviewStatusLabel: reviewStatus.label,
+    reviewStatusDetail: reviewStatus.detail,
     confidence: run.confidence,
     confidenceRationale: run.confidenceRationale,
     uncertaintyFlags: run.uncertaintyFlags,
@@ -320,6 +339,8 @@ export function presentRun(run: RunWithRelations) {
     extractedTextPath: run.extractedTextPath,
     structuredOutputPath: run.structuredOutputPath,
     memoArtifactPath: run.memoArtifactPath,
+    capabilitySignals: presentCapabilitySignals(run.capabilitySignals),
+    validationIssues: presentValidationIssues(run.validationIssues),
     completedAt: run.completedAt,
     createdAt: run.createdAt,
     lastReviewerActionAt: run.lastReviewerActionAt,
@@ -348,7 +369,7 @@ export function presentRun(run: RunWithRelations) {
     factIssues: (run.factIssues ?? []).map(presentFactIssue),
     reviewPaths: (run.reviewPaths ?? []).map(presentReviewPath),
     eccnCandidates: (run.eccnCandidates ?? [])
-      .filter((candidate) => candidate.isSpecificEccn)
+      .filter((candidate) => candidate.isSpecificEccn && isValidSpecificEccn(candidate.eccn))
       .map(presentCandidate),
     reviewMemo: presentMemo(run.reviewMemo, run.reviewMemoVersions ?? []),
     humanReviews: (run.humanReviews ?? []).map(presentHumanReview),
@@ -365,12 +386,18 @@ export function presentPublicDemoRun(publication: PublicDemoRunWithPublication) 
   }
 
   const review = latestReview(run);
+  const reviewStatus = deriveReviewStatus(review, run.requiresHumanReview);
 
   return {
     id: run.id,
     status: run.status,
+    processingStatus: run.status,
+    processingLabel: deriveProcessingLabel(run.status),
     workflowState: run.workflowState,
     workflowLabel: formatWorkflowLabel(run.workflowState, review),
+    reviewStatus: reviewStatus.code,
+    reviewStatusLabel: reviewStatus.label,
+    reviewStatusDetail: reviewStatus.detail,
     confidence: run.confidence,
     confidenceRationale: run.confidenceRationale,
     uncertaintyFlags: run.uncertaintyFlags,
@@ -423,6 +450,8 @@ export function presentPublicDemoRun(publication: PublicDemoRunWithPublication) 
       : null,
     demoBanner:
       'Demo using publicly available technical documentation. Example technical workup, not a customer conclusion.',
+    capabilitySignals: presentCapabilitySignals(run.capabilitySignals),
+    validationIssues: presentValidationIssues(run.validationIssues),
   };
 }
 

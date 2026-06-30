@@ -82,7 +82,8 @@ export function PublicClassificationRunDemo({
               </a>
               <div className="mt-6 flex flex-wrap items-center gap-3">
                 <Badge tone="info">Public product demo</Badge>
-                <Badge tone="default">{run.workflowLabel}</Badge>
+                <Badge tone="success">{run.processingLabel ?? 'Completed'}</Badge>
+                <Badge tone="warning">{run.reviewStatusDetail ?? run.workflowLabel}</Badge>
                 {run.latestReview?.conclusionRecordedAt ? <Badge tone="success">Reviewer conclusion recorded</Badge> : null}
               </div>
               <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -101,6 +102,13 @@ export function PublicClassificationRunDemo({
               <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">
                 {run.publicSummary ?? run.demoBanner}
               </p>
+              <div className="mt-4 max-w-4xl">
+                <InlineNotice tone="info" title="Completed analysis for qualified review">
+                  This public page shows a completed analysis run with extracted technical facts,
+                  recommended review paths, evidence-backed recommendations, and a human-review-ready memo draft.
+                  It supports qualified export-control review and does not present a final legal determination.
+                </InlineNotice>
+              </div>
             </div>
             <div className="shrink-0">
               <DemoCta />
@@ -137,7 +145,7 @@ export function PublicClassificationRunDemo({
               <p className="mt-2 text-sm font-semibold text-slate-950">
                 {formatDateTime(run.completedAt ?? run.createdAt)}
               </p>
-              <p className="mt-1 text-sm text-slate-600">Review-ready memo available</p>
+              <p className="mt-1 text-sm text-slate-600">{run.reviewStatusDetail ?? 'Review-ready memo available'}</p>
             </Panel>
           </div>
         </header>
@@ -172,61 +180,63 @@ export function PublicClassificationRunDemo({
             </Panel>
 
             <Panel>
-              <h2 className="text-lg font-semibold text-slate-950">Open information and contradictions</h2>
+              <h2 className="text-lg font-semibold text-slate-950">Open questions and missing evidence</h2>
               <p className="mt-2 text-sm text-slate-600">
                 These are the open items a reviewer would still want clarified before adopting a final internal position.
               </p>
               <div className="mt-4 space-y-4">
-                {run.reviewPaths.map((candidate) => (
-                  <div key={candidate.id} className="rounded-lg border border-slate-200 p-4">
-                    <p className="font-medium text-slate-950">
-                      {candidate.title}
-                    </p>
-                    <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-600">
-                      {candidate.missingInformation.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
+                {run.reviewPaths.length > 0 ? (
+                  run.reviewPaths.map((path) => (
+                    <div key={path.id} className="rounded-lg border border-slate-200 p-4">
+                      <p className="font-medium text-slate-950">{path.title}</p>
+                      <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-600">
+                        {path.missingInformation.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))
+                ) : (
+                  <InlineNotice tone="default">No additional open questions were recorded for this demo run.</InlineNotice>
+                )}
               </div>
             </Panel>
           </div>
 
           <div className="space-y-6">
             <Panel>
-              <h2 className="text-lg font-semibold text-slate-950">Potential ECCN candidates with regulation mapping</h2>
+              <h2 className="text-lg font-semibold text-slate-950">Recommended review paths</h2>
               <p className="mt-2 text-sm text-slate-600">
-                This demo distinguishes review paths from specific ECCN candidates. Potential ECCN candidates appear only where a specific code and regulation mapping exist.
+                These are cited review paths for qualified analysis. They are pathways for reviewer evaluation, not classification conclusions.
               </p>
               <div className="mt-4 space-y-4">
-                {run.eccnCandidates.map((candidate) => (
-                  <div key={candidate.id} className="rounded-xl border border-slate-200 p-5">
+                {run.reviewPaths.map((path) => (
+                  <div key={path.id} className="rounded-xl border border-slate-200 p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <p className="font-semibold text-slate-950">{candidate.eccn}</p>
-                        <p className="mt-1 text-sm text-slate-600">{candidate.title}</p>
+                        <p className="font-semibold text-slate-950">{path.title}</p>
+                        <p className="mt-1 text-sm text-slate-600">{path.scope}</p>
                       </div>
-                      <Badge tone={confidenceTone(candidate.confidence)}>
-                        {candidate.confidence} confidence
-                      </Badge>
+                      <Badge tone="info">Reviewer pathway</Badge>
                     </div>
-                    <p className="mt-4 text-sm leading-7 text-slate-700">{candidate.whyItMayApply}</p>
+                    <p className="mt-4 text-sm leading-7 text-slate-700">{path.whyTriggered}</p>
                     <div className="mt-4 grid gap-4 md:grid-cols-2">
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                          Why it may not apply
+                          Missing information
                         </p>
-                        <p className="mt-2 text-sm leading-6 text-slate-600">
-                          {candidate.whyItMayNotApply}
-                        </p>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-600">
+                          {path.missingInformation.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
                       </div>
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                           Reviewer questions
                         </p>
                         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-600">
-                          {candidate.reviewerQuestions.map((item) => (
+                          {path.reviewerQuestions.map((item) => (
                             <li key={item}>{item}</li>
                           ))}
                         </ul>
@@ -237,7 +247,7 @@ export function PublicClassificationRunDemo({
                         Citations
                       </p>
                       <div className="mt-3 space-y-3">
-                        {candidate.regulatoryCitations.map((citation) => (
+                        {path.regulatoryCitations.map((citation) => (
                           <div key={citation.id ?? citation.citationLabel} className="rounded-lg bg-slate-50 p-3">
                             <p className="text-sm font-medium text-slate-950">{citation.citationLabel}</p>
                             <p className="mt-1 text-sm leading-6 text-slate-600">{citation.citationText}</p>
@@ -250,6 +260,36 @@ export function PublicClassificationRunDemo({
                     </div>
                   </div>
                 ))}
+              </div>
+            </Panel>
+
+            <Panel>
+              <h2 className="text-lg font-semibold text-slate-950">Potential ECCN candidates</h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Potential candidates are analytical starting points only and require qualified reviewer confirmation.
+              </p>
+              <div className="mt-4 space-y-4">
+                {run.eccnCandidates.length > 0 ? (
+                  run.eccnCandidates.map((candidate) => (
+                    <div key={candidate.id} className="rounded-xl border border-slate-200 p-5">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-slate-950">{candidate.eccn}</p>
+                          <p className="mt-1 text-sm text-slate-600">{candidate.title}</p>
+                        </div>
+                        <Badge tone={confidenceTone(candidate.confidence)}>
+                          {candidate.confidence} confidence
+                        </Badge>
+                      </div>
+                      <p className="mt-4 text-sm leading-7 text-slate-700">{candidate.whyItMayApply}</p>
+                      <p className="mt-3 text-sm leading-6 text-slate-600">{candidate.whyItMayNotApply}</p>
+                    </div>
+                  ))
+                ) : (
+                  <InlineNotice tone="default">
+                    No specific ECCN-formatted candidates were produced from the reviewed source material.
+                  </InlineNotice>
+                )}
               </div>
             </Panel>
 

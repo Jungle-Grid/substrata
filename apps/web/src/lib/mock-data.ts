@@ -19,7 +19,7 @@ export const mockDashboard = {
           id: 'run_demo_1',
           status: 'completed',
           workflowState: 'awaiting_reviewer_assignment',
-          workflowLabel: 'Awaiting qualified reviewer',
+          workflowLabel: 'Completed analysis',
           uncertaintyFlags: [
             'multiple_plausible_eccns',
             'requires_engineering_confirmation',
@@ -51,7 +51,7 @@ export const mockRun: ClassificationRunRecord = {
   id: 'run_demo_1',
   status: 'completed',
   workflowState: 'awaiting_reviewer_assignment',
-  workflowLabel: 'Awaiting qualified reviewer',
+  workflowLabel: 'Completed analysis',
   confidence: 0.64,
   extractedTextPath: '/tmp/substrata/extracted.txt',
   structuredOutputPath: '/tmp/substrata/output.json',
