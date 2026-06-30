@@ -43,6 +43,13 @@ class ExtractedSpec:
     extraction_method: str = "python_worker"
     extraction_method_version: str = "v4"
 
+    def __post_init__(self) -> None:
+        if self.display_name:
+            return
+        from labels import display_name_for_spec_name
+
+        self.display_name = display_name_for_spec_name(self.name)
+
 
 @dataclass
 class RegulationSource:
@@ -66,6 +73,30 @@ class RegulatoryCitation:
     source: str
     relevance: str
     regulation_source: RegulationSource | None = None
+
+    def __post_init__(self) -> None:
+        if self.regulation_source is not None:
+            return
+
+        source = self.source.strip()
+        is_primary_regulation = source.startswith("15 CFR Part 774")
+        self.regulation_source = RegulationSource(
+            authority="BIS / eCFR" if is_primary_regulation else source,
+            regulation_title=self.citation_label,
+            regulation_version="retrieved current" if is_primary_regulation else None,
+            citation_text=self.citation_text,
+            citation_url=(
+                "https://www.ecfr.gov/current/title-15/subtitle-B/chapter-VII/subchapter-C/part-774"
+                if is_primary_regulation
+                else None
+            ),
+            source_identifier=source,
+            section=source if is_primary_regulation else None,
+            paragraph=None,
+            kind="primary_regulation" if is_primary_regulation else "internal_playbook",
+            last_verified_at=None,
+            verification_status="needs_verification",
+        )
 
 
 @dataclass

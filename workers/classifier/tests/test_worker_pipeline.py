@@ -139,6 +139,14 @@ class WorkerPipelineRegressionTests(unittest.TestCase):
             ],
             [MCU_CATEGORY_3_TITLE],
         )
+        self.assertTrue(all(spec.display_name for spec in output.extracted_specs))
+        self.assertTrue(
+            all(
+                citation.regulation_source is not None
+                for review_path in output.review_paths
+                for citation in review_path.regulatory_citations
+            )
+        )
 
     def test_generic_hardware_keeps_general_fallback(self) -> None:
         extracted_text = """
