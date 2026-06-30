@@ -58,6 +58,7 @@ enum ClassificationRunStatus {
   pending
   queued
   running
+  unknown
   completed
   failed
   needs_attention
@@ -358,6 +359,12 @@ model ClassificationRun {
   workerJobId           String?
   workerVersion         String?
   rulesVersion          String?
+  backendUsed           String?
+  backendReason         String?
+  underlyingProvider    String?
+  costUsd               Float?
+  latencyMs             Float?
+  tokensUsed            Int?
   extractedTextPath     String?
   structuredOutputPath  String?
   memoArtifactPath      String?

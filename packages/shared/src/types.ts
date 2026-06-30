@@ -2,6 +2,7 @@ export type ClassificationStatus =
   | 'pending'
   | 'queued'
   | 'running'
+  | 'unknown'
   | 'completed'
   | 'failed'
   | 'needs_attention';

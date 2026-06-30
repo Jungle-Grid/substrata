@@ -140,6 +140,9 @@ export const documentCreateSchema = z.object({
 
 export const classificationRunCreateSchema = z.object({
   trigger: z.enum(['manual', 'api', 'reprocess']).default('manual'),
+  executionPreference: z
+    .enum(['local', 'fireworks', 'jungle_grid', 'auto'])
+    .default('auto'),
 });
 
 export const reviewSubmissionSchema = z.object({
