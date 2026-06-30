@@ -1184,10 +1184,7 @@ export async function getClassificationRunDemoPublicationStatus(
     publication.activeClassificationRunId === classificationRunId;
 
   return {
-    canPublish:
-      run.status === 'completed' &&
-      Boolean(run.reviewMemo) &&
-      ['seed', 'public'].includes(run.document.sourceType),
+    canPublish: run.status === 'completed' && Boolean(run.reviewMemo),
     isPublished,
     publishedAt: isPublished ? publication?.publishedAt ?? null : null,
     publicTitle: isPublished ? publication?.publicTitle ?? null : null,
