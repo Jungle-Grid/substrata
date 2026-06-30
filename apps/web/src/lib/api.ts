@@ -318,7 +318,11 @@ export function createSampleDocument(csrfToken: string) {
   });
 }
 
-export function startClassificationRun(documentId: string, csrfToken: string) {
+export function startClassificationRun(
+  documentId: string,
+  csrfToken: string,
+  executionPreference: 'local' | 'fireworks' | 'jungle_grid' | 'auto',
+) {
   return clientFetch<ClassificationRunRecord>(`/documents/${documentId}/classification-runs`, {
     method: 'POST',
     csrfToken,
@@ -326,7 +330,7 @@ export function startClassificationRun(documentId: string, csrfToken: string) {
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ trigger: 'manual' }),
+    body: JSON.stringify({ trigger: 'manual', executionPreference }),
   });
 }
 

@@ -298,6 +298,12 @@ export interface ClassificationRunRecord {
   reviewStatusDetail?: string;
   confidence?: number | null;
   confidenceRationale?: string | null;
+  backendUsed?: string | null;
+  backendReason?: string | null;
+  underlyingProvider?: string | null;
+  costUsd?: number | null;
+  latencyMs?: number | null;
+  tokensUsed?: number | null;
   uncertaintyFlags: string[];
   requiresHumanReview: boolean;
   reviewerAssignedUserId?: string | null;
@@ -356,6 +362,12 @@ export interface PublicClassificationRunRecord {
   reviewStatusDetail?: string;
   confidence?: number | null;
   confidenceRationale?: string | null;
+  backendUsed?: string | null;
+  backendReason?: string | null;
+  underlyingProvider?: string | null;
+  costUsd?: number | null;
+  latencyMs?: number | null;
+  tokensUsed?: number | null;
   uncertaintyFlags: string[];
   requiresHumanReview: boolean;
   publicTitle: string;

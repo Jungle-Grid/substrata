@@ -11,6 +11,7 @@ export function formatReviewStatus(status?: string | null) {
   if (status === 'needs_more_information') return 'Needs more information';
   if (status === 'rejected') return 'Escalated';
   if (status === 'processing') return 'Review paths generated';
+  if (status === 'unknown') return 'Execution status unknown';
   if (status === 'failed') return 'Failed';
   return status.replace(/_/g, ' ');
 }
@@ -31,6 +32,7 @@ export function reviewStatusTone(status?: string | null) {
   if (status === 'uploaded' || status === 'processing') {
     return 'info' as const;
   }
+  if (status === 'unknown') return 'warning' as const;
   if (status === 'failed' || status === 'rejected') {
     return 'danger' as const;
   }
@@ -43,6 +45,7 @@ export function formatRunLifecycle(status?: string | null) {
   if (status === 'completed') return 'Memo drafted';
   if (status === 'running') return 'Facts extracted';
   if (status === 'queued') return 'Uploaded';
+  if (status === 'unknown') return 'Execution status unknown';
   if (status === 'failed') return 'Failed';
   return status.replace(/_/g, ' ');
 }
