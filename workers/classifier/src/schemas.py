@@ -22,6 +22,7 @@ class WorkerInput:
     file_path: str
     organization_id: str
     document_metadata: dict[str, Any]
+    execution_preference: str = "auto"
 
 
 @dataclass

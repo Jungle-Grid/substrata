@@ -9,19 +9,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from ai_client import GeminiClient, GeminiClientError
+from backends import FireworksBackend, JungleGridBackend, LocalBackend
+from backends.base import BackendResult
 from capabilities import derive_capability_signals
 from eccn_rules import generate_eccn_candidates
 from extract_specs import extract_specs
 from extract_text import extract_text
 from ingest import load_input
 from memo import generate_memo
-from prompts import (
-    EXTRACTION_SYSTEM_PROMPT,
-    MEMO_SYSTEM_PROMPT,
-    build_extraction_prompt,
-    build_memo_prompt,
-)
 from schemas import (
     AIExtractionResult,
     CandidateFactMapping,
@@ -39,6 +34,12 @@ from validation import (
 )
 
 SPECIFIC_ECCN_PATTERN = re.compile(r"^[0-9][A-Z][0-9]{3}(?:\.[A-Za-z0-9]+|[A-Za-z0-9]*)$")
+
+
+class BackendExecutionError(RuntimeError):
+    def __init__(self, result: BackendResult):
+        super().__init__(result.error or f"{result.backend} execution status: {result.status}")
+        self.result = result
 
 
 def _log_worker_event(event: str, **fields: object) -> None:
@@ -134,6 +135,26 @@ def _ai_max_input_chars() -> int:
         return max(4000, int(raw))
     except ValueError:
         return 120000
+
+
+def select_backend(execution_preference: str, document: dict[str, Any]) -> str:
+    if execution_preference in ("local", "fireworks", "jungle_grid"):
+        return execution_preference
+    if document.get("origin") != "public" or document.get("visibility") == "private":
+        return "local"
+    return "fireworks"
+
+
+def _backend_selection_reason(execution_preference: str, selected_backend: str, document: dict[str, Any]) -> str:
+    if execution_preference == selected_backend and execution_preference != "auto":
+        return f"User selected {selected_backend} execution."
+    if selected_backend == "local":
+        if document.get("origin") != "public" or document.get("visibility") == "private":
+            return "Auto-selected local execution because the document is private or non-public."
+        return "Auto-selected local execution."
+    if selected_backend == "fireworks":
+        return "Auto-selected Fireworks execution because the document is marked public and shareable."
+    return "User selected managed remote execution."
 
 
 def _normalize_whitespace(value: str) -> str:
@@ -400,58 +421,84 @@ def _memo_input_package(
     }
 
 
-def _run_ai_flow(
+def _backend_client(selected_backend: str):
+    if selected_backend == "local":
+        return LocalBackend()
+    if selected_backend == "fireworks":
+        return FireworksBackend()
+    if selected_backend == "jungle_grid":
+        return JungleGridBackend()
+    raise ValueError(f"Unsupported execution backend: {selected_backend}")
+
+
+def _run_backend_flow(
     *,
     worker_input: Any,
     text: str,
     source_label: str,
-) -> tuple[list[ExtractedSpec], list[Any], list[str], float, str, dict[str, Any], AIExtractionResult]:
-    ai_text = truncate_for_ai(text, _ai_max_input_chars())
-    client = GeminiClient()
+    execution_preference: str,
+) -> tuple[list[ExtractedSpec], list[Any], list[str], float, str, dict[str, Any], AIExtractionResult, BackendResult]:
+    backend_text = truncate_for_ai(text, _ai_max_input_chars())
+    selected_backend = select_backend(
+        execution_preference,
+        {
+            "origin": worker_input.document_metadata.get("origin"),
+            "visibility": worker_input.document_metadata.get("visibility"),
+        },
+    )
+    selection_reason = _backend_selection_reason(
+        execution_preference,
+        selected_backend,
+        {
+            "origin": worker_input.document_metadata.get("origin"),
+            "visibility": worker_input.document_metadata.get("visibility"),
+        },
+    )
     _log_worker_event(
-        "ai_flow.started",
+        "backend_flow.started",
         document_id=worker_input.document_id,
-        provider="gemini",
-        model=client.model,
+        backend=selected_backend,
+        execution_preference=execution_preference,
         source_text_characters=len(text),
-        ai_input_characters=len(ai_text),
-        ai_input_truncated=len(ai_text) < len(text),
-        timeout_seconds=client.timeout_seconds,
-        max_retries=client.max_retries,
+        backend_input_characters=len(backend_text),
+        backend_input_truncated=len(backend_text) < len(text),
     )
-    extraction_prompt = build_extraction_prompt(
-        document_title=worker_input.document_title,
-        file_name=str(worker_input.document_metadata.get("fileName", "Not recorded")),
-        document_text=ai_text,
+    backend = _backend_client(selected_backend)
+    result = backend.run_classification(
+        backend_text,
+        {
+            "document_id": worker_input.document_id,
+            "document_title": worker_input.document_title,
+            "file_name": str(worker_input.document_metadata.get("fileName", "Not recorded")),
+            "origin": worker_input.document_metadata.get("origin"),
+            "visibility": worker_input.document_metadata.get("visibility"),
+            "backend_reason": selection_reason,
+            "selected_backend": selected_backend,
+        },
     )
+    if result.status != "completed":
+        raise BackendExecutionError(result)
+    extraction = validate_ai_extraction_payload(result.output)
     _log_worker_event(
-        "ai_flow.extraction_request",
+        "backend_flow.extraction_validated",
         document_id=worker_input.document_id,
-        prompt_characters=len(extraction_prompt),
-    )
-    extraction_payload = client.generate_json(
-        prompt_type="extraction",
-        system_instruction=EXTRACTION_SYSTEM_PROMPT,
-        user_prompt=extraction_prompt,
-        input_character_count=len(ai_text),
-    )
-    _log_worker_event("ai_flow.extraction_response_received", document_id=worker_input.document_id)
-    extraction = validate_ai_extraction_payload(extraction_payload)
-    _log_worker_event(
-        "ai_flow.extraction_validated",
-        document_id=worker_input.document_id,
+        backend=selected_backend,
         profile=extraction.product_profile.profile,
         profile_confidence=extraction.product_profile.confidence,
         extracted_fact_count=len(extraction.extracted_facts),
         missing_fact_count=len(extraction.missing_facts),
         warning_count=len(extraction.warnings),
+        cost_usd=result.cost_usd,
+        latency_ms=result.latency_ms,
+        tokens_used=result.tokens_used,
     )
     specs = _dedupe_interface_facts(_merge_ai_specs(extraction))
     candidates, uncertainty_flags, confidence = generate_eccn_candidates(specs, source_label=source_label)
     capability_signals = derive_capability_signals(specs)
     _log_worker_event(
-        "ai_flow.local_candidates_generated",
+        "backend_flow.local_candidates_generated",
         document_id=worker_input.document_id,
+        backend=selected_backend,
         extracted_spec_count=len(specs),
         candidate_count=len(candidates),
         candidate_eccns=[candidate.eccn for candidate in candidates],
@@ -465,25 +512,43 @@ def _run_ai_flow(
         uncertainty_flags,
         capability_signals,
     )
+    validate_memo_markdown(memo_markdown)
     _log_worker_event(
-        "ai_flow.memo_rendered",
+        "backend_flow.memo_validated",
         document_id=worker_input.document_id,
+        backend=selected_backend,
         memo_characters=len(memo_markdown),
     )
-    validate_memo_markdown(memo_markdown)
-    _log_worker_event("ai_flow.memo_validated", document_id=worker_input.document_id)
     metadata = {
-        "classificationMode": "ai_assisted",
-        "aiProvider": "gemini",
-        "aiModel": client.model,
-        "aiInputCharacters": len(ai_text),
-        "aiInputTruncated": len(ai_text) < len(text),
-        "aiDemoPublicDocsOnly": _env_truthy("AI_DEMO_PUBLIC_DOCS_ONLY", True),
+        "classificationMode": "backend_assisted",
+        "backendUsed": result.backend,
+        "backendReason": result.reason,
+        "underlyingProvider": result.underlying_provider,
+        "backendStatus": result.status,
+        "backendModel": (
+            os.environ.get("GEMMA_MODEL", "gemma4:e2b")
+            if result.backend == "local"
+            else os.environ.get("FIREWORKS_MODEL", "accounts/fireworks/models/llama-v3p1-8b-instruct")
+            if result.backend == "fireworks"
+            else None
+        ),
+        "backendInputCharacters": len(backend_text),
+        "backendInputTruncated": len(backend_text) < len(text),
+        "costUsd": result.cost_usd,
+        "latencyMs": result.latency_ms,
+        "tokensUsed": result.tokens_used,
     }
-    return specs, candidates, uncertainty_flags, confidence, memo_markdown, metadata, extraction
+    return specs, candidates, uncertainty_flags, confidence, memo_markdown, metadata, extraction, result
 
 
-def _run_heuristic_flow(worker_input: Any, text: str, source_label: str, *, fallback_reason: str | None = None):
+def _run_heuristic_flow(
+    worker_input: Any,
+    text: str,
+    source_label: str,
+    *,
+    fallback_reason: str | None = None,
+    backend_result: BackendResult | None = None,
+):
     specs = _dedupe_interface_facts(_ensure_profile_specs(extract_specs(text)))
     candidates, uncertainty_flags, confidence = generate_eccn_candidates(specs, source_label=source_label)
     capability_signals = derive_capability_signals(specs)
@@ -498,9 +563,21 @@ def _run_heuristic_flow(worker_input: Any, text: str, source_label: str, *, fall
     )
     metadata = {
         "classificationMode": "heuristic_fallback" if fallback_reason else "heuristic",
-        "aiProvider": os.environ.get("AI_PROVIDER", "none"),
-        "aiEnabled": _env_truthy("AI_ENABLED", False),
         "fallbackReason": fallback_reason,
+        "backendUsed": backend_result.backend if backend_result else None,
+        "backendReason": backend_result.reason if backend_result else None,
+        "underlyingProvider": backend_result.underlying_provider if backend_result else None,
+        "backendStatus": backend_result.status if backend_result else "completed",
+        "costUsd": backend_result.cost_usd if backend_result else 0.0,
+        "latencyMs": backend_result.latency_ms if backend_result else 0.0,
+        "tokensUsed": backend_result.tokens_used if backend_result else None,
+        "backendModel": (
+            os.environ.get("GEMMA_MODEL", "gemma4:e2b")
+            if backend_result and backend_result.backend == "local"
+            else os.environ.get("FIREWORKS_MODEL", "accounts/fireworks/models/llama-v3p1-8b-instruct")
+            if backend_result and backend_result.backend == "fireworks"
+            else None
+        ),
     }
     return specs, candidates, uncertainty_flags, confidence, memo_markdown, metadata, None
 
@@ -657,73 +734,92 @@ def run(payload_path: str) -> WorkerOutput:
     worker_input = load_input(payload_path)
     text = extract_text(worker_input.file_path)
     source_label = _document_source_label(worker_input.document_metadata.get("sourceType"))
-    ai_env_enabled = _env_truthy("AI_ENABLED", False)
-    ai_provider = os.environ.get("AI_PROVIDER", "gemini").lower()
-    has_gemini_key = bool(os.environ.get("GEMINI_API_KEY", "").strip())
-    ai_enabled = ai_env_enabled and ai_provider == "gemini"
+    execution_preference = getattr(worker_input, "execution_preference", "auto")
+    selected_backend = select_backend(
+        execution_preference,
+        {
+            "origin": worker_input.document_metadata.get("origin"),
+            "visibility": worker_input.document_metadata.get("visibility"),
+        },
+    )
     fallback_enabled = _env_truthy("AI_FALLBACK_TO_HEURISTIC", True)
     extraction: AIExtractionResult | None
+    backend_result: BackendResult | None = None
 
     _log_worker_event(
-        "worker.ai_gate",
+        "worker.backend_gate",
         document_id=worker_input.document_id,
-        ai_enabled_env=ai_env_enabled,
-        ai_provider=ai_provider,
-        provider_supported=ai_provider == "gemini",
-        gemini_api_key_present=has_gemini_key,
-        ai_flow_enabled=ai_enabled and has_gemini_key,
+        execution_preference=execution_preference,
+        selected_backend=selected_backend,
         fallback_enabled=fallback_enabled,
-        ai_model=os.environ.get("AI_MODEL", "gemini-2.5-flash"),
-        ai_timeout_seconds=os.environ.get("AI_TIMEOUT_SECONDS", "60"),
-        ai_max_retries=os.environ.get("AI_MAX_RETRIES", "2"),
         source_text_characters=len(text),
+        document_origin=worker_input.document_metadata.get("origin"),
+        document_visibility=worker_input.document_metadata.get("visibility"),
     )
 
-    if ai_enabled and has_gemini_key:
-        try:
-            specs, candidates, uncertainty_flags, confidence, memo_markdown, run_metadata, extraction = _run_ai_flow(
-                worker_input=worker_input,
-                text=text,
-                source_label=source_label,
-            )
-        except (GeminiClientError, ValueError) as error:
-            _log_worker_event(
-                "ai_flow.failed",
-                document_id=worker_input.document_id,
-                error_type=type(error).__name__,
-                error_message=str(error)[:1000],
-                fallback_enabled=fallback_enabled,
-            )
-            if not fallback_enabled:
-                raise
-            specs, candidates, uncertainty_flags, confidence, memo_markdown, run_metadata, extraction = _run_heuristic_flow(
-                worker_input,
-                text,
-                source_label,
-                fallback_reason=f"AI flow failed: {type(error).__name__}",
-            )
-            uncertainty_flags = list(dict.fromkeys([*uncertainty_flags, "requires_engineering_confirmation"]))
-            run_metadata["aiFailureMessage"] = str(error)[:500]
-    else:
-        if not ai_env_enabled:
-            reason = "AI_ENABLED is false or unset"
-        elif ai_provider != "gemini":
-            reason = f"Unsupported AI_PROVIDER: {ai_provider}"
-        elif not has_gemini_key:
-            reason = "GEMINI_API_KEY missing"
-        else:
-            reason = "AI disabled or GEMINI_API_KEY missing"
-        _log_worker_event(
-            "ai_flow.skipped",
-            document_id=worker_input.document_id,
-            reason=reason,
+    try:
+        (
+            specs,
+            candidates,
+            uncertainty_flags,
+            confidence,
+            memo_markdown,
+            run_metadata,
+            extraction,
+            backend_result,
+        ) = _run_backend_flow(
+            worker_input=worker_input,
+            text=text,
+            source_label=source_label,
+            execution_preference=execution_preference,
         )
+    except BackendExecutionError as error:
+        backend_result = error.result
+        _log_worker_event(
+            "backend_flow.unresolved",
+            document_id=worker_input.document_id,
+            backend=backend_result.backend,
+            backend_status=backend_result.status,
+            error_type=type(error).__name__,
+            error_message=str(error)[:1000],
+            fallback_enabled=fallback_enabled,
+        )
+        if not fallback_enabled and backend_result.status != "unknown":
+            raise
         specs, candidates, uncertainty_flags, confidence, memo_markdown, run_metadata, extraction = _run_heuristic_flow(
             worker_input,
             text,
             source_label,
-            fallback_reason=reason,
+            fallback_reason=(
+                f"{backend_result.backend} backend returned unknown status"
+                if backend_result.status == "unknown"
+                else f"{backend_result.backend} backend failed"
+            ),
+            backend_result=backend_result,
         )
+        uncertainty_flags = list(dict.fromkeys([*uncertainty_flags, "requires_engineering_confirmation"]))
+        run_metadata["backendErrorMessage"] = str(error)[:500]
+        if backend_result.status == "unknown":
+            run_metadata["backendStatus"] = "unknown"
+    except (RuntimeError, ValueError) as error:
+        _log_worker_event(
+            "backend_flow.failed",
+            document_id=worker_input.document_id,
+            backend=selected_backend,
+            error_type=type(error).__name__,
+            error_message=str(error)[:1000],
+            fallback_enabled=fallback_enabled,
+        )
+        if not fallback_enabled:
+            raise
+        specs, candidates, uncertainty_flags, confidence, memo_markdown, run_metadata, extraction = _run_heuristic_flow(
+            worker_input,
+            text,
+            source_label,
+            fallback_reason=f"{selected_backend} backend failed",
+        )
+        uncertainty_flags = list(dict.fromkeys([*uncertainty_flags, "requires_engineering_confirmation"]))
+        run_metadata["backendErrorMessage"] = str(error)[:500]
 
     sample_dir = Path(payload_path).resolve().parent
     artifacts_dir = sample_dir / "artifacts"
