@@ -62,7 +62,9 @@ def _candidate_fact_list(specs: list[ExtractedSpec], preferred_names: list[str],
 
 
 SOC_FACT_NAMES = [
+    "product_profile",
     "product_family",
+    "device_type",
     "processor_architecture",
     "cpu_core",
     "clock_speed",
@@ -639,7 +641,7 @@ def generate_eccn_candidates(
             else "Category 3 electronics review should be considered for a programmable-logic/SoC family with processing-system, programmable logic, high-speed interface, and security-adjacent architecture facts. This draft does not encode final threshold logic."
         )
         category_3_apply_text = (
-            "The document identifies an NXP i.MX RT1170 crossover processor family with Arm Cortex-M7 and Cortex-M4 cores, clock rates up to 800 MHz and 400 MHz, on-chip RAM/TCM/cache resources, external memory interfaces, and multiple connectivity/display/camera interfaces. These facts support an electronics/processor review path before relying on broader fallback classification."
+            "The document identifies an MCU/processor/SoC profile with source-grounded processing, interface, memory, or security-adjacent facts. These facts support an electronics/processor review path before relying on broader fallback classification."
             if is_mcu_profile
             else "The document identifies a programmable-logic/SoC family with processing system, programmable logic, high-speed interfaces, and security features. These facts support Category 3 electronics review before fallback classification."
         )

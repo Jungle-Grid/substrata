@@ -18,6 +18,8 @@ from .base import (
 
 
 DEFAULT_API_URL = "https://api.junglegrid.dev"
+DEFAULT_IMAGE = "ghcr.io/jungle-grid/substrata-jungle-grid-inference:latest"
+DEFAULT_MODEL = "gemma4:12b"
 
 
 def _api_url() -> str:
@@ -54,6 +56,12 @@ def _request(method: str, path: str, payload: dict[str, Any] | None = None, time
 def submit_job(payload: dict[str, Any], timeout_s: float = 20.0) -> dict[str, Any]:
     try:
         return _request("POST", "/v1/jobs", payload, timeout_s=timeout_s)
+    except urllib.error.HTTPError as exc:
+        response_body = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(
+            "Execution submit failed validation. Treat this as unknown/reconciling only if "
+            f"the service may still have accepted the job. HTTP {exc.code}: {response_body.strip() or exc.reason}"
+        ) from exc
     except urllib.error.URLError as exc:
         reason = getattr(exc, "reason", exc)
         raise RuntimeError(
@@ -218,19 +226,40 @@ def normalize_execution(job_id: str, payload: dict[str, Any], logs: dict[str, An
         "tokens": _extract_tokens(payload),
         "raw": payload,
         "underlying_provider": _extract_provider(payload),
-        "error": None if status in {"completed", "failed"} else "Job is still reconciling.",
+        "error": (
+            str(
+                (payload.get("failure") or {}).get("summary")
+                or payload.get("status_reason")
+                or payload.get("status_message")
+                or "Execution backend reported a failed job."
+            )
+            if status == "failed"
+            else None
+            if status == "completed"
+            else "Job is still reconciling."
+        ),
     }
 
 
 def _build_payload(document_text: str, document_metadata: dict[str, Any]) -> dict[str, Any]:
     prompt = build_backend_prompt(document_text, document_metadata)
     request_id = str(uuid.uuid4())
-    selected_backend = str(document_metadata.get("selected_backend") or "jungle_grid")
+    image = os.getenv("JUNGLE_GRID_IMAGE", DEFAULT_IMAGE).strip() or DEFAULT_IMAGE
+    model = os.getenv("JUNGLE_GRID_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
+    command = ["ollama", "serve"]
     return {
+        "name": "Substrata ECCN review extraction",
+        "workload_type": "inference",
+        "image": image,
+        "command": command,
+        "resources": {
+            "gpu": True,
+            "gpu_count": 1,
+        },
         "prompt": prompt,
         "max_output_tokens": 4000,
         "routing": {
-            "preference": selected_backend,
+            "preference": "auto",
             "max_cost_usd": 1.0,
             "preferred_latency_ms": 30000,
         },
@@ -238,7 +267,8 @@ def _build_payload(document_text: str, document_metadata: dict[str, Any]) -> dic
             "source": "substrata",
             "document_id": document_metadata.get("document_id"),
             "document_title": document_metadata.get("document_title"),
-            "selected_backend": selected_backend,
+            "image": image,
+            "model": model,
             "client_request_id": request_id,
         },
     }
@@ -346,8 +376,16 @@ class JungleGridBackend(ClassificationBackend):
             )
 
         if execution["status"] == "failed":
-            raise RuntimeError(
-                str(execution.get("error") or "Execution backend reported a failed job.")
+            return BackendResult(
+                backend="jungle_grid",
+                underlying_provider=execution["underlying_provider"],
+                output={},
+                cost_usd=float(execution["cost_usd"] or 0.0),
+                latency_ms=latency_ms,
+                tokens_used=int(execution["tokens"] or 0),
+                reason=reason,
+                status="failed",
+                error=str(execution.get("error") or "Execution backend reported a failed job."),
             )
 
         return BackendResult(

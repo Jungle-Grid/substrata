@@ -304,7 +304,10 @@ def _dedupe_facts(facts: list[ExtractedSpec]) -> list[ExtractedSpec]:
 
 
 def validate_ai_extraction_payload(payload: dict[str, Any]) -> AIExtractionResult:
-    root = _require_dict(payload, "extraction")
+    if "extraction" in payload:
+        root = _require_dict(payload.get("extraction"), "extraction")
+    else:
+        root = _require_dict(payload, "extraction")
     profile_payload = _require_dict(root.get("productProfile"), "productProfile")
     identity_payload = _require_dict(root.get("productIdentity"), "productIdentity")
 

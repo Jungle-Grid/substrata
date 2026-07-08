@@ -528,7 +528,7 @@ def _run_backend_flow(
         "backendModel": (
             os.environ.get("GEMMA_MODEL", "gemma4:e2b")
             if result.backend == "local"
-            else os.environ.get("FIREWORKS_MODEL", "accounts/fireworks/models/llama-v3p1-8b-instruct")
+            else os.environ.get("FIREWORKS_MODEL", "accounts/fireworks/models/gpt-oss-120b")
             if result.backend == "fireworks"
             else None
         ),
@@ -574,7 +574,7 @@ def _run_heuristic_flow(
         "backendModel": (
             os.environ.get("GEMMA_MODEL", "gemma4:e2b")
             if backend_result and backend_result.backend == "local"
-            else os.environ.get("FIREWORKS_MODEL", "accounts/fireworks/models/llama-v3p1-8b-instruct")
+            else os.environ.get("FIREWORKS_MODEL", "accounts/fireworks/models/gpt-oss-120b")
             if backend_result and backend_result.backend == "fireworks"
             else None
         ),

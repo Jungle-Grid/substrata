@@ -728,7 +728,7 @@ export async function createClassificationRun(input: {
       });
 
       return runRecord;
-    });
+    }, { timeout: 30000 });
 
     await recordAuditEvent({
       organizationId: input.organizationId,

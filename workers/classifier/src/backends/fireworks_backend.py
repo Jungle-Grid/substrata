@@ -15,7 +15,7 @@ from .base import (
 )
 
 
-DEFAULT_MODEL = "accounts/fireworks/models/llama-v3p1-8b-instruct"
+DEFAULT_MODEL = "accounts/fireworks/models/gpt-oss-120b"
 DEFAULT_INPUT_TOKEN_USD = 0.0000018
 DEFAULT_OUTPUT_TOKEN_USD = 0.0000030
 
