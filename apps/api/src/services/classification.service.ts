@@ -665,9 +665,17 @@ export async function createClassificationRun(input: {
         ...artifactValidationIssues,
       ];
       const backendStatus = workerOutput.runMetadata?.backendStatus;
+      const classificationMode = workerOutput.runMetadata?.classificationMode;
+      const usedBackend = workerOutput.runMetadata?.backendUsed;
+      const fellBackFromBackend =
+        classificationMode === 'heuristic_fallback' &&
+        typeof usedBackend === 'string' &&
+        usedBackend.length > 0;
       const finalStatus =
         backendStatus === 'unknown'
           ? 'unknown'
+          : fellBackFromBackend
+            ? 'needs_attention'
           : validationIssues.some((issue) => issue.severity === 'error')
             ? 'needs_attention'
             : 'completed';
@@ -718,7 +726,14 @@ export async function createClassificationRun(input: {
           validationIssues: validationIssues as Prisma.InputJsonValue,
           errorMessage:
             finalStatus === 'needs_attention'
-              ? summarizeValidationIssues(validationIssues)
+              ? [
+                  fellBackFromBackend && typeof workerOutput.runMetadata?.fallbackReason === 'string'
+                    ? workerOutput.runMetadata.fallbackReason
+                    : null,
+                  summarizeValidationIssues(validationIssues),
+                ]
+                  .filter((value): value is string => Boolean(value))
+                  .join(' ')
               : null,
           completedAt:
             finalStatus === 'completed' || finalStatus === 'needs_attention'
