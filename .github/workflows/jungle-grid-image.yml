@@ -14,7 +14,7 @@ permissions:
   packages: write
 
 env:
-  IMAGE_NAME: ghcr.io/dejaguarkyng/substrata-jungle-grid-inference
+  IMAGE_NAME: ghcr.io/jungle-grid/substrata-jungle-grid-inference
 
 jobs:
   build-and-push:

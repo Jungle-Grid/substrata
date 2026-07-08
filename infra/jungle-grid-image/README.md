@@ -4,11 +4,11 @@
 
 Primary image reference:
 
-`ghcr.io/dejaguarkyng/substrata-jungle-grid-inference:latest`
+`ghcr.io/jungle-grid/substrata-jungle-grid-inference:latest`
 
 Versioned image references will also be published by commit SHA from CI:
 
-`ghcr.io/dejaguarkyng/substrata-jungle-grid-inference:sha-<git-sha>`
+`ghcr.io/jungle-grid/substrata-jungle-grid-inference:sha-<git-sha>`
 
 ## Baked Model
 
