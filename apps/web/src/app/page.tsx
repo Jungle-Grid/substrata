@@ -7,28 +7,39 @@ const demoHref = 'https://calendar.app.google/UqNdDvK2Ya1VQ4Rm6';
 const workflowSteps = [
   {
     step: '01',
-    title: 'Upload datasheet',
-    body: 'Add a public datasheet, product brief, or extracted text file to the compliance workspace.',
+    title: 'Upload source package',
+    status: 'source record',
+    body: 'Bring together a product datasheet and the prior internal material that gives the reviewer useful context.',
   },
   {
     step: '02',
     title: 'Extract technical facts',
-    body: 'Normalize architecture, interfaces, memory, cryptography, performance, and packaging evidence.',
+    status: 'evidence captured',
+    body: 'Normalize architecture, interfaces, security functions, performance, packaging, and ordering evidence.',
   },
   {
     step: '03',
-    title: 'Generate review paths',
-    body: 'Compare source-grounded facts against Category 3, Category 5 Part 2, and broader comparison paths.',
+    title: 'Compare prior decisions',
+    status: 'company context',
+    body: 'Surface similar internal records with exact excerpts, source links, and clear similarity limits for review.',
   },
   {
     step: '04',
-    title: 'Draft memo',
-    body: 'Prepare a classification memo draft with citations, uncertainty flags, and reviewer questions.',
+    title: 'Generate cited review path',
+    status: 'review paths',
+    body: 'Connect source-grounded facts to Category 3, Category 5 Part 2, and other relevant comparison paths.',
   },
   {
     step: '05',
-    title: 'Human review',
-    body: 'Route the evidence package through the human review queue with an audit trail.',
+    title: 'Draft memo for signoff',
+    status: 'memo drafted',
+    body: 'Prepare a cited classification memo draft with uncertainty flags, reviewer questions, and source evidence.',
+  },
+  {
+    step: '06',
+    title: 'Human review and approval',
+    status: 'human decision required',
+    body: 'Route the evidence package to the reviewer signoff queue and preserve the decision in the audit trail.',
   },
 ];
 
@@ -144,9 +155,11 @@ function StatusPill({
 function Surface({
   children,
   tint = 'white',
+  id,
 }: {
   children: ReactNode;
   tint?: 'white' | 'fog' | 'ink';
+  id?: string;
 }) {
   const classes = {
     white: 'bg-white',
@@ -155,7 +168,7 @@ function Surface({
   };
 
   return (
-    <section className={`border-b border-slate-200 ${classes[tint]}`}>{children}</section>
+    <section id={id} className={`scroll-mt-24 border-b border-slate-200 ${classes[tint]}`}>{children}</section>
   );
 }
 
@@ -193,7 +206,7 @@ export default function LandingPage() {
               Pricing
             </Link>
             <Link className="hover:text-[var(--substrata-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--substrata-cyan)]" href="#trust">
-              Evidence
+              Evidence model
             </Link>
             <CTA href="/app" variant="ghost">
               Open workspace
@@ -208,74 +221,73 @@ export default function LandingPage() {
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 overflow-hidden"
           >
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(31,154,232,0.15),transparent_32%),radial-gradient(circle_at_82%_12%,rgba(52,198,239,0.18),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,250,252,0.96))]" />
-            <div className="absolute inset-x-0 top-0 h-[22rem] bg-[linear-gradient(to_right,rgba(31,154,232,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,50,79,0.045)_1px,transparent_1px)] bg-[size:28px_28px] opacity-70 [mask-image:linear-gradient(to_bottom,black,transparent)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_8%_12%,rgba(31,154,232,0.13),transparent_34%),radial-gradient(circle_at_83%_18%,rgba(52,198,239,0.15),transparent_31%),linear-gradient(180deg,rgba(255,255,255,0.99),rgba(247,250,252,0.97))]" />
+            <div className="absolute inset-x-0 top-0 h-[32rem] bg-[linear-gradient(to_right,rgba(31,154,232,0.055)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,50,79,0.04)_1px,transparent_1px)] bg-[size:32px_32px] opacity-70 [mask-image:linear-gradient(to_bottom,black,transparent)]" />
           </div>
-          <div className="relative mx-auto grid max-w-7xl gap-10 px-5 py-12 md:px-8 md:py-14 lg:grid-cols-[1fr_0.96fr] lg:py-12">
-            <div className="self-start pt-2 md:pt-4 lg:-mt-16 lg:pt-0 xl:-mt-20">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[color:rgba(31,154,232,0.18)] bg-[var(--substrata-fog)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--substrata-steel)]">
-                ECCN review assistant
-              </div>
-              <h1 className="mt-5 max-w-4xl text-4xl font-semibold tracking-tight text-[var(--substrata-ink)] md:text-6xl">
-                Generate cited ECCN review memos from semiconductor datasheets.
+          <div className="relative mx-auto grid max-w-7xl gap-12 px-5 py-14 md:px-8 md:py-16 lg:grid-cols-[0.92fr_1.08fr] lg:items-center lg:gap-14 lg:py-20 xl:gap-20">
+            <div className="max-w-2xl">
+              <SectionEyebrow>For semiconductor trade compliance teams</SectionEyebrow>
+              <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-[-0.035em] text-[var(--substrata-ink)] sm:text-5xl md:text-6xl md:leading-[1.04]">
+                Turn company classification history into review-ready ECCN memos.
               </h1>
-              <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-                Substrata extracts technical facts from datasheets, recommends export-control review paths, and prepares human-review-ready memo drafts with evidence, citations, uncertainty flags, and audit-ready reasoning.
+              <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
+                Substrata ingests datasheets, prior classifications, internal notes, and reviewer decisions, then extracts technical facts, compares them against prior company records and control-list logic, and drafts cited memos for human approval.
               </p>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <CTA href="/app/documents/new">Upload a datasheet</CTA>
+              <div className="mt-7 flex flex-wrap items-center gap-3">
+                <CTA href="/app">Create company workspace</CTA>
                 <CTA href={demoHref} variant="secondary">
-                  Want a demo?
+                  Book a demo
                 </CTA>
+                <a
+                  href="#trust"
+                  className="inline-flex min-h-11 items-center px-1 text-sm font-semibold text-[var(--substrata-steel)] underline decoration-slate-300 underline-offset-4 transition hover:text-[var(--substrata-ink)] hover:decoration-[var(--substrata-cyan)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--substrata-cyan)] focus-visible:ring-offset-2"
+                >
+                  See evidence model
+                </a>
               </div>
-              <div className="mt-6 grid gap-3 text-sm text-slate-600 sm:grid-cols-3">
-                <div className="rounded-xl border border-slate-200 bg-white/80 p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--substrata-steel)]">
-                    For
-                  </p>
-                  <p className="mt-2 leading-6">Export control and trade compliance teams</p>
+              <div className="mt-7 border-t border-slate-200 pt-5">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm font-medium text-slate-700">
+                  {['Evidence-backed', 'Human approval required', 'Audit trail included'].map((item, index) => (
+                    <span key={item} className="inline-flex items-center gap-3">
+                      {index > 0 ? <span aria-hidden="true" className="h-1 w-1 rounded-full bg-[var(--substrata-cyan)]" /> : null}
+                      {item}
+                    </span>
+                  ))}
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-white/80 p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--substrata-steel)]">
-                    Input
-                  </p>
-                  <p className="mt-2 leading-6">Datasheets, product briefs, extracted text</p>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-white/80 p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--substrata-steel)]">
-                    Output
-                  </p>
-                  <p className="mt-2 leading-6">Classification memo draft for human review</p>
-                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-500">
+                  Built for semiconductor and advanced hardware compliance workflows.
+                </p>
               </div>
             </div>
 
-            <div className="relative self-start">
-              <div className="absolute -inset-6 rounded-[2rem] bg-[radial-gradient(circle_at_top,rgba(31,154,232,0.15),transparent_48%),radial-gradient(circle_at_bottom_right,rgba(52,198,239,0.14),transparent_42%)] blur-2xl" />
-              <div className="relative overflow-hidden rounded-[1.75rem] border border-[color:rgba(16,50,79,0.12)] bg-white shadow-[0_30px_80px_rgba(2,16,32,0.12)]">
-                <div className="border-b border-slate-200 bg-[var(--substrata-fog)] px-5 py-4">
+            <aside aria-label="Company-aware compliance review preview" className="relative mx-auto w-full max-w-xl lg:ml-auto lg:max-w-none">
+              <div className="absolute -inset-5 rounded-[2rem] bg-[radial-gradient(circle_at_top,rgba(31,154,232,0.18),transparent_50%),radial-gradient(circle_at_bottom_right,rgba(52,198,239,0.16),transparent_44%)] blur-2xl" />
+              <div className="relative overflow-hidden rounded-[1.5rem] border border-[color:rgba(16,50,79,0.14)] bg-white shadow-[0_28px_72px_rgba(2,16,32,0.16)]">
+                <div className="border-b border-slate-800 bg-[linear-gradient(135deg,#08111f_0%,#10324f_100%)] px-5 py-4 sm:px-6">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-[var(--substrata-ink)]">
-                        Human review queue
+                      <p className="text-sm font-semibold text-white">
+                        Reviewer signoff queue
                       </p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Evidence-backed recommendations, review-ready memo, human decision required
+                      <p className="mt-1 text-xs text-slate-300">
+                        Company workspace: Acme Semiconductors
                       </p>
                     </div>
-                    <StatusPill tone="warning">Needs human review</StatusPill>
+                    <span className="inline-flex items-center rounded-md border border-amber-300/30 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-950">
+                      Human review required
+                    </span>
                   </div>
                 </div>
                 <div className="grid gap-px bg-slate-200 md:grid-cols-[0.95fr_1.05fr]">
                   <div className="bg-white p-5">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      Recent run
+                      Source package
                     </p>
                     <div className="mt-4 space-y-3">
                       {[
-                        ['Source document', 'i.MX RT1170 crossover MCU datasheet'],
-                        ['Status', 'Facts extracted'],
-                        ['Recommendation', 'Category 3 / Category 5 Part 2'],
+                        ['Source package', 'i.MX RT1170 crossover MCU datasheet'],
+                        ['Prior classification found', '3A001 comparison memo · approved 2024'],
+                        ['Record status', 'Internal reference material'],
                       ].map(([label, value]) => (
                         <div key={label} className="rounded-xl border border-slate-200 bg-[var(--substrata-fog)] p-4">
                           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
@@ -286,28 +298,31 @@ export default function LandingPage() {
                   </div>
                   <div className="bg-[linear-gradient(180deg,#ffffff_0%,#f8fbfe_100%)] p-5">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      Recommended review paths
+                      Extracted facts
                     </p>
                     <div className="mt-4 space-y-4">
                       <div className="rounded-xl border border-[color:rgba(31,154,232,0.2)] bg-[var(--substrata-fog)] p-4">
                         <div className="flex items-center justify-between gap-3">
                           <p className="font-semibold text-[var(--substrata-ink)]">
-                            Category 3 electronics
+                            Arm Cortex-M7 / Cortex-M4
                           </p>
-                          <span className="text-xs font-medium text-[var(--substrata-steel)]">
-                            ready for review
-                          </span>
                         </div>
                         <p className="mt-3 text-sm leading-6 text-slate-700">
-                          Recommended from extracted architecture, interfaces, and performance facts.
+                          Security functions: HAB, CAAM, OTFAD, PUF
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-slate-700">
+                          Package / ordering variants detected
                         </p>
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-white p-4">
                         <p className="font-semibold text-[var(--substrata-ink)]">
-                          Category 5 Part 2 comparison path
+                          Company-aware review path
                         </p>
                         <p className="mt-3 text-sm leading-6 text-slate-700">
-                          Keep as a comparison path only until a reviewer confirms the relevant control thresholds.
+                          Category 3 electronics / Category 5 Part 2 comparison
+                        </p>
+                        <p className="mt-2 text-xs leading-5 text-slate-500">
+                          Prior records are comparison context only; reviewer confirmation remains required.
                         </p>
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-[var(--substrata-fog)] p-4">
@@ -315,54 +330,46 @@ export default function LandingPage() {
                           Reviewer questions
                         </p>
                         <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-600">
-                          <li>Which ordering code and package should anchor review signoff?</li>
-                          <li>Are cryptographic functions user-accessible or limited to boot/storage protection?</li>
-                          <li>Which current CCL thresholds should be mapped before approval?</li>
+                          <li>Confirm encryption accessibility</li>
+                          <li>Confirm package / order-code scope</li>
+                          <li>Verify applicable CCL threshold mapping</li>
                         </ul>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div className="grid gap-px border-t border-slate-200 bg-slate-200 md:grid-cols-3">
-                  {['Evidence-backed recommendations', 'Cited review paths', 'Audit trail preserved'].map((item) => (
+                <div className="grid gap-px border-t border-slate-200 bg-slate-200 md:grid-cols-2">
+                  {['Memo status: Ready for human signoff', 'Evidence package linked to source record'].map((item) => (
                     <div key={item} className="bg-white px-5 py-4 text-sm font-medium text-slate-700">
                       {item}
                     </div>
                   ))}
                 </div>
               </div>
-            </div>
+            </aside>
           </div>
         </div>
       </Surface>
 
-      <Surface tint="fog">
+      <Surface tint="fog" id="workflow">
         <div className="mx-auto max-w-7xl px-5 py-16 md:px-8">
           <SectionTitle
-            eyebrow="Workflow"
-            title="From datasheet to human-review-ready memo."
-            body="The workflow follows the evidence chain reviewers need: source document, extracted technical facts, recommended review paths, citations, uncertainty flags, reviewer questions, and a memo draft."
+            eyebrow="Company-aware workflow"
+            title="From company records to human-review-ready classification."
+            body="Substrata brings together source documents, technical fact extraction, prior classification history, company-aware review paths, memo drafting, and reviewer signoff in one structured workflow."
           />
-          <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {workflowSteps.map((item) => (
               <div
                 key={item.step}
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
               >
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-mono text-xs font-semibold text-[var(--substrata-cyan)]">
                     {item.step}
                   </p>
-                  <StatusPill tone={item.step === '05' ? 'warning' : item.step === '03' ? 'info' : 'default'}>
-                    {item.step === '01'
-                      ? 'neutral'
-                      : item.step === '02'
-                        ? 'in progress'
-                        : item.step === '03'
-                          ? 'review paths'
-                          : item.step === '04'
-                            ? 'ready for review'
-                            : 'human decision required'}
+                  <StatusPill tone={item.step === '03' || item.step === '04' ? 'info' : item.step === '06' ? 'warning' : 'default'}>
+                    {item.status}
                   </StatusPill>
                 </div>
                 <h3 className="mt-4 text-base font-semibold text-[var(--substrata-ink)]">
@@ -375,12 +382,12 @@ export default function LandingPage() {
         </div>
       </Surface>
 
-      <Surface tint="white">
+      <Surface tint="white" id="workspace">
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 md:px-8 lg:grid-cols-[0.9fr_1.1fr]">
           <SectionTitle
             eyebrow="Compliance workspace"
             title="Dense review surfaces for serious classification work."
-            body="Substrata is organized around documents, review runs, extracted facts, recommended review paths, memo drafts, human review status, and audit history."
+            body="Substrata is organized around source documents, prior company records, extracted facts, company-aware review paths, memo drafts, human review status, and audit history."
           />
           <div className="rounded-[1.5rem] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbfe_100%)] shadow-sm">
             <div className="border-b border-slate-200 px-5 py-4">
@@ -412,7 +419,7 @@ export default function LandingPage() {
               </div>
               <div className="bg-white p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  ECCN review recommendation
+                  Company-aware review paths
                 </p>
                 <div className="mt-4 space-y-4">
                   <div className="rounded-xl border border-[color:rgba(31,154,232,0.2)] bg-[var(--substrata-fog)] p-4">
@@ -451,7 +458,7 @@ export default function LandingPage() {
         </div>
       </Surface>
 
-      <Surface tint="ink">
+      <Surface tint="ink" id="trust">
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 md:px-8 lg:grid-cols-[0.9fr_1.1fr]">
             <SectionTitle
               eyebrow="Trust model"
@@ -495,16 +502,16 @@ export default function LandingPage() {
                   Final step
                 </p>
                 <h2 className="mt-4 text-3xl font-semibold tracking-tight text-[var(--substrata-ink)] md:text-4xl">
-                  Upload a datasheet and generate a cited ECCN review memo for human approval.
+                  Bring company records and source packages into one cited ECCN review workflow.
                 </h2>
                 <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">
-                  Review teams get extracted technical facts, recommended review paths, and a memo draft tied to source evidence and an audit trail.
+                  Review teams get extracted technical facts, comparable prior internal material, company-aware review paths, and a memo draft tied to source evidence and an audit trail.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
-                <CTA href="/app/documents/new">Upload a datasheet</CTA>
+                <CTA href="/app">Create company workspace</CTA>
                 <CTA href={demoHref} variant="secondary">
-                  Want a demo?
+                  Book a demo
                 </CTA>
               </div>
             </div>
