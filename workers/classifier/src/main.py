@@ -537,6 +537,15 @@ def _run_backend_flow(
         "costUsd": result.cost_usd,
         "latencyMs": result.latency_ms,
         "tokensUsed": result.tokens_used,
+        "executionJobId": result.job_id,
+        "gpuVendor": result.gpu_vendor,
+        "gpuName": result.gpu_name,
+        "runtimeVersion": result.runtime_version,
+        "imageName": result.image_name,
+        "imageDigest": result.image_digest,
+        "inputTokens": result.input_tokens,
+        "outputTokens": result.output_tokens,
+        "logPath": result.log_path,
     }
     return specs, candidates, uncertainty_flags, confidence, memo_markdown, metadata, extraction, result
 
@@ -571,6 +580,15 @@ def _run_heuristic_flow(
         "costUsd": backend_result.cost_usd if backend_result else 0.0,
         "latencyMs": backend_result.latency_ms if backend_result else 0.0,
         "tokensUsed": backend_result.tokens_used if backend_result else None,
+        "executionJobId": backend_result.job_id if backend_result else None,
+        "gpuVendor": backend_result.gpu_vendor if backend_result else None,
+        "gpuName": backend_result.gpu_name if backend_result else None,
+        "runtimeVersion": backend_result.runtime_version if backend_result else None,
+        "imageName": backend_result.image_name if backend_result else None,
+        "imageDigest": backend_result.image_digest if backend_result else None,
+        "inputTokens": backend_result.input_tokens if backend_result else None,
+        "outputTokens": backend_result.output_tokens if backend_result else None,
+        "logPath": backend_result.log_path if backend_result else None,
         "backendModel": (
             os.environ.get("GEMMA_MODEL", "gemma4:e2b")
             if backend_result and backend_result.backend == "local"

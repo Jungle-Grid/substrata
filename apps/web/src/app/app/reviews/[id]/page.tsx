@@ -4,6 +4,7 @@ import { DemoPublicationControls } from '../../../../components/demo-publication
 import { MarkdownRenderer } from '../../../../components/markdown-renderer';
 import { MemoDownloadLink } from '../../../../components/memo-download-link';
 import { ReviewActionForm } from '../../../../components/review-action-form';
+import { ExecutionProgressRefresh } from '../../../../components/execution-progress-refresh';
 import { Badge, EmptyState, InlineNotice, Panel, StatusBadge } from '../../../../components/ui';
 import { buildApiUrl } from '../../../../lib/api-base';
 import { requireCompletedOnboarding } from '../../../../lib/server-auth';
@@ -47,7 +48,7 @@ export default async function ReviewDetailPage({
       description="Inspect source-backed technical facts, review paths, potential ECCN candidates, uncertainty, reviewer activity, and the draft review memo."
       actions={
         <div className="flex flex-wrap gap-2">
-          <Badge tone={run.status === 'completed' ? 'success' : run.status === 'needs_attention' ? 'danger' : 'info'}>
+          <Badge tone={run.status === 'completed' ? 'success' : run.status === 'needs_attention' || run.status === 'blocked' ? 'danger' : 'info'}>
             {run.processingLabel ?? run.status}
           </Badge>
           <Badge tone={run.hasReviewerConclusion ? 'success' : 'warning'}>
@@ -123,6 +124,89 @@ export default async function ReviewDetailPage({
                 </InlineNotice>
               </div>
             ) : null}
+            <ExecutionProgressRefresh status={run.status} />
+          </Panel>
+          {run.fallbackUsed || run.validationStatus === 'warnings' || run.status === 'needs_attention' || run.status === 'blocked' ? (
+            <Panel>
+              <InlineNotice tone="warning" title="Execution requires attention">
+                This workup used heuristic fallback, has unresolved validation warnings, or could not be verified as a completed backend run. It is not eligible for public demo publication and requires qualified human review.
+              </InlineNotice>
+            </Panel>
+          ) : null}
+          <Panel>
+            <h2 className="text-lg font-semibold text-slate-950">Execution Provenance</h2>
+            {run.executionProvenance ? (
+              <dl className="mt-4 grid gap-4 text-sm md:grid-cols-2">
+                <div><dt className="text-slate-500">Execution status</dt><dd className="mt-1 font-medium text-slate-950">{run.executionProvenance.status}</dd></div>
+                <div><dt className="text-slate-500">Backend / provider</dt><dd className="mt-1 font-medium text-slate-950">{run.executionProvenance.backend}{run.executionProvenance.provider ? ` / ${run.executionProvenance.provider}` : ''}</dd></div>
+                <div><dt className="text-slate-500">External job ID</dt><dd className="mt-1 break-all font-mono text-xs text-slate-950">{run.executionProvenance.externalJobId ?? 'Not available'}</dd></div>
+                <div><dt className="text-slate-500">GPU runtime</dt><dd className="mt-1 font-medium text-slate-950">{[run.executionProvenance.gpuVendor, run.executionProvenance.gpuName, run.executionProvenance.runtimeVersion].filter(Boolean).join(' / ') || 'Not reported by provider'}</dd></div>
+                <div><dt className="text-slate-500">Model</dt><dd className="mt-1 font-medium text-slate-950">{run.executionProvenance.modelName ?? 'Not recorded'}</dd></div>
+                <div><dt className="text-slate-500">Image</dt><dd className="mt-1 break-all font-mono text-xs text-slate-950">{run.executionProvenance.imageDigest ?? run.executionProvenance.imageName ?? 'Not recorded'}</dd></div>
+              </dl>
+            ) : (
+              <EmptyState title="Execution provenance pending" body="The queued run has not recorded provider execution details yet." />
+            )}
+            {run.artifacts && run.artifacts.length > 0 ? (
+              <div className="mt-5 border-t border-slate-200 pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-slate-950">Run artifacts</p>
+                  <a href={buildApiUrl(`/v1/classification-runs/${run.id}/artifacts`)} className="text-sm font-medium text-slate-700 underline underline-offset-4">
+                    View artifact manifest
+                  </a>
+                </div>
+                <ul className="mt-3 space-y-1 text-sm text-slate-600">
+                  {run.artifacts.map((artifact) => <li key={artifact.id}>{artifact.kind.replace(/_/g, ' ')} — {artifact.fileName}</li>)}
+                </ul>
+              </div>
+            ) : null}
+          </Panel>
+          <Panel>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">Similar Company History</h2>
+                <p className="mt-2 text-sm text-slate-600">
+                  Similar prior internal review material is shown as reviewer context only. It is not regulatory authority.
+                </p>
+              </div>
+              <Link href="/app/company-history" className="text-sm font-medium text-slate-700 underline underline-offset-4">
+                Open Company History
+              </Link>
+            </div>
+            {(run.companyHistoryMatches ?? []).length === 0 ? (
+              <div className="mt-4">
+                <EmptyState
+                  title="No comparable prior company history found"
+                  body="This review did not retrieve comparable indexed internal reference material from this organization."
+                />
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {(run.companyHistoryMatches ?? []).map((match) => (
+                  <div key={match.id} className="rounded-lg border border-slate-200 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <Link href={`/app/company-history/documents/${match.companyHistoryDocumentId}`} className="break-all font-medium text-slate-950 underline-offset-4 hover:underline">
+                          {match.sourceFileName}
+                        </Link>
+                        <p className="mt-1 text-sm text-slate-500">Imported {formatDateTime(match.importedAt)}</p>
+                      </div>
+                      <Badge tone={match.matchTier === 'direct' ? 'success' : match.matchTier === 'partial' ? 'default' : 'warning'}>
+                        {match.matchTier === 'direct' ? 'Direct internal match' : match.matchTier === 'partial' ? 'Partial internal match' : 'Weak internal match'}
+                      </Badge>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-slate-700">{match.matchReasons.join('; ')}</p>
+                    <div className="mt-3 rounded-md bg-slate-50 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Exact source excerpt</p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{match.excerpt}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mt-4">
+              <InlineNotice tone="default">Internal company history only. Not regulatory authority. Qualified reviewer confirmation remains required.</InlineNotice>
+            </div>
           </Panel>
           <Panel>
             <div className="flex flex-wrap items-start justify-between gap-3">

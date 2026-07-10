@@ -33,6 +33,8 @@ function baseWorkerOutput() {
     eccnCandidates: [],
     capabilitySignals: [],
     validationIssues: [],
+    fallbackUsed: false,
+    validationStatus: 'passed',
     memoMarkdown: '# Draft review memo',
     artifacts: {
       extractedTextPath: '/tmp/extracted.txt',
@@ -214,6 +216,8 @@ test('run presenter does not label a run human-reviewed without a recorded revie
     memoArtifactPath: null,
     capabilitySignals: null,
     validationIssues: null,
+    fallbackUsed: false,
+    validationStatus: 'passed',
     errorMessage: null,
     completedAt: new Date(),
     createdAt: new Date(),

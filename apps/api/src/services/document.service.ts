@@ -47,7 +47,10 @@ export async function createDocument(
 
 export async function listDocuments(organizationId: string) {
   return prisma.document.findMany({
-    where: { organizationId },
+    where: {
+      organizationId,
+      companyHistoryDocument: null,
+    },
     include: {
       classificationRuns: {
         orderBy: { createdAt: 'desc' },
@@ -66,6 +69,7 @@ export async function getDocument(organizationId: string, id: string) {
     where: {
       id,
       organizationId,
+      companyHistoryDocument: null,
     },
     include: {
       classificationRuns: {

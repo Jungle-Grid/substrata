@@ -75,6 +75,19 @@ The system should eventually support configurable retention and deletion policie
 
 Until then, the MVP should keep artifact paths explicit so retention can be enforced later.
 
+## Company History Security Posture
+
+Company History files are private, organization-scoped internal reference material. Phase 1 supports PDF, TXT, MD, CSV, and JSON only; DOCX, XLSX, OCR, external document systems, embeddings, and cross-company retrieval are intentionally out of scope.
+
+- History upload and reprocessing require Owner or Admin membership.
+- Files are hashed with SHA-256 and deduplicated within an organization only.
+- Local storage keys are organization-prefixed and storage resolution rejects absolute paths and traversal outside `LOCAL_STORAGE_ROOT`.
+- The server validates approved MIME/extension combinations and PDF signatures, with file and batch limits.
+- Retrieval filters by organization ID in the database query and persists exact chunks shown to a classification reviewer.
+- Historical excerpts are never represented as regulation citations or automatic classification approval.
+
+Production hardening still required before broad customer rollout: malware scanning/quarantine, encrypted managed object storage, signed-download URLs, configurable retention/deletion, and database-level audit immutability/RLS.
+
 ## Local Validation Caveat
 
 During frontend browser validation, a local Postgres credential failure prevented successful sign-in. The API error handler was tightened so the browser now receives a generic failure message instead of raw Prisma/database details, but local authenticated validation still depends on correct database credentials.

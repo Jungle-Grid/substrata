@@ -5,7 +5,8 @@ export type ClassificationStatus =
   | 'unknown'
   | 'completed'
   | 'failed'
-  | 'needs_attention';
+  | 'needs_attention'
+  | 'blocked';
 
 export type ReviewWorkflowState =
   | 'draft_generated'
@@ -39,6 +40,23 @@ export type UncertaintyFlag =
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
 
 export type MembershipRole = 'OWNER' | 'ADMIN' | 'REVIEWER' | 'ANALYST' | 'VIEWER';
+
+export type CompanyHistoryRecordType =
+  | 'datasheet'
+  | 'prior_memo'
+  | 'catalog'
+  | 'review_note'
+  | 'spreadsheet'
+  | 'approval_record'
+  | 'technical_spec'
+  | 'other';
+
+export type CompanyHistoryIngestionStatus =
+  | 'queued'
+  | 'processing'
+  | 'indexed'
+  | 'duplicate'
+  | 'failed';
 
 export type FactValueType =
   | 'directly_stated'

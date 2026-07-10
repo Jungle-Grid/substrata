@@ -82,7 +82,7 @@ export function StartClassificationButton({
           });
         }}
       >
-        {isPending ? 'Generating memo draft...' : 'Start review run'}
+        {isPending ? 'Queueing review run...' : 'Start review run'}
       </button>
       {error ? (
         <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">

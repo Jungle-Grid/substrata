@@ -81,3 +81,9 @@ Every run should eventually capture:
 - artifact outputs
 
 The MVP schema already reserves space for these concerns.
+
+## Company History Boundary
+
+Phase 1 history ingestion does not run through the classification worker. The API reuses the approved PDF/text extraction path, stores deterministic text chunks, and retrieves them only after the worker has extracted current-document facts. This keeps prior internal material out of ECCN candidate generation and makes each comparison provenance record explicit.
+
+A future worker comparison stage may receive only top, cited historical chunks and must return stored chunk IDs with explicit similarities, differences, and unknowns. It must never treat prior company material as regulatory authority or a substitute for human review.

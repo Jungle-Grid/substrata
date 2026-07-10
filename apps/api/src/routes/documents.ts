@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 import {
   classificationRunCreateSchema,
   documentCreateSchema,
@@ -21,7 +22,7 @@ import {
   persistUploadedDocument,
 } from '../services/document-upload.service';
 import { extractTextFromStoredFile } from '../services/text-extraction.service';
-import { presentDocument } from '../services/presenters';
+import { presentDocument, presentRun } from '../services/presenters';
 
 export const documentsRouter = Router();
 const workerClient = createWorkerClient();
@@ -53,9 +54,15 @@ documentsRouter.post('/', requireCsrf, async (req, res) => {
     throw new HttpError(403, 'You do not have access to create documents.');
   }
 
+  if (!input.rawText?.trim()) {
+    throw new HttpError(400, 'Manual documents require source text.');
+  }
+
   const document = await createDocument(organization.id, {
     ...input,
-    sourceType: input.sourceType ?? 'upload',
+    storagePath: `organizations/${organization.id}/manual/${randomUUID()}.txt`,
+    sourceType: 'manual',
+    mimeType: 'text/plain',
   });
 
   await recordAuditEvent({
@@ -98,7 +105,10 @@ documentsRouter.post('/upload', requireCsrf, upload.single('file'), async (req, 
     hasRawTextFallback: Boolean(input.rawText.trim()),
   });
 
-  const persisted = await persistUploadedDocument({ file: req.file });
+  const persisted = await persistUploadedDocument({
+    file: req.file,
+    organizationId: organization.id,
+  });
   let extractedText = '';
 
   try {
@@ -274,5 +284,5 @@ documentsRouter.post('/:id/classification-runs', requireCsrf, async (req, res) =
     executionPreference: input.executionPreference ?? 'auto',
   });
 
-  return res.status(201).json(run);
+  return res.status(202).json(presentRun(run));
 });

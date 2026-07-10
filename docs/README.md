@@ -41,6 +41,7 @@ Datasheet review is frequent, repetitive, high-stakes, and evidence-heavy. Teams
 - [API.md](./API.md): initial API contract
 - [WORKER_DESIGN.md](./WORKER_DESIGN.md): classifier worker pipeline
 - [JUNGLE_GRID_INTEGRATION.md](./JUNGLE_GRID_INTEGRATION.md): future execution model
+- [hackathon-demo-runbook.md](./hackathon-demo-runbook.md): AMD/ROCm and Jungle Grid demo preflight and verification
 - [VALIDATION_PLAN.md](./VALIDATION_PLAN.md): one-week market validation plan
 - [SECURITY.md](./SECURITY.md): security and document handling assumptions
 - [HUMAN_REVIEW_POLICY.md](./HUMAN_REVIEW_POLICY.md): mandatory human review policy

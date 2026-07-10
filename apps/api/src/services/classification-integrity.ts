@@ -51,6 +51,8 @@ export function deriveProcessingLabel(status: ClassificationRunStatus) {
       return 'Completed';
     case 'needs_attention':
       return 'Needs attention';
+    case 'blocked':
+      return 'Blocked';
     case 'running':
       return 'Processing';
     case 'unknown':
@@ -63,6 +65,23 @@ export function deriveProcessingLabel(status: ClassificationRunStatus) {
     default:
       return 'Uploaded';
   }
+}
+
+export function isValidClassificationStatusTransition(
+  from: ClassificationRunStatus,
+  to: ClassificationRunStatus,
+) {
+  const transitions: Record<ClassificationRunStatus, ClassificationRunStatus[]> = {
+    pending: ['queued', 'failed', 'blocked'],
+    queued: ['running', 'unknown', 'failed', 'blocked'],
+    running: ['completed', 'needs_attention', 'unknown', 'failed', 'blocked'],
+    unknown: ['running', 'completed', 'needs_attention', 'failed', 'blocked'],
+    completed: [],
+    failed: [],
+    needs_attention: ['running', 'blocked'],
+    blocked: ['running'],
+  };
+  return transitions[from].includes(to);
 }
 
 export function deriveReviewStatus(

@@ -4,7 +4,7 @@
 
 Primary image reference:
 
-`ghcr.io/jungle-grid/substrata-jungle-grid-inference:latest`
+`ghcr.io/jungle-grid/substrata-jungle-grid-inference:rocm`
 
 Versioned image references will also be published by commit SHA from CI:
 
@@ -13,7 +13,7 @@ Versioned image references will also be published by commit SHA from CI:
 ## Baked Model
 
 - Model baked into the image: `gemma4:12b`
-- Runtime: default `ollama/ollama:latest` image
+- Runtime: `ollama/ollama:rocm`. Pin the resolved image digest in production before the demo.
 
 ### Why `gemma4:12b`
 
@@ -32,9 +32,10 @@ Operational assumption:
 
 ## Runtime Contract
 
-- Exposed port: `11434`
-- API shape: standard Ollama HTTP API
-- Primary generation endpoint: `POST /api/generate`
+- Job entrypoint: `/app/run-extraction.sh`
+- Required job environment: `SUBSTRATA_MODEL`, `SUBSTRATA_PROMPT`
+- Output: the entrypoint prints the model's structured JSON response to stdout.
+- The Substrata worker validates that response before persistence.
 
 Example request:
 
@@ -53,6 +54,11 @@ The workflow that publishes this image is:
 
 It builds `infra/jungle-grid-image/Dockerfile` and pushes to GHCR using the repository owner namespace.
 
-## Important Note
+## Verification
 
-This image reference is not yet wired into `jungle_grid_backend.py`'s submit payload. That's separate follow-up work, not part of this step.
+The submitter passes model/prompt in the job `environment` payload and invokes the
+entrypoint. Confirm this exact provider contract before the live demo with:
+
+```bash
+python3 workers/classifier/scripts/live_jungle_grid_smoke.py
+```

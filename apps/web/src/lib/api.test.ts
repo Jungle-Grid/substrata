@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { signOut, SessionExpiredError, uploadDocument } from './api';
+import { signOut, SessionExpiredError, uploadCompanyHistoryBatch, uploadDocument } from './api';
 
 test('shared API requests include credentials and CSRF header', async () => {
   const calls: Array<{ url: string; init?: RequestInit }> = [];
@@ -61,6 +61,33 @@ test('authenticated multipart upload preserves credentials and does not force co
   assert.equal(headers.get('x-csrf-token'), 'csrf-token');
   assert.equal(headers.has('Content-Type'), false);
   assert.equal(calls[0]?.init?.body instanceof FormData, true);
+});
+
+test('Company History batch upload uses the private history endpoint with credentialed multipart form data', async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), init });
+    return new Response(JSON.stringify({ id: 'batch_123', status: 'queued', totals: null, documents: [] }), {
+      status: 202,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }) as typeof fetch;
+
+  try {
+    await uploadCompanyHistoryBatch({
+      recordType: 'prior_memo',
+      files: [new File(['Prior internal review'], 'prior-review.txt', { type: 'text/plain' })],
+      csrfToken: 'csrf-token',
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.match(calls[0]?.url ?? '', /\/history\/batches$/);
+  assert.equal(calls[0]?.init?.credentials, 'include');
+  assert.equal(calls[0]?.init?.body instanceof FormData, true);
+  assert.equal(new Headers(calls[0]?.init?.headers).get('x-csrf-token'), 'csrf-token');
 });
 
 test('protected 401 responses redirect to sign-in with a safe return path', async () => {

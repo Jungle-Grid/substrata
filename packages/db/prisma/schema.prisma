@@ -62,6 +62,26 @@ enum ClassificationRunStatus {
   completed
   failed
   needs_attention
+  blocked
+}
+
+enum ExecutionJobStatus {
+  queued
+  submitted
+  running
+  completed
+  failed
+  blocked
+  unknown
+}
+
+enum ArtifactKind {
+  source_document
+  extracted_text
+  structured_output
+  memo_markdown
+  worker_log
+  execution_metadata
 }
 
 enum HumanReviewStatus {
@@ -155,6 +175,39 @@ enum PublicDemoPublicationStatus {
   unpublished
 }
 
+enum CompanyHistoryBatchStatus {
+  queued
+  processing
+  completed
+  completed_with_errors
+  failed
+}
+
+enum CompanyHistoryRecordType {
+  datasheet
+  prior_memo
+  catalog
+  review_note
+  spreadsheet
+  approval_record
+  technical_spec
+  other
+}
+
+enum CompanyHistoryIngestionStatus {
+  queued
+  processing
+  indexed
+  duplicate
+  failed
+}
+
+enum CompanyHistoryMatchTier {
+  direct
+  partial
+  weak
+}
+
 model Organization {
   id                 String              @id @default(cuid())
   name               String
@@ -176,8 +229,14 @@ model Organization {
   factIssues         FactIssue[]
   reviewerActions    ReviewerAction[]
   auditEvents        AuditEvent[]
+  artifacts          Artifact[]
+  executionJobs      ExecutionJob[]
   sessions           Session[]
   workspaceInvites   WorkspaceInvite[]
+  companyHistoryBatches CompanyHistoryBatch[]
+  companyHistoryDocuments CompanyHistoryDocument[]
+  companyHistoryChunks CompanyHistoryChunk[]
+  classificationHistoryMatches ClassificationHistoryMatch[]
 }
 
 model User {
@@ -200,6 +259,7 @@ model User {
   acceptedInvites       WorkspaceInvite[]        @relation("WorkspaceInviteAccepter")
   demoPublications      PublicDemoPublication[]
   reviewerActions       ReviewerAction[]
+  createdCompanyHistoryBatches CompanyHistoryBatch[] @relation("CompanyHistoryBatchCreator")
 }
 
 model PasswordCredential {
@@ -336,8 +396,11 @@ model Document {
   organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   classificationRuns ClassificationRun[]
   extractedFacts     ExtractedSpec[]
+  artifacts          Artifact[]
+  companyHistoryDocument CompanyHistoryDocument?
 
   @@index([organizationId, createdAt])
+  @@index([organizationId, sha256])
 }
 
 model ClassificationRun {
@@ -370,6 +433,8 @@ model ClassificationRun {
   memoArtifactPath      String?
   capabilitySignals     Json?
   validationIssues      Json?
+  fallbackUsed          Boolean                  @default(false)
+  validationStatus      String                   @default("pending")
   errorMessage          String?
   completedAt           DateTime?
   createdAt             DateTime                 @default(now())
@@ -386,8 +451,66 @@ model ClassificationRun {
   reviewerActions       ReviewerAction[]
   citations             Citation[]
   publicDemoPublication PublicDemoPublication?
+  executionJob          ExecutionJob?
+  artifacts             Artifact[]
+  companyHistoryMatches ClassificationHistoryMatch[]
 
   @@index([organizationId, createdAt])
+  @@index([documentId, createdAt])
+}
+
+model ExecutionJob {
+  id                  String             @id @default(cuid())
+  organizationId      String
+  classificationRunId String             @unique
+  backend             String
+  status              ExecutionJobStatus @default(queued)
+  externalJobId       String?            @unique
+  provider            String?
+  gpuVendor           String?
+  gpuName             String?
+  runtimeVersion      String?
+  modelName           String?
+  imageName           String?
+  imageDigest         String?
+  queuedAt            DateTime           @default(now())
+  submittedAt         DateTime?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  durationMs          Float?
+  costEstimateUsd     Float?
+  costActualUsd       Float?
+  inputTokens         Int?
+  outputTokens        Int?
+  logPath             String?
+  metadata            Json?
+  errorMessage        String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  classificationRun   ClassificationRun  @relation(fields: [classificationRunId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, createdAt])
+}
+
+model Artifact {
+  id                  String             @id @default(cuid())
+  organizationId      String
+  classificationRunId String?
+  documentId          String?
+  kind                ArtifactKind
+  storagePath         String
+  fileName            String
+  mimeType            String?
+  sizeBytes           Int?
+  sha256              String?
+  metadata            Json?
+  createdAt           DateTime           @default(now())
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  classificationRun   ClassificationRun? @relation(fields: [classificationRunId], references: [id], onDelete: Cascade)
+  document            Document?          @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, classificationRunId, createdAt])
   @@index([documentId, createdAt])
 }
 
@@ -708,4 +831,94 @@ model AuditEvent {
 
   @@index([organizationId, createdAt])
   @@index([entityType, entityId])
+}
+
+model CompanyHistoryBatch {
+  id             String                    @id @default(cuid())
+  organizationId String
+  createdByUserId String
+  name           String
+  status         CompanyHistoryBatchStatus @default(queued)
+  fileCount      Int                       @default(0)
+  completedCount Int                       @default(0)
+  failedCount    Int                       @default(0)
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  organization   Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdByUser  User                      @relation("CompanyHistoryBatchCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  documents      CompanyHistoryDocument[]
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status, createdAt])
+}
+
+model CompanyHistoryDocument {
+  id                              String                        @id @default(cuid())
+  organizationId                  String
+  batchId                         String
+  documentId                      String                        @unique
+  recordType                      CompanyHistoryRecordType      @default(other)
+  ingestionStatus                 CompanyHistoryIngestionStatus @default(queued)
+  attemptCount                    Int                           @default(0)
+  errorCode                       String?
+  errorMessage                    String?
+  metadata                        Json?
+  ingestionVersion                Int                           @default(1)
+  processedAt                     DateTime?
+  duplicateOfHistoryDocumentId    String?
+  createdAt                       DateTime                      @default(now())
+  updatedAt                       DateTime                      @updatedAt
+  organization                    Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  batch                           CompanyHistoryBatch          @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  document                        Document                     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  duplicateOfHistoryDocument      CompanyHistoryDocument?      @relation("CompanyHistoryDocumentDuplicates", fields: [duplicateOfHistoryDocumentId], references: [id], onDelete: SetNull)
+  duplicateHistoryDocuments       CompanyHistoryDocument[]     @relation("CompanyHistoryDocumentDuplicates")
+  chunks                          CompanyHistoryChunk[]
+  classificationHistoryMatches    ClassificationHistoryMatch[]
+
+  @@index([organizationId, batchId, createdAt])
+  @@index([organizationId, ingestionStatus, createdAt])
+}
+
+model CompanyHistoryChunk {
+  id                       String                 @id @default(cuid())
+  organizationId           String
+  companyHistoryDocumentId String
+  ordinal                  Int
+  content                  String
+  charStart                Int
+  charEnd                  Int
+  contentHash              String
+  ingestionVersion         Int
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  organization             Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  companyHistoryDocument   CompanyHistoryDocument @relation(fields: [companyHistoryDocumentId], references: [id], onDelete: Cascade)
+  classificationHistoryMatches ClassificationHistoryMatch[]
+
+  @@unique([companyHistoryDocumentId, ingestionVersion, ordinal])
+  @@index([organizationId, createdAt])
+  @@index([organizationId, companyHistoryDocumentId, ingestionVersion])
+}
+
+model ClassificationHistoryMatch {
+  id                       String                  @id @default(cuid())
+  organizationId           String
+  classificationRunId      String
+  companyHistoryDocumentId String
+  companyHistoryChunkId    String
+  rank                     Int
+  score                    Float
+  matchTier                CompanyHistoryMatchTier
+  matchReasons             Json
+  retrievalMethod          String
+  retrievalVersion         String
+  createdAt                DateTime                @default(now())
+  organization             Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  classificationRun        ClassificationRun       @relation(fields: [classificationRunId], references: [id], onDelete: Cascade)
+  companyHistoryDocument   CompanyHistoryDocument  @relation(fields: [companyHistoryDocumentId], references: [id], onDelete: Cascade)
+  companyHistoryChunk      CompanyHistoryChunk     @relation(fields: [companyHistoryChunkId], references: [id], onDelete: Cascade)
+
+  @@unique([classificationRunId, companyHistoryChunkId])
+  @@index([organizationId, classificationRunId, rank])
 }

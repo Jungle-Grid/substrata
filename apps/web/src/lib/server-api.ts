@@ -5,6 +5,8 @@ import type {
   AuditEventRecord,
   AuthSessionRecord,
   ClassificationRunRecord,
+  CompanyHistoryBatchRecord,
+  CompanyHistoryDocumentRecord,
   DemoPublicationStatusRecord,
   DocumentRecord,
   InviteRecord,
@@ -141,4 +143,16 @@ export function fetchServerTeam() {
 
 export function fetchServerAuditLog() {
   return serverFetch<{ events: AuditEventRecord[] }>('/audit-log');
+}
+
+export function fetchServerCompanyHistoryBatches() {
+  return serverFetch<{ batches: CompanyHistoryBatchRecord[] }>('/history/batches');
+}
+
+export function fetchServerCompanyHistoryBatch(id: string) {
+  return serverFetch<CompanyHistoryBatchRecord>(`/history/batches/${id}`);
+}
+
+export function fetchServerCompanyHistoryDocument(id: string) {
+  return serverFetch<CompanyHistoryDocumentRecord>(`/history/documents/${id}`);
 }

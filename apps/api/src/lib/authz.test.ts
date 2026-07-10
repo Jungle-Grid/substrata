@@ -3,6 +3,7 @@ import test from 'node:test';
 import { env } from '../config/env';
 import {
   canCreateClassification,
+  canManageCompanyHistory,
   canManagePublicDemo,
   canManageTeam,
   canManageWorkspace,
@@ -22,6 +23,14 @@ test('classification creation and review permissions follow role boundaries', ()
   assert.equal(canCreateClassification('VIEWER'), false);
   assert.equal(canSubmitReview('REVIEWER'), true);
   assert.equal(canSubmitReview('ANALYST'), false);
+});
+
+test('only owners and admins can manage Company History uploads and reprocessing', () => {
+  assert.equal(canManageCompanyHistory('OWNER'), true);
+  assert.equal(canManageCompanyHistory('ADMIN'), true);
+  assert.equal(canManageCompanyHistory('REVIEWER'), false);
+  assert.equal(canManageCompanyHistory('ANALYST'), false);
+  assert.equal(canManageCompanyHistory('VIEWER'), false);
 });
 
 test('public demo publishing can require both admin role and internal email allowlist', () => {

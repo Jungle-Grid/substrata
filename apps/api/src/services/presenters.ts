@@ -14,6 +14,11 @@ import type {
   ReviewPath,
   ReviewPathFact,
   ReviewerAction,
+  ExecutionJob,
+  Artifact,
+  ClassificationHistoryMatch,
+  CompanyHistoryChunk,
+  CompanyHistoryDocument,
   User,
 } from '@substrata/db';
 import {
@@ -37,6 +42,11 @@ type ECCNCandidateWithRelations = ECCNCandidate & {
   factMappings: Array<CandidateFactMapping & { extractedSpec: ExtractedSpec }>;
 };
 
+type CompanyHistoryMatchWithRelations = ClassificationHistoryMatch & {
+  companyHistoryChunk: CompanyHistoryChunk;
+  companyHistoryDocument: CompanyHistoryDocument & { document: Document };
+};
+
 type RunWithRelations = ClassificationRun & {
   document: Document;
   extractedSpecs: ExtractedSpec[];
@@ -47,6 +57,9 @@ type RunWithRelations = ClassificationRun & {
   reviewMemoVersions: ReviewMemoVersion[];
   humanReviews: Array<HumanReview & { reviewer?: User | null }>;
   reviewerActions: Array<ReviewerAction & { actorUser?: User | null }>;
+  executionJob?: ExecutionJob | null;
+  artifacts?: Artifact[];
+  companyHistoryMatches?: CompanyHistoryMatchWithRelations[];
 };
 
 type PublicDemoRunWithPublication = PublicDemoPublication & {
@@ -229,6 +242,25 @@ function presentCandidate(candidate: ECCNCandidateWithRelations) {
   };
 }
 
+export function hasVerifiedSpecificCandidateEvidence(candidate: Pick<ECCNCandidate, 'isSpecificEccn' | 'eccn' | 'paragraphReference' | 'controlCriteria'> & {
+  regulationSource?: Pick<RegulationSource, 'verificationStatus' | 'regulationVersion' | 'lastVerifiedAt'> | null;
+  factMappings: Array<unknown>;
+  citations: Array<unknown>;
+}) {
+  return Boolean(
+    candidate.isSpecificEccn &&
+      isValidSpecificEccn(candidate.eccn) &&
+      candidate.regulationSource?.verificationStatus === 'current' &&
+      candidate.regulationSource.regulationVersion &&
+      candidate.regulationSource.lastVerifiedAt &&
+      candidate.paragraphReference &&
+      Array.isArray(candidate.controlCriteria) &&
+      candidate.controlCriteria.length > 0 &&
+      candidate.factMappings.length > 0 &&
+      candidate.citations.length > 0,
+  );
+}
+
 function presentMemo(record: ReviewMemo | null, versions: ReviewMemoVersion[]) {
   if (!record) {
     return null;
@@ -312,6 +344,27 @@ function presentFactIssue(issue: FactIssue) {
   };
 }
 
+function presentCompanyHistoryMatch(match: CompanyHistoryMatchWithRelations) {
+  return {
+    id: match.id,
+    rank: match.rank,
+    score: match.score,
+    matchTier: match.matchTier,
+    matchReasons: Array.isArray(match.matchReasons)
+      ? match.matchReasons.filter((reason): reason is string => typeof reason === 'string')
+      : [],
+    retrievalMethod: match.retrievalMethod,
+    retrievalVersion: match.retrievalVersion,
+    createdAt: match.createdAt,
+    sourceFileName: match.companyHistoryDocument.document.fileName,
+    sourceTitle: match.companyHistoryDocument.document.title,
+    importedAt: match.companyHistoryDocument.createdAt,
+    companyHistoryDocumentId: match.companyHistoryDocumentId,
+    companyHistoryChunkId: match.companyHistoryChunkId,
+    excerpt: match.companyHistoryChunk.content,
+  };
+}
+
 export function presentRun(run: RunWithRelations) {
   const review = latestReview(run);
   const reviewStatus = deriveReviewStatus(review, run.requiresHumanReview);
@@ -347,6 +400,45 @@ export function presentRun(run: RunWithRelations) {
     memoArtifactPath: run.memoArtifactPath,
     capabilitySignals: presentCapabilitySignals(run.capabilitySignals),
     validationIssues: presentValidationIssues(run.validationIssues),
+    fallbackUsed: run.fallbackUsed,
+    validationStatus: run.validationStatus,
+    executionProvenance: run.executionJob
+      ? {
+          id: run.executionJob.id,
+          status: run.executionJob.status,
+          backend: run.executionJob.backend,
+          externalJobId: run.executionJob.externalJobId,
+          provider: run.executionJob.provider,
+          gpuVendor: run.executionJob.gpuVendor,
+          gpuName: run.executionJob.gpuName,
+          runtimeVersion: run.executionJob.runtimeVersion,
+          modelName: run.executionJob.modelName,
+          imageName: run.executionJob.imageName,
+          imageDigest: run.executionJob.imageDigest,
+          queuedAt: run.executionJob.queuedAt,
+          submittedAt: run.executionJob.submittedAt,
+          startedAt: run.executionJob.startedAt,
+          completedAt: run.executionJob.completedAt,
+          durationMs: run.executionJob.durationMs,
+          costEstimateUsd: run.executionJob.costEstimateUsd,
+          costActualUsd: run.executionJob.costActualUsd,
+          inputTokens: run.executionJob.inputTokens,
+          outputTokens: run.executionJob.outputTokens,
+          logPath: run.executionJob.logPath,
+          errorMessage: run.executionJob.errorMessage,
+        }
+      : null,
+    artifacts: (run.artifacts ?? []).map((artifact) => ({
+      id: artifact.id,
+      kind: artifact.kind,
+      storagePath: artifact.storagePath,
+      fileName: artifact.fileName,
+      mimeType: artifact.mimeType,
+      sizeBytes: artifact.sizeBytes,
+      sha256: artifact.sha256,
+      createdAt: artifact.createdAt,
+    })),
+    companyHistoryMatches: (run.companyHistoryMatches ?? []).map(presentCompanyHistoryMatch),
     completedAt: run.completedAt,
     createdAt: run.createdAt,
     lastReviewerActionAt: run.lastReviewerActionAt,
@@ -375,7 +467,7 @@ export function presentRun(run: RunWithRelations) {
     factIssues: (run.factIssues ?? []).map(presentFactIssue),
     reviewPaths: (run.reviewPaths ?? []).map(presentReviewPath),
     eccnCandidates: (run.eccnCandidates ?? [])
-      .filter((candidate) => candidate.isSpecificEccn && isValidSpecificEccn(candidate.eccn))
+      .filter(hasVerifiedSpecificCandidateEvidence)
       .map(presentCandidate),
     reviewMemo: presentMemo(run.reviewMemo, run.reviewMemoVersions ?? []),
     humanReviews: (run.humanReviews ?? []).map(presentHumanReview),
@@ -414,6 +506,8 @@ export function presentPublicDemoRun(publication: PublicDemoRunWithPublication) 
     tokensUsed: run.tokensUsed,
     uncertaintyFlags: run.uncertaintyFlags,
     requiresHumanReview: run.requiresHumanReview,
+    fallbackUsed: run.fallbackUsed,
+    validationStatus: run.validationStatus,
     publicTitle: publication.publicTitle ?? run.document.title,
     publicSummary:
       publication.publicSummary ??
@@ -439,7 +533,7 @@ export function presentPublicDemoRun(publication: PublicDemoRunWithPublication) 
     factIssues: run.factIssues.map(presentFactIssue),
     reviewPaths: run.reviewPaths.map(presentReviewPath),
     eccnCandidates: run.eccnCandidates
-      .filter((candidate) => candidate.isSpecificEccn)
+      .filter(hasVerifiedSpecificCandidateEvidence)
       .map(presentCandidate),
     reviewMemo: run.reviewMemo
       ? {

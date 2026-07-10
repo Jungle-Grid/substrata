@@ -40,6 +40,7 @@ jobs:
           images: ${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest
+            type=raw,value=rocm
             type=sha,prefix=sha-
 
       - name: Build and push image

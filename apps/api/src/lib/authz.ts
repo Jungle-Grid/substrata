@@ -24,6 +24,10 @@ export function canManageWorkspace(role: MembershipRole) {
   return hasRole(role, ['OWNER', 'ADMIN']);
 }
 
+export function canManageCompanyHistory(role: MembershipRole) {
+  return hasRole(role, ['OWNER', 'ADMIN']);
+}
+
 export function canCreateClassification(role: MembershipRole) {
   return hasRole(role, ['OWNER', 'ADMIN', 'REVIEWER', 'ANALYST']);
 }

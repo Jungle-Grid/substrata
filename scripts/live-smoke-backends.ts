@@ -1,5 +1,5 @@
 import { prisma } from '@substrata/db';
-import { createClassificationRun } from '../apps/api/src/services/classification.service';
+import { enqueueClassificationRun } from '../apps/api/src/services/classification.service';
 
 type ExecutionPreference = 'fireworks' | 'jungle_grid' | 'auto';
 
@@ -76,7 +76,7 @@ async function main() {
     },
   });
 
-  const run = await createClassificationRun({
+  const run = await enqueueClassificationRun({
     documentId: document.id,
     organizationId: organization.id,
     actorUserId: user.id,

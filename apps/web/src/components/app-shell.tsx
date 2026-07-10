@@ -8,6 +8,7 @@ import { SignOutButton } from './sign-out-button';
 const navItems = [
   { href: '/app', label: 'Overview' },
   { href: '/app/documents', label: 'Documents' },
+  { href: '/app/company-history', label: 'Company History' },
   { href: '/app/reviews', label: 'Classification Reviews' },
   { href: '/app/review-queue', label: 'Review Queue' },
   { href: '/app/memos', label: 'Memos' },
@@ -66,7 +67,9 @@ export function AppShell({
             </div>
             <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-6">
               {navItems.map((item) => {
-                const active = currentPath === item.href || currentPath.startsWith(`${item.href}/`);
+                const active =
+                  currentPath === item.href ||
+                  (item.href !== '/app' && currentPath.startsWith(`${item.href}/`));
                 return (
                   <Link
                     key={item.href}

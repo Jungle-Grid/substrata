@@ -1,8 +1,9 @@
-FROM ollama/ollama:latest
+FROM ollama/ollama:rocm
 
 SHELL ["/bin/bash", "-lc"]
 
 ENV OLLAMA_HOST=0.0.0.0:11434
+ENV SUBSTRATA_RUNTIME_BACKEND=rocm
 
 # Pre-bake the model into the image so Jungle Grid jobs do not pull it live at submit time.
 # Build-time pull happens in CI, not on the developer workstation.
@@ -16,6 +17,9 @@ RUN ollama serve >/tmp/ollama-build.log 2>&1 & \
     kill "${OLLAMA_PID}" && \
     wait "${OLLAMA_PID}" || true
 
+COPY run-extraction.sh /app/run-extraction.sh
+RUN chmod +x /app/run-extraction.sh
+
 EXPOSE 11434
 
-ENTRYPOINT ["ollama", "serve"]
+ENTRYPOINT ["/app/run-extraction.sh"]

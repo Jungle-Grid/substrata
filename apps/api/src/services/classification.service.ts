@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import {
   Prisma,
   prisma,
@@ -19,6 +20,11 @@ import {
 import { HttpError } from '../lib/errors';
 import { createStorageDriver } from './storage';
 import { runLocalWorker } from './worker-runtime';
+import {
+  appendCompanyHistoryComparison,
+  retrieveCompanyHistory,
+  type RetrievedCompanyHistoryMatch,
+} from './history-retrieval.service';
 
 const storage = createStorageDriver();
 const PUBLIC_DEMO_PUBLICATION_ID = 'global-public-demo';
@@ -99,6 +105,25 @@ const classificationRunInclude = {
     },
     orderBy: {
       createdAt: 'desc',
+    },
+  },
+  executionJob: true,
+  artifacts: {
+    orderBy: {
+      createdAt: 'asc',
+    },
+  },
+  companyHistoryMatches: {
+    orderBy: {
+      rank: 'asc',
+    },
+    include: {
+      companyHistoryChunk: true,
+      companyHistoryDocument: {
+        include: {
+          document: true,
+        },
+      },
     },
   },
 } as const;
@@ -253,7 +278,7 @@ function deriveWorkflowState(status: HumanReviewStatus, workflowState?: ReviewWo
   }
 }
 
-export async function createClassificationRun(input: {
+export async function enqueueClassificationRun(input: {
   documentId: string;
   organizationId: string;
   actorUserId: string;
@@ -265,35 +290,182 @@ export async function createClassificationRun(input: {
       id: input.documentId,
       organizationId: input.organizationId,
     },
+    include: {
+      companyHistoryDocument: true,
+    },
   });
+
+  if (document.companyHistoryDocument) {
+    throw new HttpError(
+      409,
+      'Company History documents are internal reference material and cannot be started as a classification review.',
+    );
+  }
 
   const run = await prisma.classificationRun.create({
     data: {
       organizationId: input.organizationId,
       documentId: input.documentId,
       trigger: input.trigger,
-      status: 'pending',
+      status: 'queued',
       workflowState: 'draft_generated',
       uncertaintyFlags: ['limited_regulatory_coverage'],
       requiresHumanReview: true,
+      validationStatus: 'pending',
       conclusionDisclaimer:
         'Classification support, not legal advice. Requires qualified reviewer confirmation.',
+      executionJob: {
+        create: {
+          organizationId: input.organizationId,
+          backend: input.executionPreference,
+          status: 'queued',
+          modelName: executionModelForPreference(input.executionPreference),
+          imageName:
+            input.executionPreference === 'jungle_grid'
+              ? process.env.JUNGLE_GRID_IMAGE ?? null
+              : null,
+          metadata: {
+            trigger: input.trigger,
+            documentOrigin: document.origin,
+            documentVisibility: document.visibility,
+          },
+        },
+      },
     },
+    include: classificationRunInclude,
   });
 
   await recordAuditEvent({
     organizationId: input.organizationId,
     actorUserId: input.actorUserId,
     actor: 'user',
-    action: 'classification_run.started',
+    action: 'classification_run.queued',
     entityType: 'ClassificationRun',
     entityId: run.id,
-      metadata: {
-        documentId: document.id,
-        trigger: input.trigger,
-        executionPreference: input.executionPreference,
-      },
-    });
+    metadata: {
+      documentId: document.id,
+      trigger: input.trigger,
+      executionPreference: input.executionPreference,
+    },
+  });
+
+  queueMicrotask(() => {
+    void executeClassificationRun({ ...input, classificationRunId: run.id });
+  });
+
+  return run;
+}
+
+function executionModelForPreference(
+  preference: 'local' | 'fireworks' | 'jungle_grid' | 'auto',
+) {
+  if (preference === 'jungle_grid') return process.env.JUNGLE_GRID_MODEL ?? null;
+  if (preference === 'fireworks') return process.env.FIREWORKS_MODEL ?? null;
+  if (preference === 'local') return process.env.GEMMA_MODEL ?? null;
+  return null;
+}
+
+export function determineExecutionCompletion(input: {
+  classificationMode?: unknown;
+  backendStatus?: unknown;
+  validationIssues: Array<{ severity: 'error' | 'warning' }>;
+}) {
+  const fallbackUsed =
+    input.classificationMode === 'heuristic_fallback' ||
+    input.classificationMode === 'heuristic' ||
+    input.backendStatus !== 'completed';
+  const hasErrors = input.validationIssues.some((issue) => issue.severity === 'error');
+  return {
+    fallbackUsed,
+    status:
+      input.backendStatus === 'unknown'
+        ? 'unknown'
+        : fallbackUsed || hasErrors
+          ? 'needs_attention'
+          : 'completed',
+    validationStatus: hasErrors ? 'failed' : fallbackUsed || input.validationIssues.length > 0 ? 'warnings' : 'passed',
+  } as const;
+}
+
+export function getPublicDemoEligibility(input: {
+  status: string;
+  completedAt?: Date | null;
+  fallbackUsed: boolean;
+  validationStatus: string;
+  hasMemo: boolean;
+  hasExternalJobId: boolean;
+  documentOrigin: string;
+  documentVisibility: string;
+  historyMatchCount?: number;
+}) {
+  if (input.status !== 'completed' || !input.completedAt) {
+    return { eligible: false, reason: 'Only completed classification runs can be published.' } as const;
+  }
+  if (input.fallbackUsed || input.validationStatus !== 'passed') {
+    return { eligible: false, reason: 'Fallback, blocked, or unverified runs cannot be published as a public demo.' } as const;
+  }
+  if (!input.hasMemo) {
+    return { eligible: false, reason: 'A draft review memo is required before publishing.' } as const;
+  }
+  if (!input.hasExternalJobId) {
+    return { eligible: false, reason: 'Public demo publication requires a verifiable execution job ID and provenance record.' } as const;
+  }
+  if (input.documentOrigin !== 'public' || input.documentVisibility === 'private') {
+    return { eligible: false, reason: 'Only documents explicitly marked public and shareable can be published as a demo.' } as const;
+  }
+  if ((input.historyMatchCount ?? 0) > 0) {
+    return { eligible: false, reason: 'Runs that reference private Company History cannot be published as a public demo.' } as const;
+  }
+  return { eligible: true, reason: null } as const;
+}
+
+export async function executeClassificationRun(input: {
+  documentId: string;
+  organizationId: string;
+  actorUserId: string;
+  trigger: string;
+  executionPreference: 'local' | 'fireworks' | 'jungle_grid' | 'auto';
+  classificationRunId?: string;
+}) {
+  const document = await prisma.document.findFirstOrThrow({
+    where: {
+      id: input.documentId,
+      organizationId: input.organizationId,
+    },
+  });
+
+  if (!input.classificationRunId) {
+    throw new HttpError(500, 'Classification execution requires a queued run.');
+  }
+
+  const run = await prisma.classificationRun.findFirstOrThrow({
+    where: {
+      id: input.classificationRunId,
+      organizationId: input.organizationId,
+      documentId: input.documentId,
+    },
+  });
+
+  await prisma.$transaction([
+    prisma.classificationRun.update({
+      where: { id: run.id },
+      data: { status: 'running', validationStatus: 'running', errorMessage: null },
+    }),
+    prisma.executionJob.update({
+      where: { classificationRunId: run.id },
+      data: { status: 'running', startedAt: new Date(), submittedAt: new Date() },
+    }),
+  ]);
+
+  await recordAuditEvent({
+    organizationId: input.organizationId,
+    actorUserId: input.actorUserId,
+    actor: 'worker',
+    action: 'classification_run.running',
+    entityType: 'ClassificationRun',
+    entityId: run.id,
+    metadata: { executionPreference: input.executionPreference },
+  });
 
   try {
     const sourceText =
@@ -322,6 +494,31 @@ export async function createClassificationRun(input: {
         visibility: document.visibility,
       },
     });
+
+    let historyMatches: RetrievedCompanyHistoryMatch[] = [];
+    try {
+      historyMatches = await retrieveCompanyHistory({
+        organizationId: input.organizationId,
+        documentTitle: document.title,
+        sourceText,
+        extractedSpecs: workerOutput.extractedSpecs,
+      });
+    } catch {
+      await recordAuditEvent({
+        organizationId: input.organizationId,
+        actorUserId: input.actorUserId,
+        actor: 'system',
+        action: 'company_history.retrieval_failed',
+        entityType: 'ClassificationRun',
+        entityId: run.id,
+        metadata: { retrievalMethod: 'postgres_lexical_v1' },
+      });
+    }
+    workerOutput.memoMarkdown = appendCompanyHistoryComparison(
+      workerOutput.memoMarkdown,
+      historyMatches,
+    );
+    await fs.writeFile(workerOutput.artifacts.memoPath, workerOutput.memoMarkdown, 'utf8');
 
     if (isDevelopment()) {
       console.log('Classification worker output summary', {
@@ -549,6 +746,23 @@ export async function createClassificationRun(input: {
         });
       }
 
+      if (historyMatches.length) {
+        await tx.classificationHistoryMatch.createMany({
+          data: historyMatches.map((match) => ({
+            organizationId: input.organizationId,
+            classificationRunId: run.id,
+            companyHistoryDocumentId: match.companyHistoryDocumentId,
+            companyHistoryChunkId: match.companyHistoryChunkId,
+            rank: match.rank,
+            score: match.score,
+            matchTier: match.matchTier,
+            matchReasons: match.matchReasons as Prisma.InputJsonValue,
+            retrievalMethod: match.retrievalMethod,
+            retrievalVersion: match.retrievalVersion,
+          })),
+        });
+      }
+
       const generatedBy = generatedByForWorker(workerOutput);
       const memo = await tx.reviewMemo.create({
         data: {
@@ -666,19 +880,13 @@ export async function createClassificationRun(input: {
       ];
       const backendStatus = workerOutput.runMetadata?.backendStatus;
       const classificationMode = workerOutput.runMetadata?.classificationMode;
-      const usedBackend = workerOutput.runMetadata?.backendUsed;
-      const fellBackFromBackend =
-        classificationMode === 'heuristic_fallback' &&
-        typeof usedBackend === 'string' &&
-        usedBackend.length > 0;
-      const finalStatus =
-        backendStatus === 'unknown'
-          ? 'unknown'
-          : fellBackFromBackend
-            ? 'needs_attention'
-          : validationIssues.some((issue) => issue.severity === 'error')
-            ? 'needs_attention'
-            : 'completed';
+      const completion = determineExecutionCompletion({
+        classificationMode,
+        backendStatus,
+        validationIssues,
+      });
+      const { fallbackUsed, validationStatus } = completion;
+      const finalStatus = completion.status;
       const finalWorkflowState: ReviewWorkflowState =
         finalStatus === 'completed'
           ? 'awaiting_reviewer_assignment'
@@ -692,7 +900,10 @@ export async function createClassificationRun(input: {
           confidence: workerOutput.confidence,
           confidenceRationale: workerOutput.confidenceRationale,
           uncertaintyFlags: workerOutput.uncertaintyFlags,
-          workerJobId: `local-worker-${run.id}`,
+          workerJobId:
+            typeof workerOutput.runMetadata?.executionJobId === 'string'
+              ? workerOutput.runMetadata.executionJobId
+              : `local-worker-${run.id}`,
           workerVersion: 'python-local-v4',
           rulesVersion: 'ear-review-v4',
           backendUsed:
@@ -724,10 +935,12 @@ export async function createClassificationRun(input: {
           memoArtifactPath: workerOutput.artifacts.memoPath,
           capabilitySignals: normalizedIntegrity.capabilitySignals as Prisma.InputJsonValue,
           validationIssues: validationIssues as Prisma.InputJsonValue,
+          fallbackUsed,
+          validationStatus,
           errorMessage:
             finalStatus === 'needs_attention'
               ? [
-                  fellBackFromBackend && typeof workerOutput.runMetadata?.fallbackReason === 'string'
+                  fallbackUsed && typeof workerOutput.runMetadata?.fallbackReason === 'string'
                     ? workerOutput.runMetadata.fallbackReason
                     : null,
                   summarizeValidationIssues(validationIssues),
@@ -740,6 +953,121 @@ export async function createClassificationRun(input: {
               ? new Date()
               : null,
         },
+      });
+
+      await tx.executionJob.update({
+        where: { classificationRunId: run.id },
+        data: {
+          status:
+            finalStatus === 'completed'
+              ? 'completed'
+              : finalStatus === 'unknown'
+                ? 'unknown'
+                : 'blocked',
+          externalJobId:
+            typeof workerOutput.runMetadata?.executionJobId === 'string'
+              ? workerOutput.runMetadata.executionJobId
+              : null,
+          provider:
+            typeof workerOutput.runMetadata?.underlyingProvider === 'string'
+              ? workerOutput.runMetadata.underlyingProvider
+              : null,
+          gpuVendor:
+            typeof workerOutput.runMetadata?.gpuVendor === 'string'
+              ? workerOutput.runMetadata.gpuVendor
+              : null,
+          gpuName:
+            typeof workerOutput.runMetadata?.gpuName === 'string'
+              ? workerOutput.runMetadata.gpuName
+              : null,
+          runtimeVersion:
+            typeof workerOutput.runMetadata?.runtimeVersion === 'string'
+              ? workerOutput.runMetadata.runtimeVersion
+              : null,
+          modelName:
+            typeof workerOutput.runMetadata?.backendModel === 'string'
+              ? workerOutput.runMetadata.backendModel
+              : null,
+          imageName:
+            typeof workerOutput.runMetadata?.imageName === 'string'
+              ? workerOutput.runMetadata.imageName
+              : null,
+          imageDigest:
+            typeof workerOutput.runMetadata?.imageDigest === 'string'
+              ? workerOutput.runMetadata.imageDigest
+              : null,
+          durationMs:
+            typeof workerOutput.runMetadata?.latencyMs === 'number'
+              ? workerOutput.runMetadata.latencyMs
+              : null,
+          costActualUsd:
+            typeof workerOutput.runMetadata?.costUsd === 'number'
+              ? workerOutput.runMetadata.costUsd
+              : null,
+          inputTokens:
+            typeof workerOutput.runMetadata?.inputTokens === 'number'
+              ? workerOutput.runMetadata.inputTokens
+              : null,
+          outputTokens:
+            typeof workerOutput.runMetadata?.outputTokens === 'number'
+              ? workerOutput.runMetadata.outputTokens
+              : null,
+          logPath:
+            typeof workerOutput.runMetadata?.workerLogPath === 'string'
+              ? workerOutput.runMetadata.workerLogPath
+              : null,
+          completedAt: new Date(),
+          errorMessage: finalStatus === 'completed' ? null : 'Execution output requires human or operational attention.',
+          metadata: workerOutput.runMetadata as Prisma.InputJsonValue,
+        },
+      });
+
+      const artifactInputs = [
+        {
+          kind: 'source_document' as const,
+          storagePath: document.storagePath,
+          fileName: document.fileName,
+          mimeType: document.mimeType,
+          sizeBytes: document.sizeBytes,
+          sha256: document.sha256,
+          documentId: document.id,
+        },
+        {
+          kind: 'extracted_text' as const,
+          storagePath: workerOutput.artifacts.extractedTextPath,
+          fileName: path.basename(workerOutput.artifacts.extractedTextPath),
+          mimeType: 'text/plain',
+        },
+        {
+          kind: 'structured_output' as const,
+          storagePath: workerOutput.artifacts.structuredOutputPath,
+          fileName: path.basename(workerOutput.artifacts.structuredOutputPath),
+          mimeType: 'application/json',
+        },
+        {
+          kind: 'memo_markdown' as const,
+          storagePath: workerOutput.artifacts.memoPath,
+          fileName: path.basename(workerOutput.artifacts.memoPath),
+          mimeType: 'text/markdown',
+        },
+        ...(typeof workerOutput.runMetadata?.workerLogPath === 'string'
+          ? [
+              {
+                kind: 'worker_log' as const,
+                storagePath: workerOutput.runMetadata.workerLogPath,
+                fileName: path.basename(workerOutput.runMetadata.workerLogPath),
+                mimeType: 'text/plain',
+              },
+            ]
+          : []),
+      ];
+
+      await tx.artifact.createMany({
+        data: artifactInputs.map((artifact) => ({
+          organizationId: input.organizationId,
+          classificationRunId: run.id,
+          ...artifact,
+        })),
       });
 
       return runRecord;
@@ -775,6 +1103,20 @@ export async function createClassificationRun(input: {
     await recordAuditEvent({
       organizationId: input.organizationId,
       actorUserId: input.actorUserId,
+      actor: 'system',
+      action: 'company_history.retrieved_for_classification',
+      entityType: 'ClassificationRun',
+      entityId: run.id,
+      metadata: {
+        retrievalMethod: 'postgres_lexical_v1',
+        matchCount: historyMatches.length,
+        matchedHistoryDocumentIds: historyMatches.map((match) => match.companyHistoryDocumentId),
+      },
+    });
+
+    await recordAuditEvent({
+      organizationId: input.organizationId,
+      actorUserId: input.actorUserId,
       actor: 'worker',
       action: 'memo.generated',
       entityType: 'ReviewMemo',
@@ -800,6 +1142,16 @@ export async function createClassificationRun(input: {
       data: {
         status: 'failed',
         workflowState: 'draft_generated',
+        validationStatus: 'failed',
+        errorMessage: message,
+      },
+    });
+
+    await prisma.executionJob.update({
+      where: { classificationRunId: run.id },
+      data: {
+        status: 'failed',
+        completedAt: new Date(),
         errorMessage: message,
       },
     });
@@ -1243,12 +1595,19 @@ export async function publishClassificationRunAsPublicDemo(input: {
     throw new HttpError(404, 'Classification run not found.');
   }
 
-  if (existingRun.status !== 'completed' || !existingRun.completedAt) {
-    throw new HttpError(409, 'Only completed classification runs can be published.');
-  }
-
-  if (!existingRun.reviewMemo) {
-    throw new HttpError(409, 'A draft review memo is required before publishing.');
+  const eligibility = getPublicDemoEligibility({
+    status: existingRun.status,
+    completedAt: existingRun.completedAt,
+    fallbackUsed: existingRun.fallbackUsed,
+    validationStatus: existingRun.validationStatus,
+    hasMemo: Boolean(existingRun.reviewMemo),
+    hasExternalJobId: Boolean(existingRun.executionJob?.externalJobId),
+    documentOrigin: existingRun.document.origin,
+    documentVisibility: existingRun.document.visibility,
+    historyMatchCount: existingRun.companyHistoryMatches.length,
+  });
+  if (!eligibility.eligible) {
+    throw new HttpError(409, eligibility.reason);
   }
 
   if (Array.isArray(existingRun.validationIssues) && existingRun.validationIssues.length > 0) {

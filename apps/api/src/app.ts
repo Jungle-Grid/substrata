@@ -16,6 +16,8 @@ import { organizationsRouter } from './routes/organizations';
 import { invitesRouter } from './routes/invites';
 import { auditLogRouter } from './routes/audit-log';
 import { publicRouter } from './routes/public';
+import { historyRouter } from './routes/history';
+import { resumeQueuedCompanyHistoryIngestion } from './services/history-ingestion.service';
 
 export function buildCorsOptions() {
   return {
@@ -47,9 +49,14 @@ export function createApp() {
   v1.use(requireAuth);
   v1.use('/documents', documentsRouter);
   v1.use('/classification-runs', classificationRunsRouter);
+  v1.use('/history', historyRouter);
 
   app.use('/v1', v1);
   app.use(errorHandler);
+
+  queueMicrotask(() => {
+    void resumeQueuedCompanyHistoryIngestion().catch(() => undefined);
+  });
 
   return app;
 }

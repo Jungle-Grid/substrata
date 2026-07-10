@@ -223,8 +223,8 @@ def generate_memo(
 ## 3. Recommended Review Paths
 {chr(10).join(review_path_sections) if review_path_sections else "- No broader review paths were recorded."}
 
-## 4. Potential ECCN Candidates
-- Potential candidates are analytical starting points only and require qualified reviewer confirmation.
+## 4. Potential Review Candidates
+- Any ECCN-formatted identifiers below are unverified review candidates, not classifications or legal conclusions. They require current regulation, threshold, citation, and qualified-review confirmation.
 {chr(10).join(candidate_sections) if candidate_sections else "- No specific ECCN-formatted candidates were recorded from the available source material."}
 
 ## 5. Open Questions and Missing Evidence

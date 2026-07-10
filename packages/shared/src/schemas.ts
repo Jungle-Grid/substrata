@@ -9,6 +9,30 @@ export const membershipRoleSchema = z.enum([
   'VIEWER',
 ]);
 
+export const companyHistoryRecordTypeSchema = z.enum([
+  'datasheet',
+  'prior_memo',
+  'catalog',
+  'review_note',
+  'spreadsheet',
+  'approval_record',
+  'technical_spec',
+  'other',
+]);
+
+export const companyHistoryIngestionStatusSchema = z.enum([
+  'queued',
+  'processing',
+  'indexed',
+  'duplicate',
+  'failed',
+]);
+
+export const companyHistoryBatchUploadSchema = z.object({
+  name: z.string().trim().max(120).optional().default(''),
+  recordType: companyHistoryRecordTypeSchema.optional().default('other'),
+});
+
 export const uncertaintyFlagSchema = z.enum([
   'missing_key_specs',
   'ambiguous_datasheet_language',
@@ -123,7 +147,6 @@ export const documentCreateSchema = z.object({
   title: z.string().min(1).max(255),
   fileName: z.string().min(1).max(255),
   mimeType: z.string().min(1).max(120),
-  storagePath: z.string().min(1),
   sizeBytes: z.number().int().nonnegative().optional(),
   rawText: z.string().optional(),
   sourceType: z.enum(['upload', 'seed', 'manual']).default('upload'),

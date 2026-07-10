@@ -6,6 +6,7 @@ import type {
   AuthSessionRecord,
   ClassificationRunRecord,
   DocumentRecord,
+  CompanyHistoryBatchRecord,
   InviteRecord,
   MembershipRecord,
   MemoListRecord,
@@ -282,7 +283,6 @@ export function createDocumentFromText(payload: {
       fileName: payload.fileName,
       mimeType: 'text/plain',
       sizeBytes: new TextEncoder().encode(payload.rawText).length,
-      storagePath: `manual/${payload.fileName}`,
       rawText: payload.rawText,
       sourceType: 'manual',
     }),
@@ -308,6 +308,49 @@ export function uploadDocument(payload: {
     requiresAuth: true,
     body: form,
   });
+}
+
+export function uploadCompanyHistoryBatch(payload: {
+  name?: string;
+  recordType:
+    | 'datasheet'
+    | 'prior_memo'
+    | 'catalog'
+    | 'review_note'
+    | 'spreadsheet'
+    | 'approval_record'
+    | 'technical_spec'
+    | 'other';
+  files: File[];
+  csrfToken: string;
+}) {
+  const form = new FormData();
+  if (payload.name) form.set('name', payload.name);
+  form.set('recordType', payload.recordType);
+  for (const file of payload.files) form.append('files', file);
+
+  return clientFetch<{
+    id: string;
+    status: string;
+    totals: CompanyHistoryBatchRecord['totals'];
+    documents: Array<{ id: string; fileName: string; status: string }>;
+  }>('/history/batches', {
+    method: 'POST',
+    csrfToken: payload.csrfToken,
+    requiresAuth: true,
+    body: form,
+  });
+}
+
+export function reprocessCompanyHistoryDocument(id: string, csrfToken: string) {
+  return clientFetch<{ id: string; status: string; ingestionVersion: number }>(
+    `/history/documents/${id}/reprocess`,
+    {
+      method: 'POST',
+      csrfToken,
+      requiresAuth: true,
+    },
+  );
 }
 
 export function createSampleDocument(csrfToken: string) {

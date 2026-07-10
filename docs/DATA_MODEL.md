@@ -59,3 +59,11 @@ The key system invariant is:
 `Document -> ClassificationRun -> ExtractedSpec / ECCNCandidate / Citation / ReviewMemo -> HumanReview -> AuditEvent`
 
 This chain ensures every memo and suggestion can be traced back to specific extracted facts and supporting citations.
+
+## Company History Entities
+
+`CompanyHistoryBatch` groups a controlled upload of internal reference files. `CompanyHistoryDocument` links a normal organization-owned `Document` to the batch and records ingestion status, errors, deterministic metadata markers, duplicate state, and ingestion version.
+
+`CompanyHistoryChunk` stores offset-preserving extracted-text chunks. `ClassificationHistoryMatch` links a classification run to the exact historical document and chunk retrieved for reviewer comparison, including rank, deterministic match reasons, retrieval method, and retrieval version.
+
+Company History deliberately does not reuse `Citation`: historical files are internal reference material, not regulation sources. It also does not create an approved classification record from an ECCN-looking string found in a source file.

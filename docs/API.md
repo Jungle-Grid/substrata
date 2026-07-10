@@ -75,6 +75,20 @@
   - unauthenticated sanitized projection for the one active published demo run
   - returns `404` for every non-published or replaced run ID
 
+### Company History
+
+- `POST /history/batches`
+  - owner/admin-only multipart upload of up to 20 historical PDF, TXT, MD, CSV, or JSON files
+  - derives organization from the session, ignores client organization identifiers, validates type/size, hashes files, and queues ingestion
+- `GET /history/batches`
+  - lists organization-scoped upload batches and progress
+- `GET /history/batches/:id`
+  - returns per-file ingestion, duplicate, and error states
+- `GET /history/documents/:id`
+  - returns a historical record’s source-backed markers, indexed excerpts, and match usage
+- `POST /history/documents/:id/reprocess`
+  - owner/admin-only retry for failed or indexed material; increments ingestion version without mutating prior match evidence
+
 ## Future Endpoints
 
 - signed upload/download URLs

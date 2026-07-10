@@ -19,6 +19,15 @@ class BackendResult:
     reason: str
     status: str
     error: str | None = None
+    job_id: str | None = None
+    gpu_vendor: str | None = None
+    gpu_name: str | None = None
+    runtime_version: str | None = None
+    image_name: str | None = None
+    image_digest: str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    log_path: str | None = None
 
 
 class ClassificationBackend(abc.ABC):

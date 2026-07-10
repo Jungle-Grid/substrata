@@ -12,6 +12,10 @@ import { getLocalStorageRoot, workerEntryPoint } from '../lib/paths';
 
 const execFileAsync = promisify(execFile);
 
+export type RuntimeWorkerOutput = Omit<WorkerOutput, 'runMetadata'> & {
+  runMetadata: Record<string, unknown> & { workerLogPath: string };
+};
+
 function logWorkerStderr(documentId: string, stderr?: string) {
   const trimmed = stderr?.trim();
   if (!trimmed) {
@@ -174,7 +178,7 @@ export async function runLocalWorker(input: {
     origin: string;
     visibility: string;
   };
-}) {
+}): Promise<RuntimeWorkerOutput> {
   const runDir = path.join(
     getLocalStorageRoot(),
     'worker-inputs',
@@ -208,9 +212,18 @@ export async function runLocalWorker(input: {
       maxBuffer: 1024 * 1024 * 4,
     });
     logWorkerStderr(input.documentId, stderr);
+    const workerLogPath = path.join(runDir, 'worker.log');
+    await fs.writeFile(workerLogPath, stderr ?? '', 'utf8');
 
     const parsed = workerCliOutputSchema.parse(JSON.parse(stdout));
-    return mapCliOutput(parsed);
+    const mapped = mapCliOutput(parsed);
+    return {
+      ...mapped,
+      runMetadata: {
+        ...(mapped.runMetadata ?? {}),
+        workerLogPath,
+      },
+    } as RuntimeWorkerOutput;
   } catch (error) {
     const stderr =
       typeof error === 'object' &&

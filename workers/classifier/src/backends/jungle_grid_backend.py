@@ -18,7 +18,7 @@ from .base import (
 
 
 DEFAULT_API_URL = "https://api.junglegrid.dev"
-DEFAULT_IMAGE = "ghcr.io/jungle-grid/substrata-jungle-grid-inference:latest"
+DEFAULT_IMAGE = "ghcr.io/jungle-grid/substrata-jungle-grid-inference:rocm"
 DEFAULT_MODEL = "gemma4:12b"
 
 
@@ -145,6 +145,36 @@ def _extract_tokens(payload: dict[str, Any]) -> int:
     return prompt_tokens + completion_tokens
 
 
+def _extract_usage(payload: dict[str, Any]) -> tuple[int, int]:
+    usage = payload.get("usage") or payload.get("metrics") or {}
+    return (
+        int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0),
+        int(usage.get("completion_tokens") or usage.get("output_tokens") or 0),
+    )
+
+
+def _extract_hardware(payload: dict[str, Any]) -> tuple[str | None, str | None, str | None]:
+    scheduling = payload.get("scheduling") or {}
+    hardware = payload.get("hardware") or scheduling.get("hardware") or {}
+    gpu = payload.get("gpu") or scheduling.get("gpu") or hardware.get("gpu") or {}
+    if not isinstance(gpu, dict):
+        gpu = {}
+    vendor = gpu.get("vendor") or hardware.get("gpu_vendor") or payload.get("gpu_vendor")
+    name = gpu.get("name") or gpu.get("model") or hardware.get("gpu_name") or payload.get("gpu_name")
+    runtime = gpu.get("runtime_version") or hardware.get("rocm_version") or payload.get("rocm_version")
+    return (
+        str(vendor).strip() if vendor else None,
+        str(name).strip() if name else None,
+        str(runtime).strip() if runtime else None,
+    )
+
+
+def _extract_image_digest(payload: dict[str, Any]) -> str | None:
+    image = payload.get("image") or (payload.get("scheduling") or {}).get("image") or {}
+    value = image.get("digest") if isinstance(image, dict) else payload.get("image_digest")
+    return str(value).strip() if value else None
+
+
 def _extract_output(payload: dict[str, Any]) -> str:
     for key in ("output", "response", "result"):
         value = payload.get(key)
@@ -246,15 +276,21 @@ def _build_payload(document_text: str, document_metadata: dict[str, Any]) -> dic
     request_id = str(uuid.uuid4())
     image = os.getenv("JUNGLE_GRID_IMAGE", DEFAULT_IMAGE).strip() or DEFAULT_IMAGE
     model = os.getenv("JUNGLE_GRID_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
-    command = ["ollama", "serve"]
+    command = ["/app/run-extraction.sh"]
     return {
         "name": "Substrata ECCN review extraction",
         "workload_type": "inference",
         "image": image,
         "command": command,
+        "environment": {
+            "SUBSTRATA_MODEL": model,
+            "SUBSTRATA_PROMPT": prompt,
+            "SUBSTRATA_RUNTIME_BACKEND": os.getenv("JUNGLE_GRID_RUNTIME_BACKEND", "rocm"),
+        },
         "resources": {
             "gpu": True,
             "gpu_count": 1,
+            "gpu_vendor": os.getenv("JUNGLE_GRID_GPU_VENDOR", "AMD"),
         },
         "prompt": prompt,
         "max_output_tokens": 4000,
@@ -269,6 +305,7 @@ def _build_payload(document_text: str, document_metadata: dict[str, Any]) -> dic
             "document_title": document_metadata.get("document_title"),
             "image": image,
             "model": model,
+            "runtime_backend": os.getenv("JUNGLE_GRID_RUNTIME_BACKEND", "rocm"),
             "client_request_id": request_id,
         },
     }
@@ -305,6 +342,8 @@ class JungleGridBackend(ClassificationBackend):
                 execution = normalize_execution(job_id, resolved, logs=logs)
                 latency_ms = (time.perf_counter() - started) * 1000.0
                 if execution["status"] == "completed":
+                    input_tokens, output_tokens = _extract_usage(resolved)
+                    gpu_vendor, gpu_name, runtime_version = _extract_hardware(resolved)
                     return BackendResult(
                         backend="jungle_grid",
                         underlying_provider=execution["underlying_provider"],
@@ -314,6 +353,14 @@ class JungleGridBackend(ClassificationBackend):
                         tokens_used=int(execution["tokens"] or 0),
                         reason=reason,
                         status="completed",
+                        job_id=job_id,
+                        gpu_vendor=gpu_vendor,
+                        gpu_name=gpu_name,
+                        runtime_version=runtime_version,
+                        image_name=str(payload["image"]),
+                        image_digest=_extract_image_digest(resolved),
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
                     )
                 return BackendResult(
                     backend="jungle_grid",
@@ -364,6 +411,8 @@ class JungleGridBackend(ClassificationBackend):
         latency_ms = (time.perf_counter() - started) * 1000.0
 
         if execution["status"] == "completed":
+            input_tokens, output_tokens = _extract_usage(resolved)
+            gpu_vendor, gpu_name, runtime_version = _extract_hardware(resolved)
             return BackendResult(
                 backend="jungle_grid",
                 underlying_provider=execution["underlying_provider"],
@@ -373,6 +422,14 @@ class JungleGridBackend(ClassificationBackend):
                 tokens_used=int(execution["tokens"] or 0),
                 reason=reason,
                 status="completed",
+                job_id=job_id,
+                gpu_vendor=gpu_vendor,
+                gpu_name=gpu_name,
+                runtime_version=runtime_version,
+                image_name=str(payload["image"]),
+                image_digest=_extract_image_digest(resolved),
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
             )
 
         if execution["status"] == "failed":
@@ -386,6 +443,9 @@ class JungleGridBackend(ClassificationBackend):
                 reason=reason,
                 status="failed",
                 error=str(execution.get("error") or "Execution backend reported a failed job."),
+                job_id=job_id,
+                image_name=str(payload["image"]),
+                image_digest=_extract_image_digest(resolved),
             )
 
         return BackendResult(
@@ -398,6 +458,9 @@ class JungleGridBackend(ClassificationBackend):
             reason=reason,
             status="unknown",
             error=str(execution.get("error") or "Execution backend remains unresolved."),
+            job_id=job_id,
+            image_name=str(payload["image"]),
+            image_digest=_extract_image_digest(resolved),
         )
 
 

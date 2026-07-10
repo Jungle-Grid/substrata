@@ -130,6 +130,23 @@ Human review is mandatory before any output is considered usable for an internal
 - reviewer comments and disposition
 - audit events proving who reviewed what and when
 
+## Company History
+
+Company History is an organization-scoped library of prior internal product and compliance material. It is reference material for qualified reviewer comparison, not regulatory authority or an automatic classification mechanism.
+
+Phase 1 flow:
+
+1. An owner or admin uploads up to 20 PDF, TXT, MD, CSV, or JSON files in a batch.
+2. The API stores each original file under an organization-prefixed private key and creates a `Document` plus `CompanyHistoryDocument` record.
+3. Background ingestion extracts text, stores it on the document, creates offset-preserving chunks, and records cautious source-backed markers.
+4. A classification run first extracts current technical facts using the existing worker.
+5. The API performs organization-scoped Postgres lexical retrieval over the current History chunks and persists the exact matches shown to the reviewer.
+6. The classification memo and review page receive a `Company History Comparison` section with source excerpts and match reasons.
+
+History retrieval never changes ECCN candidates, human-review status, or prior run evidence. A reprocess creates a new ingestion version; chunks already referenced by a completed classification run remain intact.
+
+Phase 2 may add approved embedding retrieval, type-aware DOCX/XLSX extraction, page-level provenance, and normalized prior-review fields. Those additions must retain the same organization boundary and reviewer-only posture.
+
 ## Jungle Grid Later
 
 The worker execution boundary is deliberately separated behind a worker client abstraction. Today it can run locally or as a stub. Later it can submit jobs to Jungle Grid while preserving:

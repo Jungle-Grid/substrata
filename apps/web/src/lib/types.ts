@@ -315,6 +315,58 @@ export interface ClassificationRunRecord {
   memoArtifactPath?: string | null;
   capabilitySignals?: CapabilitySignalRecord[];
   validationIssues?: ValidationIssueRecord[];
+  fallbackUsed?: boolean;
+  validationStatus?: string;
+  executionProvenance?: {
+    id: string;
+    status: string;
+    backend: string;
+    externalJobId?: string | null;
+    provider?: string | null;
+    gpuVendor?: string | null;
+    gpuName?: string | null;
+    runtimeVersion?: string | null;
+    modelName?: string | null;
+    imageName?: string | null;
+    imageDigest?: string | null;
+    queuedAt?: string | null;
+    submittedAt?: string | null;
+    startedAt?: string | null;
+    completedAt?: string | null;
+    durationMs?: number | null;
+    costEstimateUsd?: number | null;
+    costActualUsd?: number | null;
+    inputTokens?: number | null;
+    outputTokens?: number | null;
+    logPath?: string | null;
+    errorMessage?: string | null;
+  } | null;
+  artifacts?: Array<{
+    id: string;
+    kind: string;
+    storagePath: string;
+    fileName: string;
+    mimeType?: string | null;
+    sizeBytes?: number | null;
+    sha256?: string | null;
+    createdAt?: string;
+  }>;
+  companyHistoryMatches?: Array<{
+    id: string;
+    rank: number;
+    score: number;
+    matchTier: 'direct' | 'partial' | 'weak';
+    matchReasons: string[];
+    retrievalMethod: string;
+    retrievalVersion: string;
+    createdAt: string;
+    sourceFileName: string;
+    sourceTitle: string;
+    importedAt: string;
+    companyHistoryDocumentId: string;
+    companyHistoryChunkId: string;
+    excerpt: string;
+  }>;
   createdAt?: string;
   completedAt?: string | null;
   lastReviewerActionAt?: string | null;
@@ -502,4 +554,104 @@ export interface AuditEventRecord {
   entityId: string;
   metadata?: Record<string, unknown> | null;
   createdAt: string;
+}
+
+export type CompanyHistoryRecordType =
+  | 'datasheet'
+  | 'prior_memo'
+  | 'catalog'
+  | 'review_note'
+  | 'spreadsheet'
+  | 'approval_record'
+  | 'technical_spec'
+  | 'other';
+
+export type CompanyHistoryIngestionStatus =
+  | 'queued'
+  | 'processing'
+  | 'indexed'
+  | 'duplicate'
+  | 'failed';
+
+export interface CompanyHistoryBatchRecord {
+  id: string;
+  name: string;
+  status: 'queued' | 'processing' | 'completed' | 'completed_with_errors' | 'failed';
+  fileCount: number;
+  completedCount: number;
+  failedCount: number;
+  createdAt: string;
+  updatedAt: string;
+  totals: {
+    files: number;
+    queued: number;
+    processing: number;
+    indexed: number;
+    failed: number;
+    duplicates: number;
+  } | null;
+  documents: Array<{
+    id: string;
+    documentId: string;
+    fileName: string;
+    title: string;
+    mimeType: string;
+    sizeBytes: number;
+    recordType: CompanyHistoryRecordType;
+    status: CompanyHistoryIngestionStatus;
+    attemptCount: number;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+    processedAt?: string | null;
+    duplicateOf?: { id: string; fileName: string } | null;
+    createdAt: string;
+  }>;
+}
+
+export interface CompanyHistoryDocumentRecord {
+  id: string;
+  recordType: CompanyHistoryRecordType;
+  ingestionStatus: CompanyHistoryIngestionStatus;
+  attemptCount: number;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  metadata?: {
+    extractionVersion?: string;
+    productIdentifiers?: Array<{ value: string; sourceSnippet: string }>;
+    skuModelStrings?: Array<{ value: string; sourceSnippet: string }>;
+    eccnMentions?: Array<{ value: string; sourceSnippet: string }>;
+  } | null;
+  ingestionVersion: number;
+  processedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  document: {
+    id: string;
+    title: string;
+    fileName: string;
+    displayFileName?: string | null;
+    mimeType: string;
+    sizeBytes: number;
+    sha256?: string | null;
+    createdAt: string;
+  };
+  batch: { id: string; name: string; createdAt: string };
+  duplicateOf?: { id: string; fileName: string } | null;
+  chunks: Array<{
+    id: string;
+    ordinal: number;
+    content: string;
+    charStart: number;
+    charEnd: number;
+    ingestionVersion: number;
+  }>;
+  matchUsage: Array<{
+    id: string;
+    rank: number;
+    score: number;
+    matchTier: 'direct' | 'partial' | 'weak';
+    matchReasons: unknown;
+    createdAt: string;
+    classificationRunId: string;
+  }>;
 }
