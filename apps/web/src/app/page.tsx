@@ -2,7 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
-const demoHref = 'https://calendar.app.google/UqNdDvK2Ya1VQ4Rm6';
+const consultationHref = 'https://calendar.app.google/UqNdDvK2Ya1VQ4Rm6';
 
 const workflowSteps = [
   {
@@ -235,8 +235,8 @@ export default function LandingPage() {
               </p>
               <div className="mt-7 flex flex-wrap items-center gap-3">
                 <CTA href="/app">Create company workspace</CTA>
-                <CTA href={demoHref} variant="secondary">
-                  Book a demo
+                <CTA href={consultationHref} variant="secondary">
+                  Schedule a consultation
                 </CTA>
                 <a
                   href="#trust"
@@ -510,8 +510,8 @@ export default function LandingPage() {
               </div>
               <div className="flex flex-wrap gap-3">
                 <CTA href="/app">Create company workspace</CTA>
-                <CTA href={demoHref} variant="secondary">
-                  Book a demo
+                <CTA href={consultationHref} variant="secondary">
+                  Schedule a consultation
                 </CTA>
               </div>
             </div>
@@ -572,8 +572,8 @@ export default function LandingPage() {
           <div>
             <p className="font-medium text-white">Contact</p>
             <div className="mt-3 grid gap-3">
-              <a href={demoHref} target="_blank" rel="noreferrer" className="hover:text-white">
-                Want a demo?
+              <a href={consultationHref} target="_blank" rel="noreferrer" className="hover:text-white">
+                Talk to our team
               </a>
               <a href="mailto:substrata@junglegrid.dev?subject=Substrata%20review" className="hover:text-white">
                 substrata@junglegrid.dev

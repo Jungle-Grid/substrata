@@ -22,7 +22,8 @@ import { createStorageDriver } from './storage';
 import { runLocalWorker } from './worker-runtime';
 import {
   appendCompanyHistoryComparison,
-  retrieveCompanyHistory,
+  retrieveCompanyHistoryWithTrace,
+  type CompanyHistoryRetrievalTrace,
   type RetrievedCompanyHistoryMatch,
 } from './history-retrieval.service';
 
@@ -143,7 +144,9 @@ function isDevelopment() {
   return process.env.NODE_ENV !== 'production';
 }
 
-function generatedByForWorker(output: Awaited<ReturnType<typeof runLocalWorker>>) {
+function generatedByForWorker(
+  output: Awaited<ReturnType<typeof runLocalWorker>>,
+) {
   const metadata = output.runMetadata ?? {};
   const mode = metadata.classificationMode;
   const backend = metadata.backendUsed;
@@ -173,7 +176,11 @@ function normalizeOptionalText(value?: string | null) {
   return trimmed ? trimmed : null;
 }
 
-function memoDownloadFileName(input: { fileName?: string | null; title: string; runId: string }) {
+function memoDownloadFileName(input: {
+  fileName?: string | null;
+  title: string;
+  runId: string;
+}) {
   const baseName = (input.fileName ?? input.title)
     .replace(/\.[^.]+$/, '')
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
@@ -236,9 +243,17 @@ async function ensureRegulationSource(
     sourceIdentifier?: string | null;
     section?: string | null;
     paragraph?: string | null;
-    kind: 'primary_regulation' | 'agency_guidance' | 'internal_playbook' | 'reviewer_note';
+    kind:
+      | 'primary_regulation'
+      | 'agency_guidance'
+      | 'internal_playbook'
+      | 'reviewer_note';
     lastVerifiedAt?: string | null;
-    verificationStatus: 'current' | 'needs_verification' | 'archived' | 'superseded';
+    verificationStatus:
+      | 'current'
+      | 'needs_verification'
+      | 'archived'
+      | 'superseded';
   },
 ) {
   return tx.regulationSource.create({
@@ -253,13 +268,18 @@ async function ensureRegulationSource(
       section: source.section ?? null,
       paragraph: source.paragraph ?? null,
       kind: source.kind,
-      lastVerifiedAt: source.lastVerifiedAt ? new Date(source.lastVerifiedAt) : null,
+      lastVerifiedAt: source.lastVerifiedAt
+        ? new Date(source.lastVerifiedAt)
+        : null,
       verificationStatus: source.verificationStatus,
     },
   });
 }
 
-function deriveWorkflowState(status: HumanReviewStatus, workflowState?: ReviewWorkflowState) {
+function deriveWorkflowState(
+  status: HumanReviewStatus,
+  workflowState?: ReviewWorkflowState,
+) {
   if (workflowState) {
     return workflowState;
   }
@@ -322,7 +342,7 @@ export async function enqueueClassificationRun(input: {
           modelName: executionModelForPreference(input.executionPreference),
           imageName:
             input.executionPreference === 'jungle_grid'
-              ? process.env.JUNGLE_GRID_IMAGE ?? null
+              ? (process.env.JUNGLE_GRID_IMAGE ?? null)
               : null,
           metadata: {
             trigger: input.trigger,
@@ -359,7 +379,8 @@ export async function enqueueClassificationRun(input: {
 function executionModelForPreference(
   preference: 'local' | 'fireworks' | 'jungle_grid' | 'auto',
 ) {
-  if (preference === 'jungle_grid') return process.env.JUNGLE_GRID_MODEL ?? null;
+  if (preference === 'jungle_grid')
+    return process.env.JUNGLE_GRID_MODEL ?? null;
   if (preference === 'fireworks') return process.env.FIREWORKS_MODEL ?? null;
   if (preference === 'local') return process.env.GEMMA_MODEL ?? null;
   return null;
@@ -370,20 +391,24 @@ export function determineExecutionCompletion(input: {
   backendStatus?: unknown;
   validationIssues: Array<{ severity: 'error' | 'warning' }>;
 }) {
-  const fallbackUsed =
-    input.classificationMode === 'heuristic_fallback' ||
-    input.classificationMode === 'heuristic' ||
-    input.backendStatus !== 'completed';
-  const hasErrors = input.validationIssues.some((issue) => issue.severity === 'error');
+  const fallbackUsed = input.classificationMode === 'heuristic_fallback';
+  const backendCompleted = input.backendStatus === 'completed';
+  const hasErrors = input.validationIssues.some(
+    (issue) => issue.severity === 'error',
+  );
   return {
     fallbackUsed,
     status:
       input.backendStatus === 'unknown'
         ? 'unknown'
-        : fallbackUsed || hasErrors
+        : !backendCompleted || fallbackUsed || hasErrors
           ? 'needs_attention'
           : 'completed',
-    validationStatus: hasErrors ? 'failed' : fallbackUsed || input.validationIssues.length > 0 ? 'warnings' : 'passed',
+    validationStatus: hasErrors
+      ? 'failed'
+      : fallbackUsed || input.validationIssues.length > 0
+        ? 'warnings'
+        : 'passed',
   } as const;
 }
 
@@ -399,22 +424,47 @@ export function getPublicDemoEligibility(input: {
   historyMatchCount?: number;
 }) {
   if (input.status !== 'completed' || !input.completedAt) {
-    return { eligible: false, reason: 'Only completed classification runs can be published.' } as const;
+    return {
+      eligible: false,
+      reason: 'Only completed classification runs can be published.',
+    } as const;
   }
   if (input.fallbackUsed || input.validationStatus !== 'passed') {
-    return { eligible: false, reason: 'Fallback, blocked, or unverified runs cannot be published as a public demo.' } as const;
+    return {
+      eligible: false,
+      reason:
+        'Fallback, blocked, or unverified runs cannot be published as a public demo.',
+    } as const;
   }
   if (!input.hasMemo) {
-    return { eligible: false, reason: 'A draft review memo is required before publishing.' } as const;
+    return {
+      eligible: false,
+      reason: 'A draft review memo is required before publishing.',
+    } as const;
   }
   if (!input.hasExternalJobId) {
-    return { eligible: false, reason: 'Public demo publication requires a verifiable execution job ID and provenance record.' } as const;
+    return {
+      eligible: false,
+      reason:
+        'Public demo publication requires a verifiable execution job ID and provenance record.',
+    } as const;
   }
-  if (input.documentOrigin !== 'public' || input.documentVisibility === 'private') {
-    return { eligible: false, reason: 'Only documents explicitly marked public and shareable can be published as a demo.' } as const;
+  if (
+    input.documentOrigin !== 'public' ||
+    input.documentVisibility === 'private'
+  ) {
+    return {
+      eligible: false,
+      reason:
+        'Only documents explicitly marked public and shareable can be published as a demo.',
+    } as const;
   }
   if ((input.historyMatchCount ?? 0) > 0) {
-    return { eligible: false, reason: 'Runs that reference private Company History cannot be published as a public demo.' } as const;
+    return {
+      eligible: false,
+      reason:
+        'Runs that reference private Company History cannot be published as a public demo.',
+    } as const;
   }
   return { eligible: true, reason: null } as const;
 }
@@ -449,11 +499,19 @@ export async function executeClassificationRun(input: {
   await prisma.$transaction([
     prisma.classificationRun.update({
       where: { id: run.id },
-      data: { status: 'running', validationStatus: 'running', errorMessage: null },
+      data: {
+        status: 'running',
+        validationStatus: 'running',
+        errorMessage: null,
+      },
     }),
     prisma.executionJob.update({
       where: { classificationRunId: run.id },
-      data: { status: 'running', startedAt: new Date(), submittedAt: new Date() },
+      data: {
+        status: 'running',
+        startedAt: new Date(),
+        submittedAt: new Date(),
+      },
     }),
   ]);
 
@@ -470,17 +528,24 @@ export async function executeClassificationRun(input: {
   try {
     const sourceText =
       document.rawText ??
-      (await fs.readFile(storage.resolve(document.storagePath), 'utf8').catch(() => null));
+      (await fs
+        .readFile(storage.resolve(document.storagePath), 'utf8')
+        .catch(() => null));
 
     if (!sourceText) {
-      throw new HttpError(400, 'Document content is unavailable for classification.', {
-        documentId: document.id,
-        storagePath: document.storagePath,
-      });
+      throw new HttpError(
+        400,
+        'Document content is unavailable for classification.',
+        {
+          documentId: document.id,
+          storagePath: document.storagePath,
+        },
+      );
     }
 
     const workerOutput = await runLocalWorker({
       documentId: document.id,
+      classificationRunId: run.id,
       organizationId: input.organizationId,
       sourceText,
       documentTitle: document.title,
@@ -496,14 +561,66 @@ export async function executeClassificationRun(input: {
     });
 
     let historyMatches: RetrievedCompanyHistoryMatch[] = [];
+    let companyHistoryTrace: CompanyHistoryRetrievalTrace | null = null;
     try {
-      historyMatches = await retrieveCompanyHistory({
+      const retrieval = await retrieveCompanyHistoryWithTrace({
         organizationId: input.organizationId,
         documentTitle: document.title,
         sourceText,
         extractedSpecs: workerOutput.extractedSpecs,
+        detectedProductProfile:
+          workerOutput.extractedSpecs.find(
+            (spec) => spec.name === 'product_profile',
+          )?.value ?? null,
+        reviewPathContext: workerOutput.reviewPaths.flatMap((reviewPath) => [
+          reviewPath.title,
+          reviewPath.scope,
+          reviewPath.whyTriggered,
+          reviewPath.technicalRiskArea ?? '',
+        ]),
+        candidateEccns: workerOutput.eccnCandidates.map(
+          (candidate) => candidate.eccn,
+        ),
+        reviewerQuestions: [
+          ...workerOutput.reviewPaths.flatMap(
+            (reviewPath) => reviewPath.reviewerQuestions,
+          ),
+          ...workerOutput.eccnCandidates.flatMap(
+            (candidate) => candidate.reviewerQuestions,
+          ),
+        ],
       });
-    } catch {
+      historyMatches = retrieval.matches;
+      companyHistoryTrace = retrieval.trace;
+      console.info('Company History retrieval completed', {
+        reviewRunId: run.id,
+        organizationId: input.organizationId,
+        workspaceId: input.organizationId,
+        retrievalQuery: retrieval.trace.query,
+        queryTerms: retrieval.trace.queryTerms,
+        keywordFallbackTerms: retrieval.trace.keywordFallbackTerms,
+        topK: retrieval.trace.topK,
+        similarityThreshold: retrieval.trace.similarityThreshold,
+        candidateChunksBeforeFiltering:
+          retrieval.trace.candidateChunksBeforeFiltering,
+        candidateChunksAfterFiltering:
+          retrieval.trace.candidateChunksAfterFiltering,
+        primaryCandidateCount: retrieval.trace.primaryCandidateCount,
+        keywordCandidateCount: retrieval.trace.keywordCandidateCount,
+        indexMethod: retrieval.trace.indexMethod,
+        embeddingVectorDimensions: retrieval.trace.embeddingVectorDimensions,
+        topResults: retrieval.trace.topResults,
+      });
+    } catch (error) {
+      console.error('Company History retrieval failed', {
+        reviewRunId: run.id,
+        organizationId: input.organizationId,
+        workspaceId: input.organizationId,
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Retrieval error details unavailable.',
+      });
       await recordAuditEvent({
         organizationId: input.organizationId,
         actorUserId: input.actorUserId,
@@ -518,130 +635,233 @@ export async function executeClassificationRun(input: {
       workerOutput.memoMarkdown,
       historyMatches,
     );
-    await fs.writeFile(workerOutput.artifacts.memoPath, workerOutput.memoMarkdown, 'utf8');
+    await fs.writeFile(
+      storage.resolve(workerOutput.artifacts.memoPath),
+      workerOutput.memoMarkdown,
+      'utf8',
+    );
 
     if (isDevelopment()) {
       console.log('Classification worker output summary', {
         documentId: document.id,
         extractedFactCount: workerOutput.extractedSpecs.length,
         reviewPathCount: workerOutput.reviewPaths.length,
-        candidateECCNs: workerOutput.eccnCandidates.map((candidate) => candidate.eccn),
+        candidateECCNs: workerOutput.eccnCandidates.map(
+          (candidate) => candidate.eccn,
+        ),
       });
     }
 
-    const updatedRun = await prisma.$transaction(async (tx) => {
-      const createdFacts = await Promise.all(
-        workerOutput.extractedSpecs.map((spec) =>
-          tx.extractedSpec.create({
+    const updatedRun = await prisma.$transaction(
+      async (tx) => {
+        const createdFacts = await Promise.all(
+          workerOutput.extractedSpecs.map((spec) =>
+            tx.extractedSpec.create({
+              data: {
+                organizationId: input.organizationId,
+                classificationRunId: run.id,
+                sourceDocumentId: document.id,
+                name: spec.name,
+                label: spec.displayName,
+                value: spec.value,
+                unit: spec.unit ?? null,
+                sourceSnippet: spec.sourceSnippet,
+                sourceText: spec.sourceText ?? spec.sourceSnippet,
+                sourcePageFrom: spec.sourcePageFrom ?? null,
+                sourcePageTo: spec.sourcePageTo ?? spec.sourcePageFrom ?? null,
+                boundingBoxes: spec.boundingBoxes ?? Prisma.JsonNull,
+                importance: spec.importance,
+                extractionRationale: spec.extractionRationale,
+                confidence: confidenceLevelToScore(spec.confidence),
+                confidenceLevel: spec.confidence,
+                category: spec.category,
+                valueType: spec.valueType,
+                extractionMethod: spec.extractionMethod,
+                extractionMethodVersion: spec.extractionMethodVersion,
+              },
+            }),
+          ),
+        );
+        const createdCitations: Array<{
+          id: string;
+          sourceTitle: string;
+          classificationRunId: string;
+        }> = [];
+
+        const factByName = new Map<string, typeof createdFacts>();
+        for (const fact of createdFacts) {
+          const facts = factByName.get(fact.name) ?? [];
+          facts.push(fact);
+          factByName.set(fact.name, facts);
+        }
+
+        for (const issue of workerOutput.factIssues) {
+          await tx.factIssue.create({
             data: {
               organizationId: input.organizationId,
               classificationRunId: run.id,
-              sourceDocumentId: document.id,
-              name: spec.name,
-              label: spec.displayName,
-              value: spec.value,
-              unit: spec.unit ?? null,
-              sourceSnippet: spec.sourceSnippet,
-              sourceText: spec.sourceText ?? spec.sourceSnippet,
-              sourcePageFrom: spec.sourcePageFrom ?? null,
-              sourcePageTo: spec.sourcePageTo ?? spec.sourcePageFrom ?? null,
-              boundingBoxes: spec.boundingBoxes ?? Prisma.JsonNull,
-              importance: spec.importance,
-              extractionRationale: spec.extractionRationale,
-              confidence: confidenceLevelToScore(spec.confidence),
-              confidenceLevel: spec.confidence,
-              category: spec.category,
-              valueType: spec.valueType,
-              extractionMethod: spec.extractionMethod,
-              extractionMethodVersion: spec.extractionMethodVersion,
-            },
-          }),
-        ),
-      );
-      const createdCitations: Array<{
-        id: string;
-        sourceTitle: string;
-        classificationRunId: string;
-      }> = [];
-
-      const factByName = new Map<string, typeof createdFacts>();
-      for (const fact of createdFacts) {
-        const facts = factByName.get(fact.name) ?? [];
-        facts.push(fact);
-        factByName.set(fact.name, facts);
-      }
-
-      for (const issue of workerOutput.factIssues) {
-        await tx.factIssue.create({
-          data: {
-            organizationId: input.organizationId,
-            classificationRunId: run.id,
-            issueType: issue.issueType,
-            summary: issue.summary,
-            details: issue.details ?? null,
-            primaryFactId: issue.primaryFactName
-              ? factByName.get(issue.primaryFactName)?.[0]?.id ?? null
-              : null,
-            relatedFactId: issue.relatedFactName
-              ? factByName.get(issue.relatedFactName)?.[0]?.id ?? null
-              : null,
-          },
-        });
-      }
-
-      const reviewPathIdByKey = new Map<string, string>();
-
-      for (const reviewPath of workerOutput.reviewPaths) {
-        const createdPath = await tx.reviewPath.create({
-          data: {
-            organizationId: input.organizationId,
-            classificationRunId: run.id,
-            type: reviewPath.type,
-            status: reviewPath.status,
-            title: reviewPath.title,
-            scope: reviewPath.scope,
-            whyTriggered: reviewPath.whyTriggered,
-            technicalRiskArea: reviewPath.technicalRiskArea ?? null,
-            missingInformation: reviewPath.missingInformation,
-            reviewerQuestions: reviewPath.reviewerQuestions,
-            reviewerNotes: reviewPath.reviewerNotes ?? null,
-            decisionRationale: reviewPath.decisionRationale ?? null,
-          },
-        });
-
-        reviewPathIdByKey.set(reviewPath.pathKey, createdPath.id);
-
-        for (const factName of reviewPath.triggeredFactNames) {
-          const fact = factByName.get(factName)?.[0];
-          if (!fact) {
-            continue;
-          }
-          await tx.reviewPathFact.create({
-            data: {
-              reviewPathId: createdPath.id,
-              extractedSpecId: fact.id,
+              issueType: issue.issueType,
+              summary: issue.summary,
+              details: issue.details ?? null,
+              primaryFactId: issue.primaryFactName
+                ? (factByName.get(issue.primaryFactName)?.[0]?.id ?? null)
+                : null,
+              relatedFactId: issue.relatedFactName
+                ? (factByName.get(issue.relatedFactName)?.[0]?.id ?? null)
+                : null,
             },
           });
         }
 
-        for (const citation of reviewPath.regulatoryCitations) {
-          const source = await ensureRegulationSource(
+        const reviewPathIdByKey = new Map<string, string>();
+
+        for (const reviewPath of workerOutput.reviewPaths) {
+          const createdPath = await tx.reviewPath.create({
+            data: {
+              organizationId: input.organizationId,
+              classificationRunId: run.id,
+              type: reviewPath.type,
+              status: reviewPath.status,
+              title: reviewPath.title,
+              scope: reviewPath.scope,
+              whyTriggered: reviewPath.whyTriggered,
+              technicalRiskArea: reviewPath.technicalRiskArea ?? null,
+              missingInformation: reviewPath.missingInformation,
+              reviewerQuestions: reviewPath.reviewerQuestions,
+              reviewerNotes: reviewPath.reviewerNotes ?? null,
+              decisionRationale: reviewPath.decisionRationale ?? null,
+            },
+          });
+
+          reviewPathIdByKey.set(reviewPath.pathKey, createdPath.id);
+
+          for (const factName of reviewPath.triggeredFactNames) {
+            const fact = factByName.get(factName)?.[0];
+            if (!fact) {
+              continue;
+            }
+            await tx.reviewPathFact.create({
+              data: {
+                reviewPathId: createdPath.id,
+                extractedSpecId: fact.id,
+              },
+            });
+          }
+
+          for (const citation of reviewPath.regulatoryCitations) {
+            const source = await ensureRegulationSource(
+              tx,
+              input.organizationId,
+              citation.regulationSource,
+            );
+            const createdCitation = await tx.citation.create({
+              data: {
+                organizationId: input.organizationId,
+                classificationRunId: run.id,
+                reviewPathId: createdPath.id,
+                regulationSourceId: source.id,
+                sourceTitle: citation.citationLabel,
+                sourceUrl: source.citationUrl,
+                sourceSection:
+                  source.section ?? source.paragraph ?? citation.source,
+                quotedText: citation.citationText,
+                relevanceNote: citation.relevance,
+              },
+            });
+            createdCitations.push({
+              id: createdCitation.id,
+              sourceTitle: createdCitation.sourceTitle,
+              classificationRunId: createdCitation.classificationRunId,
+            });
+          }
+        }
+
+        const createdCandidates: Array<{
+          id: string;
+          eccn: string;
+          whyItMayApply: string;
+          whyItMayNotApply: string;
+          classificationRunId: string;
+        }> = [];
+
+        for (const candidate of workerOutput.eccnCandidates) {
+          const regulationSource = await ensureRegulationSource(
             tx,
             input.organizationId,
-            citation.regulationSource,
+            candidate.regulationSource,
           );
+
+          const createdCandidate = await tx.eCCNCandidate.create({
+            data: {
+              organizationId: input.organizationId,
+              classificationRunId: run.id,
+              eccn: candidate.eccn,
+              title: candidate.title,
+              officialTitle: candidate.officialTitle,
+              rationale: candidate.whyItMayApply,
+              confidence: confidenceLevelToScore(candidate.confidence),
+              confidenceLevel: candidate.confidence,
+              confidenceRationale: candidate.confidenceRationale,
+              status: candidate.status,
+              regulationSourceId: regulationSource.id,
+              regulationVersion:
+                candidate.regulationSource.regulationVersion ?? null,
+              paragraphReference: candidate.paragraphReference ?? null,
+              controlCriteria: candidate.controlCriteria,
+              matchedTechnicalFacts: candidate.matchedTechnicalFacts,
+              whyItMayApply: candidate.whyItMayApply,
+              whyItMayNotApply: candidate.whyItMayNotApply,
+              mayApplyReasons: candidate.mayApplyReasons,
+              mayNotApplyReasons: candidate.mayNotApplyReasons,
+              missingInformation: candidate.missingInformation,
+              reviewerQuestions: candidate.reviewerQuestions,
+              uncertaintyFlags: candidate.uncertaintyFlags,
+              alternativeCandidates: candidate.alternativeCandidates,
+              reviewPathId: candidate.reviewPathKey
+                ? (reviewPathIdByKey.get(candidate.reviewPathKey) ?? null)
+                : null,
+              isSpecificEccn: true,
+            },
+          });
+          createdCandidates.push({
+            id: createdCandidate.id,
+            eccn: createdCandidate.eccn,
+            whyItMayApply: createdCandidate.whyItMayApply,
+            whyItMayNotApply: createdCandidate.whyItMayNotApply,
+            classificationRunId: createdCandidate.classificationRunId,
+          });
+
+          for (const mapping of candidate.factMappings) {
+            const fact = factByName.get(mapping.factName)?.[0];
+            if (!fact) {
+              continue;
+            }
+            await tx.candidateFactMapping.create({
+              data: {
+                eccnCandidateId: createdCandidate.id,
+                extractedSpecId: fact.id,
+                criterionLabel: mapping.criterionLabel,
+                matchedValue: mapping.matchedValue,
+                comparisonResult: mapping.comparisonResult,
+                notes: mapping.notes ?? null,
+              },
+            });
+          }
+
           const createdCitation = await tx.citation.create({
             data: {
               organizationId: input.organizationId,
               classificationRunId: run.id,
-              reviewPathId: createdPath.id,
-              regulationSourceId: source.id,
-              sourceTitle: citation.citationLabel,
-              sourceUrl: source.citationUrl,
+              eccnCandidateId: createdCandidate.id,
+              regulationSourceId: regulationSource.id,
+              sourceTitle: `${candidate.eccn} official regulation source`,
+              sourceUrl: regulationSource.citationUrl,
               sourceSection:
-                source.section ?? source.paragraph ?? citation.source,
-              quotedText: citation.citationText,
-              relevanceNote: citation.relevance,
+                candidate.paragraphReference ??
+                regulationSource.section ??
+                regulationSource.paragraph,
+              quotedText: regulationSource.citationText,
+              relevanceNote: candidate.whyItMayApply,
             },
           });
           createdCitations.push({
@@ -650,428 +870,349 @@ export async function executeClassificationRun(input: {
             classificationRunId: createdCitation.classificationRunId,
           });
         }
-      }
 
-      const createdCandidates: Array<{
-        id: string;
-        eccn: string;
-        whyItMayApply: string;
-        whyItMayNotApply: string;
-        classificationRunId: string;
-      }> = [];
-
-      for (const candidate of workerOutput.eccnCandidates) {
-        const regulationSource = await ensureRegulationSource(
-          tx,
-          input.organizationId,
-          candidate.regulationSource,
-        );
-
-        const createdCandidate = await tx.eCCNCandidate.create({
-          data: {
-            organizationId: input.organizationId,
-            classificationRunId: run.id,
-            eccn: candidate.eccn,
-            title: candidate.title,
-            officialTitle: candidate.officialTitle,
-            rationale: candidate.whyItMayApply,
-            confidence: confidenceLevelToScore(candidate.confidence),
-            confidenceLevel: candidate.confidence,
-            confidenceRationale: candidate.confidenceRationale,
-            status: candidate.status,
-            regulationSourceId: regulationSource.id,
-            regulationVersion: candidate.regulationSource.regulationVersion ?? null,
-            paragraphReference: candidate.paragraphReference ?? null,
-            controlCriteria: candidate.controlCriteria,
-            matchedTechnicalFacts: candidate.matchedTechnicalFacts,
-            whyItMayApply: candidate.whyItMayApply,
-            whyItMayNotApply: candidate.whyItMayNotApply,
-            mayApplyReasons: candidate.mayApplyReasons,
-            mayNotApplyReasons: candidate.mayNotApplyReasons,
-            missingInformation: candidate.missingInformation,
-            reviewerQuestions: candidate.reviewerQuestions,
-            uncertaintyFlags: candidate.uncertaintyFlags,
-            alternativeCandidates: candidate.alternativeCandidates,
-            reviewPathId: candidate.reviewPathKey
-              ? reviewPathIdByKey.get(candidate.reviewPathKey) ?? null
-              : null,
-            isSpecificEccn: true,
-          },
-        });
-        createdCandidates.push({
-          id: createdCandidate.id,
-          eccn: createdCandidate.eccn,
-          whyItMayApply: createdCandidate.whyItMayApply,
-          whyItMayNotApply: createdCandidate.whyItMayNotApply,
-          classificationRunId: createdCandidate.classificationRunId,
-        });
-
-        for (const mapping of candidate.factMappings) {
-          const fact = factByName.get(mapping.factName)?.[0];
-          if (!fact) {
-            continue;
-          }
-          await tx.candidateFactMapping.create({
-            data: {
-              eccnCandidateId: createdCandidate.id,
-              extractedSpecId: fact.id,
-              criterionLabel: mapping.criterionLabel,
-              matchedValue: mapping.matchedValue,
-              comparisonResult: mapping.comparisonResult,
-              notes: mapping.notes ?? null,
-            },
+        if (historyMatches.length) {
+          await tx.classificationHistoryMatch.createMany({
+            data: historyMatches.map((match) => ({
+              organizationId: input.organizationId,
+              classificationRunId: run.id,
+              companyHistoryDocumentId: match.companyHistoryDocumentId,
+              companyHistoryChunkId: match.companyHistoryChunkId,
+              rank: match.rank,
+              score: match.score,
+              matchTier: match.matchTier,
+              matchReasons: match.matchReasons as Prisma.InputJsonValue,
+              retrievalMethod: match.retrievalMethod,
+              retrievalVersion: match.retrievalVersion,
+            })),
           });
         }
 
-        const createdCitation = await tx.citation.create({
+        const generatedBy = generatedByForWorker(workerOutput);
+        const memo = await tx.reviewMemo.create({
           data: {
             organizationId: input.organizationId,
             classificationRunId: run.id,
-            eccnCandidateId: createdCandidate.id,
-            regulationSourceId: regulationSource.id,
-            sourceTitle: `${candidate.eccn} official regulation source`,
-            sourceUrl: regulationSource.citationUrl,
-            sourceSection:
-              candidate.paragraphReference ??
-              regulationSource.section ??
-              regulationSource.paragraph,
-            quotedText: regulationSource.citationText,
-            relevanceNote: candidate.whyItMayApply,
+            contentMarkdown: workerOutput.memoMarkdown,
+            generatedBy,
+            versionNumber: 1,
+            reviewStateSnapshot: 'draft_generated',
+            reviewerStatusSnapshot: 'pending_review',
+            disclaimer:
+              'Draft review memo. Classification support, not legal advice. Requires qualified reviewer confirmation.',
           },
         });
-        createdCitations.push({
-          id: createdCitation.id,
-          sourceTitle: createdCitation.sourceTitle,
-          classificationRunId: createdCitation.classificationRunId,
-        });
-      }
 
-      if (historyMatches.length) {
-        await tx.classificationHistoryMatch.createMany({
-          data: historyMatches.map((match) => ({
+        await tx.reviewMemoVersion.create({
+          data: {
             organizationId: input.organizationId,
             classificationRunId: run.id,
-            companyHistoryDocumentId: match.companyHistoryDocumentId,
-            companyHistoryChunkId: match.companyHistoryChunkId,
-            rank: match.rank,
-            score: match.score,
-            matchTier: match.matchTier,
-            matchReasons: match.matchReasons as Prisma.InputJsonValue,
-            retrievalMethod: match.retrievalMethod,
-            retrievalVersion: match.retrievalVersion,
+            versionNumber: 1,
+            contentMarkdown: workerOutput.memoMarkdown,
+            generatedBy,
+            reviewStateSnapshot: 'draft_generated',
+            reviewerStatusSnapshot: 'pending_review',
+            disclaimer:
+              'Draft review memo. Classification support, not legal advice. Requires qualified reviewer confirmation.',
+          },
+        });
+
+        await tx.humanReview.create({
+          data: {
+            organizationId: input.organizationId,
+            classificationRunId: run.id,
+            reviewerId: input.actorUserId,
+            status: 'pending_review',
+            workflowState: 'awaiting_reviewer_assignment',
+          },
+        });
+
+        await createReviewerAction({
+          organizationId: input.organizationId,
+          classificationRunId: run.id,
+          actorUserId: input.actorUserId,
+          actionType: 'update_workflow',
+          targetType: 'ClassificationRun',
+          targetId: run.id,
+          details: {
+            workflowState: 'draft_generated',
+            memoId: memo.id,
+          },
+        });
+
+        const normalizedIntegrity = normalizeCapabilitySignals({
+          workerSignals: workerOutput.capabilitySignals,
+          workerValidationIssues: workerOutput.validationIssues,
+          facts: createdFacts.map((fact) => ({ id: fact.id, name: fact.name })),
+          citations: createdCitations.map((citation) => ({
+            id: citation.id,
+            label: citation.sourceTitle,
           })),
         });
-      }
 
-      const generatedBy = generatedByForWorker(workerOutput);
-      const memo = await tx.reviewMemo.create({
-        data: {
-          organizationId: input.organizationId,
-          classificationRunId: run.id,
-          contentMarkdown: workerOutput.memoMarkdown,
-          generatedBy,
-          versionNumber: 1,
-          reviewStateSnapshot: 'draft_generated',
-          reviewerStatusSnapshot: 'pending_review',
-          disclaimer:
-            'Draft review memo. Classification support, not legal advice. Requires qualified reviewer confirmation.',
-        },
-      });
+        const memoSections = workerOutput.memoMarkdown
+          .split(/\n##\s+/)
+          .map((section, index) => ({
+            key:
+              index === 0
+                ? 'root'
+                : (section.split('\n')[0]?.trim() ?? `section_${index}`),
+            content: index === 0 ? section : `## ${section}`,
+          }));
 
-      await tx.reviewMemoVersion.create({
-        data: {
-          organizationId: input.organizationId,
-          classificationRunId: run.id,
-          versionNumber: 1,
-          contentMarkdown: workerOutput.memoMarkdown,
-          generatedBy,
-          reviewStateSnapshot: 'draft_generated',
-          reviewerStatusSnapshot: 'pending_review',
-          disclaimer:
-            'Draft review memo. Classification support, not legal advice. Requires qualified reviewer confirmation.',
-        },
-      });
-
-      await tx.humanReview.create({
-        data: {
-          organizationId: input.organizationId,
-          classificationRunId: run.id,
-          reviewerId: input.actorUserId,
-          status: 'pending_review',
-          workflowState: 'awaiting_reviewer_assignment',
-        },
-      });
-
-      await createReviewerAction({
-        organizationId: input.organizationId,
-        classificationRunId: run.id,
-        actorUserId: input.actorUserId,
-        actionType: 'update_workflow',
-        targetType: 'ClassificationRun',
-        targetId: run.id,
-        details: {
-          workflowState: 'draft_generated',
-          memoId: memo.id,
-        },
-      });
-
-      const normalizedIntegrity = normalizeCapabilitySignals({
-        workerSignals: workerOutput.capabilitySignals,
-        workerValidationIssues: workerOutput.validationIssues,
-        facts: createdFacts.map((fact) => ({ id: fact.id, name: fact.name })),
-        citations: createdCitations.map((citation) => ({
-          id: citation.id,
-          label: citation.sourceTitle,
-        })),
-      });
-
-      const memoSections = workerOutput.memoMarkdown
-        .split(/\n##\s+/)
-        .map((section, index) => ({
-          key: index === 0 ? 'root' : section.split('\n')[0]?.trim() ?? `section_${index}`,
-          content: index === 0 ? section : `## ${section}`,
-        }));
-
-      const narrativeIssues = validateNarrativeConsistency({
-        extractedFacts: createdFacts.map((fact) => ({
-          id: fact.id,
-          classificationRunId: fact.classificationRunId,
-          name: fact.name,
-        })),
-        capabilitySignals: normalizedIntegrity.capabilitySignals,
-        uncertaintyFlags: workerOutput.uncertaintyFlags,
-        reviewPaths: (await tx.reviewPath.findMany({
-          where: { classificationRunId: run.id },
-          select: {
-            id: true,
-            title: true,
-            whyTriggered: true,
-            classificationRunId: true,
-          },
-        })) as Array<{
-          id: string;
-          title: string;
-          whyTriggered: string;
-          classificationRunId: string;
-        }>,
-        eccnCandidates: createdCandidates,
-        memoSections,
-        citations: createdCitations,
-      });
-
-      const artifactValidationIssues = await fs
-        .access(storage.resolve(workerOutput.artifacts.memoPath))
-        .then(() => [] as typeof narrativeIssues)
-        .catch(() => [
-          {
-            code: 'MEMO_ARTIFACT_MISSING',
-            severity: 'error' as const,
-            message: 'The generated memo artifact path is not readable.',
-            path: 'artifacts.memo',
-            supportingFactIds: [],
-            supportingCitationIds: [],
-          },
-        ]);
-
-      const validationIssues = [
-        ...normalizedIntegrity.validationIssues,
-        ...narrativeIssues,
-        ...artifactValidationIssues,
-      ];
-      const backendStatus = workerOutput.runMetadata?.backendStatus;
-      const classificationMode = workerOutput.runMetadata?.classificationMode;
-      const completion = determineExecutionCompletion({
-        classificationMode,
-        backendStatus,
-        validationIssues,
-      });
-      const { fallbackUsed, validationStatus } = completion;
-      const finalStatus = completion.status;
-      const finalWorkflowState: ReviewWorkflowState =
-        finalStatus === 'completed'
-          ? 'awaiting_reviewer_assignment'
-          : 'draft_generated';
-
-      const runRecord = await tx.classificationRun.update({
-        where: { id: run.id },
-        data: {
-          status: finalStatus,
-          workflowState: finalWorkflowState,
-          confidence: workerOutput.confidence,
-          confidenceRationale: workerOutput.confidenceRationale,
+        const narrativeIssues = validateNarrativeConsistency({
+          extractedFacts: createdFacts.map((fact) => ({
+            id: fact.id,
+            classificationRunId: fact.classificationRunId,
+            name: fact.name,
+          })),
+          capabilitySignals: normalizedIntegrity.capabilitySignals,
           uncertaintyFlags: workerOutput.uncertaintyFlags,
-          workerJobId:
-            typeof workerOutput.runMetadata?.executionJobId === 'string'
-              ? workerOutput.runMetadata.executionJobId
-              : `local-worker-${run.id}`,
-          workerVersion: 'python-local-v4',
-          rulesVersion: 'ear-review-v4',
-          backendUsed:
-            typeof workerOutput.runMetadata?.backendUsed === 'string'
-              ? workerOutput.runMetadata.backendUsed
-              : null,
-          backendReason:
-            typeof workerOutput.runMetadata?.backendReason === 'string'
-              ? workerOutput.runMetadata.backendReason
-              : null,
-          underlyingProvider:
-            typeof workerOutput.runMetadata?.underlyingProvider === 'string'
-              ? workerOutput.runMetadata.underlyingProvider
-              : null,
-          costUsd:
-            typeof workerOutput.runMetadata?.costUsd === 'number'
-              ? workerOutput.runMetadata.costUsd
-              : null,
-          latencyMs:
-            typeof workerOutput.runMetadata?.latencyMs === 'number'
-              ? workerOutput.runMetadata.latencyMs
-              : null,
-          tokensUsed:
-            typeof workerOutput.runMetadata?.tokensUsed === 'number'
-              ? workerOutput.runMetadata.tokensUsed
-              : null,
-          extractedTextPath: workerOutput.artifacts.extractedTextPath,
-          structuredOutputPath: workerOutput.artifacts.structuredOutputPath,
-          memoArtifactPath: workerOutput.artifacts.memoPath,
-          capabilitySignals: normalizedIntegrity.capabilitySignals as Prisma.InputJsonValue,
-          validationIssues: validationIssues as Prisma.InputJsonValue,
-          fallbackUsed,
-          validationStatus,
-          errorMessage:
-            finalStatus === 'needs_attention'
-              ? [
-                  fallbackUsed && typeof workerOutput.runMetadata?.fallbackReason === 'string'
-                    ? workerOutput.runMetadata.fallbackReason
-                    : null,
-                  summarizeValidationIssues(validationIssues),
-                ]
-                  .filter((value): value is string => Boolean(value))
-                  .join(' ')
-              : null,
-          completedAt:
-            finalStatus === 'completed' || finalStatus === 'needs_attention'
-              ? new Date()
-              : null,
-        },
-      });
+          reviewPaths: (await tx.reviewPath.findMany({
+            where: { classificationRunId: run.id },
+            select: {
+              id: true,
+              title: true,
+              whyTriggered: true,
+              classificationRunId: true,
+            },
+          })) as Array<{
+            id: string;
+            title: string;
+            whyTriggered: string;
+            classificationRunId: string;
+          }>,
+          eccnCandidates: createdCandidates,
+          memoSections,
+          citations: createdCitations,
+        });
 
-      await tx.executionJob.update({
-        where: { classificationRunId: run.id },
-        data: {
-          status:
-            finalStatus === 'completed'
-              ? 'completed'
-              : finalStatus === 'unknown'
-                ? 'unknown'
-                : 'blocked',
-          externalJobId:
-            typeof workerOutput.runMetadata?.executionJobId === 'string'
-              ? workerOutput.runMetadata.executionJobId
-              : null,
-          provider:
-            typeof workerOutput.runMetadata?.underlyingProvider === 'string'
-              ? workerOutput.runMetadata.underlyingProvider
-              : null,
-          gpuVendor:
-            typeof workerOutput.runMetadata?.gpuVendor === 'string'
-              ? workerOutput.runMetadata.gpuVendor
-              : null,
-          gpuName:
-            typeof workerOutput.runMetadata?.gpuName === 'string'
-              ? workerOutput.runMetadata.gpuName
-              : null,
-          runtimeVersion:
-            typeof workerOutput.runMetadata?.runtimeVersion === 'string'
-              ? workerOutput.runMetadata.runtimeVersion
-              : null,
-          modelName:
-            typeof workerOutput.runMetadata?.backendModel === 'string'
-              ? workerOutput.runMetadata.backendModel
-              : null,
-          imageName:
-            typeof workerOutput.runMetadata?.imageName === 'string'
-              ? workerOutput.runMetadata.imageName
-              : null,
-          imageDigest:
-            typeof workerOutput.runMetadata?.imageDigest === 'string'
-              ? workerOutput.runMetadata.imageDigest
-              : null,
-          durationMs:
-            typeof workerOutput.runMetadata?.latencyMs === 'number'
-              ? workerOutput.runMetadata.latencyMs
-              : null,
-          costActualUsd:
-            typeof workerOutput.runMetadata?.costUsd === 'number'
-              ? workerOutput.runMetadata.costUsd
-              : null,
-          inputTokens:
-            typeof workerOutput.runMetadata?.inputTokens === 'number'
-              ? workerOutput.runMetadata.inputTokens
-              : null,
-          outputTokens:
-            typeof workerOutput.runMetadata?.outputTokens === 'number'
-              ? workerOutput.runMetadata.outputTokens
-              : null,
-          logPath:
-            typeof workerOutput.runMetadata?.workerLogPath === 'string'
-              ? workerOutput.runMetadata.workerLogPath
-              : null,
-          completedAt: new Date(),
-          errorMessage: finalStatus === 'completed' ? null : 'Execution output requires human or operational attention.',
-          metadata: workerOutput.runMetadata as Prisma.InputJsonValue,
-        },
-      });
+        const artifactValidationIssues = await fs
+          .access(storage.resolve(workerOutput.artifacts.memoPath))
+          .then(() => [] as typeof narrativeIssues)
+          .catch(() => [
+            {
+              code: 'MEMO_ARTIFACT_MISSING',
+              severity: 'error' as const,
+              message: 'The generated memo artifact path is not readable.',
+              path: 'artifacts.memo',
+              supportingFactIds: [],
+              supportingCitationIds: [],
+            },
+          ]);
 
-      const artifactInputs = [
-        {
-          kind: 'source_document' as const,
-          storagePath: document.storagePath,
-          fileName: document.fileName,
-          mimeType: document.mimeType,
-          sizeBytes: document.sizeBytes,
-          sha256: document.sha256,
-          documentId: document.id,
-        },
-        {
-          kind: 'extracted_text' as const,
-          storagePath: workerOutput.artifacts.extractedTextPath,
-          fileName: path.basename(workerOutput.artifacts.extractedTextPath),
-          mimeType: 'text/plain',
-        },
-        {
-          kind: 'structured_output' as const,
-          storagePath: workerOutput.artifacts.structuredOutputPath,
-          fileName: path.basename(workerOutput.artifacts.structuredOutputPath),
-          mimeType: 'application/json',
-        },
-        {
-          kind: 'memo_markdown' as const,
-          storagePath: workerOutput.artifacts.memoPath,
-          fileName: path.basename(workerOutput.artifacts.memoPath),
-          mimeType: 'text/markdown',
-        },
-        ...(typeof workerOutput.runMetadata?.workerLogPath === 'string'
-          ? [
-              {
-                kind: 'worker_log' as const,
-                storagePath: workerOutput.runMetadata.workerLogPath,
-                fileName: path.basename(workerOutput.runMetadata.workerLogPath),
-                mimeType: 'text/plain',
-              },
-            ]
-          : []),
-      ];
+        const validationIssues = [
+          ...normalizedIntegrity.validationIssues,
+          ...narrativeIssues,
+          ...artifactValidationIssues,
+        ];
+        const backendStatus = workerOutput.runMetadata?.backendStatus;
+        const classificationMode = workerOutput.runMetadata?.classificationMode;
+        const completion = determineExecutionCompletion({
+          classificationMode,
+          backendStatus,
+          validationIssues,
+        });
+        const { fallbackUsed, validationStatus } = completion;
+        const finalStatus = completion.status;
+        const finalWorkflowState: ReviewWorkflowState =
+          finalStatus === 'completed'
+            ? 'awaiting_reviewer_assignment'
+            : 'draft_generated';
 
-      await tx.artifact.createMany({
-        data: artifactInputs.map((artifact) => ({
-          organizationId: input.organizationId,
-          classificationRunId: run.id,
-          ...artifact,
-        })),
-      });
+        const runRecord = await tx.classificationRun.update({
+          where: { id: run.id },
+          data: {
+            status: finalStatus,
+            workflowState: finalWorkflowState,
+            confidence: workerOutput.confidence,
+            confidenceRationale: workerOutput.confidenceRationale,
+            uncertaintyFlags: workerOutput.uncertaintyFlags,
+            workerJobId:
+              typeof workerOutput.runMetadata?.executionJobId === 'string'
+                ? workerOutput.runMetadata.executionJobId
+                : `local-worker-${run.id}`,
+            workerVersion: 'python-local-v4',
+            rulesVersion: 'ear-review-v4',
+            backendUsed:
+              typeof workerOutput.runMetadata?.backendUsed === 'string'
+                ? workerOutput.runMetadata.backendUsed
+                : null,
+            backendReason:
+              typeof workerOutput.runMetadata?.backendReason === 'string'
+                ? workerOutput.runMetadata.backendReason
+                : null,
+            underlyingProvider:
+              typeof workerOutput.runMetadata?.underlyingProvider === 'string'
+                ? workerOutput.runMetadata.underlyingProvider
+                : null,
+            costUsd:
+              typeof workerOutput.runMetadata?.costUsd === 'number'
+                ? workerOutput.runMetadata.costUsd
+                : null,
+            latencyMs:
+              typeof workerOutput.runMetadata?.latencyMs === 'number'
+                ? workerOutput.runMetadata.latencyMs
+                : null,
+            tokensUsed:
+              typeof workerOutput.runMetadata?.tokensUsed === 'number'
+                ? workerOutput.runMetadata.tokensUsed
+                : null,
+            extractedTextPath: workerOutput.artifacts.extractedTextPath,
+            structuredOutputPath: workerOutput.artifacts.structuredOutputPath,
+            memoArtifactPath: workerOutput.artifacts.memoPath,
+            capabilitySignals:
+              normalizedIntegrity.capabilitySignals as Prisma.InputJsonValue,
+            validationIssues: validationIssues as Prisma.InputJsonValue,
+            fallbackUsed,
+            validationStatus,
+            errorMessage:
+              finalStatus === 'needs_attention'
+                ? [
+                    fallbackUsed &&
+                    typeof workerOutput.runMetadata?.fallbackReason === 'string'
+                      ? workerOutput.runMetadata.fallbackReason
+                      : null,
+                    summarizeValidationIssues(validationIssues),
+                  ]
+                    .filter((value): value is string => Boolean(value))
+                    .join(' ')
+                : null,
+            completedAt:
+              finalStatus === 'completed' || finalStatus === 'needs_attention'
+                ? new Date()
+                : null,
+          },
+        });
 
-      return runRecord;
-    }, { timeout: 30000 });
+        await tx.executionJob.update({
+          where: { classificationRunId: run.id },
+          data: {
+            status:
+              workerOutput.runMetadata?.backendStatus === 'completed'
+                ? 'completed'
+                : finalStatus === 'unknown'
+                  ? 'unknown'
+                  : 'blocked',
+            externalJobId:
+              typeof workerOutput.runMetadata?.executionJobId === 'string'
+                ? workerOutput.runMetadata.executionJobId
+                : null,
+            provider:
+              typeof workerOutput.runMetadata?.underlyingProvider === 'string'
+                ? workerOutput.runMetadata.underlyingProvider
+                : null,
+            gpuVendor:
+              typeof workerOutput.runMetadata?.gpuVendor === 'string'
+                ? workerOutput.runMetadata.gpuVendor
+                : null,
+            gpuName:
+              typeof workerOutput.runMetadata?.gpuName === 'string'
+                ? workerOutput.runMetadata.gpuName
+                : null,
+            runtimeVersion:
+              typeof workerOutput.runMetadata?.runtimeVersion === 'string'
+                ? workerOutput.runMetadata.runtimeVersion
+                : null,
+            modelName:
+              typeof workerOutput.runMetadata?.backendModel === 'string'
+                ? workerOutput.runMetadata.backendModel
+                : null,
+            imageName:
+              typeof workerOutput.runMetadata?.imageName === 'string'
+                ? workerOutput.runMetadata.imageName
+                : null,
+            imageDigest:
+              typeof workerOutput.runMetadata?.imageDigest === 'string'
+                ? workerOutput.runMetadata.imageDigest
+                : null,
+            durationMs:
+              typeof workerOutput.runMetadata?.latencyMs === 'number'
+                ? workerOutput.runMetadata.latencyMs
+                : null,
+            costActualUsd:
+              typeof workerOutput.runMetadata?.costUsd === 'number'
+                ? workerOutput.runMetadata.costUsd
+                : null,
+            inputTokens:
+              typeof workerOutput.runMetadata?.inputTokens === 'number'
+                ? workerOutput.runMetadata.inputTokens
+                : null,
+            outputTokens:
+              typeof workerOutput.runMetadata?.outputTokens === 'number'
+                ? workerOutput.runMetadata.outputTokens
+                : null,
+            logPath:
+              typeof workerOutput.runMetadata?.workerLogPath === 'string'
+                ? workerOutput.runMetadata.workerLogPath
+                : null,
+            completedAt: new Date(),
+            errorMessage:
+              workerOutput.runMetadata?.backendStatus === 'completed'
+                ? finalStatus === 'completed'
+                  ? null
+                  : summarizeValidationIssues(validationIssues)
+                : 'Backend execution output requires human or operational attention.',
+            metadata: workerOutput.runMetadata as Prisma.InputJsonValue,
+          },
+        });
+
+        const artifactInputs = [
+          {
+            kind: 'source_document' as const,
+            storagePath: document.storagePath,
+            fileName: document.fileName,
+            mimeType: document.mimeType,
+            sizeBytes: document.sizeBytes,
+            sha256: document.sha256,
+            documentId: document.id,
+          },
+          {
+            kind: 'extracted_text' as const,
+            storagePath: workerOutput.artifacts.extractedTextPath,
+            fileName: path.basename(workerOutput.artifacts.extractedTextPath),
+            mimeType: 'text/plain',
+          },
+          {
+            kind: 'structured_output' as const,
+            storagePath: workerOutput.artifacts.structuredOutputPath,
+            fileName: path.basename(
+              workerOutput.artifacts.structuredOutputPath,
+            ),
+            mimeType: 'application/json',
+          },
+          {
+            kind: 'memo_markdown' as const,
+            storagePath: workerOutput.artifacts.memoPath,
+            fileName: path.basename(workerOutput.artifacts.memoPath),
+            mimeType: 'text/markdown',
+          },
+          ...(typeof workerOutput.runMetadata?.workerLogPath === 'string'
+            ? [
+                {
+                  kind: 'worker_log' as const,
+                  storagePath: workerOutput.runMetadata.workerLogPath,
+                  fileName: path.basename(
+                    workerOutput.runMetadata.workerLogPath,
+                  ),
+                  mimeType: 'text/plain',
+                },
+              ]
+            : []),
+        ];
+
+        await tx.artifact.createMany({
+          data: artifactInputs.map((artifact) => ({
+            organizationId: input.organizationId,
+            classificationRunId: run.id,
+            ...artifact,
+          })),
+        });
+
+        return runRecord;
+      },
+      { timeout: 30000 },
+    );
 
     await recordAuditEvent({
       organizationId: input.organizationId,
@@ -1082,7 +1223,7 @@ export async function executeClassificationRun(input: {
           ? 'classification_run.completed'
           : updatedRun.status === 'unknown'
             ? 'classification_run.unknown'
-          : 'classification_run.needs_attention',
+            : 'classification_run.needs_attention',
       entityType: 'ClassificationRun',
       entityId: run.id,
       metadata: {
@@ -1108,9 +1249,26 @@ export async function executeClassificationRun(input: {
       entityType: 'ClassificationRun',
       entityId: run.id,
       metadata: {
-        retrievalMethod: 'postgres_lexical_v1',
+        retrievalMethod:
+          companyHistoryTrace?.retrievalMethod ?? 'postgres_fts_or_v2',
+        retrievalVersion:
+          historyMatches[0]?.retrievalVersion ?? 'company_history_retrieval_v2',
         matchCount: historyMatches.length,
-        matchedHistoryDocumentIds: historyMatches.map((match) => match.companyHistoryDocumentId),
+        matchedHistoryDocumentIds: historyMatches.map(
+          (match) => match.companyHistoryDocumentId,
+        ),
+        query: companyHistoryTrace?.query ?? null,
+        candidateChunksBeforeFiltering:
+          companyHistoryTrace?.candidateChunksBeforeFiltering ?? null,
+        candidateChunksAfterFiltering:
+          companyHistoryTrace?.candidateChunksAfterFiltering ?? null,
+        primaryCandidateCount:
+          companyHistoryTrace?.primaryCandidateCount ?? null,
+        keywordCandidateCount:
+          companyHistoryTrace?.keywordCandidateCount ?? null,
+        indexMethod: companyHistoryTrace?.indexMethod ?? 'postgres_full_text',
+        embeddingVectorDimensions:
+          companyHistoryTrace?.embeddingVectorDimensions ?? null,
       },
     });
 
@@ -1127,15 +1285,23 @@ export async function executeClassificationRun(input: {
       },
     });
 
-    const hydratedRun = await getClassificationRun(input.organizationId, updatedRun.id);
+    const hydratedRun = await getClassificationRun(
+      input.organizationId,
+      updatedRun.id,
+    );
     if (!hydratedRun) {
-      throw new HttpError(500, 'Completed classification run could not be loaded.');
+      throw new HttpError(
+        500,
+        'Completed classification run could not be loaded.',
+      );
     }
 
     return hydratedRun;
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : 'Classification run did not complete.';
+      error instanceof Error
+        ? error.message
+        : 'Classification run did not complete.';
 
     await prisma.classificationRun.update({
       where: { id: run.id },
@@ -1177,7 +1343,10 @@ export async function claimClassificationRun(input: {
   organizationId: string;
   reviewerId: string;
 }) {
-  const run = await getClassificationRun(input.organizationId, input.classificationRunId);
+  const run = await getClassificationRun(
+    input.organizationId,
+    input.classificationRunId,
+  );
   if (!run) {
     throw new HttpError(404, 'Classification run not found.');
   }
@@ -1256,7 +1425,9 @@ export async function updateExtractedFactReview(input: {
     data: {
       reviewerStatus: input.reviewerStatus,
       reviewerNote: normalizeOptionalText(input.reviewerNote),
-      reviewerCorrectedValue: normalizeOptionalText(input.reviewerCorrectedValue),
+      reviewerCorrectedValue: normalizeOptionalText(
+        input.reviewerCorrectedValue,
+      ),
       reviewerCorrectedUnit: normalizeOptionalText(input.reviewerCorrectedUnit),
       suppressFromMemo: Boolean(input.suppressFromMemo),
     },
@@ -1344,7 +1515,8 @@ export async function updateReviewPathRecord(input: {
   await prisma.classificationRun.update({
     where: { id: input.classificationRunId },
     data: {
-      workflowState: input.status === 'escalated' ? 'escalated' : 'in_technical_review',
+      workflowState:
+        input.status === 'escalated' ? 'escalated' : 'in_technical_review',
       lastReviewerActionAt: new Date(),
     },
   });
@@ -1413,7 +1585,8 @@ export async function updateECCNCandidateRecord(input: {
         input.reviewerDispositionRationale,
       ),
       confidenceRationale:
-        normalizeOptionalText(input.confidenceRationale) ?? candidate.confidenceRationale,
+        normalizeOptionalText(input.confidenceRationale) ??
+        candidate.confidenceRationale,
       alternativeCandidates: input.alternativeCandidates,
     },
   });
@@ -1423,7 +1596,9 @@ export async function updateECCNCandidateRecord(input: {
     data: {
       lastReviewerActionAt: new Date(),
       workflowState:
-        input.status === 'approved' ? 'reviewer_conclusion_recorded' : 'in_technical_review',
+        input.status === 'approved'
+          ? 'reviewer_conclusion_recorded'
+          : 'in_technical_review',
     },
   });
 
@@ -1484,11 +1659,9 @@ export async function submitClassificationReview(input: {
 
   const note = input.note.trim();
   const workflowState = deriveWorkflowState(input.status, input.workflowState);
-  const isConclusionRecorded = [
-    'reviewed',
-    'approved',
-    'rejected',
-  ].includes(input.status);
+  const isConclusionRecorded = ['reviewed', 'approved', 'rejected'].includes(
+    input.status,
+  );
 
   const updatedReview = await prisma.humanReview.update({
     where: { id: currentReview.id },
@@ -1610,7 +1783,10 @@ export async function publishClassificationRunAsPublicDemo(input: {
     throw new HttpError(409, eligibility.reason);
   }
 
-  if (Array.isArray(existingRun.validationIssues) && existingRun.validationIssues.length > 0) {
+  if (
+    Array.isArray(existingRun.validationIssues) &&
+    existingRun.validationIssues.length > 0
+  ) {
     throw new HttpError(
       409,
       'Runs with unresolved validation issues cannot be published publicly.',
@@ -1665,7 +1841,9 @@ export async function publishClassificationRunAsPublicDemo(input: {
       .then((result) => ({
         publication: result,
         previousActiveRunId:
-          current?.status === 'published' ? current.activeClassificationRunId : null,
+          current?.status === 'published'
+            ? current.activeClassificationRunId
+            : null,
       }));
   });
 
@@ -1687,7 +1865,8 @@ export async function publishClassificationRunAsPublicDemo(input: {
           ? publication.previousActiveRunId
           : null,
       publicTitle: publication.publication.publicTitle,
-      sourceDocumentDisplayName: publication.publication.sourceDocumentDisplayName,
+      sourceDocumentDisplayName:
+        publication.publication.sourceDocumentDisplayName,
     },
   });
 
@@ -1717,7 +1896,10 @@ export async function unpublishClassificationRunAsPublicDemo(input: {
     current.status !== 'published' ||
     current.activeClassificationRunId !== input.classificationRunId
   ) {
-    throw new HttpError(409, 'This run is not currently live as the public demo.');
+    throw new HttpError(
+      409,
+      'This run is not currently live as the public demo.',
+    );
   }
 
   const publication = await prisma.publicDemoPublication.update({
@@ -1765,7 +1947,8 @@ export async function getClassificationRunDemoPublicationStatus(
   const isPublished =
     publication?.status === 'published' &&
     publication.activeClassificationRunId === classificationRunId;
-  const hasCompletedRun = run.status === 'completed' && Boolean(run.completedAt);
+  const hasCompletedRun =
+    run.status === 'completed' && Boolean(run.completedAt);
   const hasMemo = Boolean(run.reviewMemo);
   const hasValidationIssues =
     Array.isArray(run.validationIssues) && run.validationIssues.length > 0;
@@ -1790,15 +1973,17 @@ export async function getClassificationRunDemoPublicationStatus(
     publishBlockTitle,
     publishBlockReason,
     isPublished,
-    publishedAt: isPublished ? publication?.publishedAt ?? null : null,
-    publicTitle: isPublished ? publication?.publicTitle ?? null : null,
-    publicSummary: isPublished ? publication?.publicSummary ?? null : null,
+    publishedAt: isPublished ? (publication?.publishedAt ?? null) : null,
+    publicTitle: isPublished ? (publication?.publicTitle ?? null) : null,
+    publicSummary: isPublished ? (publication?.publicSummary ?? null) : null,
     sourceDocumentDisplayName: isPublished
-      ? publication?.sourceDocumentDisplayName ?? null
+      ? (publication?.sourceDocumentDisplayName ?? null)
       : null,
     canonicalUrl: `/classification-runs/${classificationRunId}`,
     activeDemoRunId:
-      publication?.status === 'published' ? publication.activeClassificationRunId : null,
+      publication?.status === 'published'
+        ? publication.activeClassificationRunId
+        : null,
     willReplaceActiveDemo:
       publication?.status === 'published' &&
       publication.activeClassificationRunId !== classificationRunId,
@@ -1824,7 +2009,10 @@ export async function getAuthenticatedMemoDownload(input: {
   organizationId: string;
   classificationRunId: string;
 }) {
-  const run = await getClassificationRun(input.organizationId, input.classificationRunId);
+  const run = await getClassificationRun(
+    input.organizationId,
+    input.classificationRunId,
+  );
   if (!run) {
     throw new HttpError(404, 'Classification run not found.', {
       code: 'RUN_NOT_FOUND',
@@ -1836,9 +2024,13 @@ export async function getAuthenticatedMemoDownload(input: {
     memoMarkdown: run.reviewMemo?.contentMarkdown ?? null,
   });
   if (!content) {
-    throw new HttpError(404, 'A memo has not been generated for this run yet.', {
-      code: 'MEMO_NOT_FOUND',
-    });
+    throw new HttpError(
+      404,
+      'A memo has not been generated for this run yet.',
+      {
+        code: 'MEMO_NOT_FOUND',
+      },
+    );
   }
 
   return {
@@ -1886,9 +2078,13 @@ export async function getPublicMemoDownload(runId: string) {
     memoMarkdown: run.reviewMemo?.contentMarkdown ?? null,
   });
   if (!content) {
-    throw new HttpError(404, 'A memo has not been generated for this run yet.', {
-      code: 'MEMO_NOT_FOUND',
-    });
+    throw new HttpError(
+      404,
+      'A memo has not been generated for this run yet.',
+      {
+        code: 'MEMO_NOT_FOUND',
+      },
+    );
   }
 
   return {

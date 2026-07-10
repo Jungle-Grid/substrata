@@ -29,11 +29,11 @@ export function StartClassificationButton({
 
   return (
     <div className="space-y-3">
-      <InlineNotice tone="warning" title="Execution guidance">
-        Early validation workspace: use public datasheets or sanitized technical text.
+      <InlineNotice tone="info" title="Workspace guidance">
+        Upload prior classification records, datasheets, technical notes, and review memos. Substrata uses workspace materials to surface relevant internal references during future export-control reviews.
       </InlineNotice>
       <label className="block space-y-2">
-        <span className="text-sm font-medium text-slate-900">Execution backend</span>
+        <span className="text-sm font-medium text-slate-900">Execution mode</span>
         <select
           value={executionPreference}
           onChange={(event) =>

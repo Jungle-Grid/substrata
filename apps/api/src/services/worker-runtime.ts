@@ -9,6 +9,7 @@ import {
 } from '@substrata/shared';
 import { HttpError } from '../lib/errors';
 import { getLocalStorageRoot, workerEntryPoint } from '../lib/paths';
+import { relativePrivateStorageKey } from './storage';
 
 const execFileAsync = promisify(execFile);
 
@@ -164,8 +165,34 @@ function mapCliOutput(output: WorkerCliOutput): WorkerOutput {
   };
 }
 
+export function normalizeLocalWorkerArtifactKey(input: {
+  storageRoot: string;
+  runDir: string;
+  artifactPath: string;
+}) {
+  if (!input.artifactPath || !path.isAbsolute(input.artifactPath)) {
+    throw new HttpError(400, 'Worker artifact path must be absolute and inside private storage.');
+  }
+
+  const artifactsRoot = path.resolve(input.runDir, 'artifacts');
+  const resolvedArtifactPath = path.resolve(input.artifactPath);
+  const artifactRelativePath = path.relative(artifactsRoot, resolvedArtifactPath);
+
+  if (
+    !artifactRelativePath ||
+    artifactRelativePath === '..' ||
+    artifactRelativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(artifactRelativePath)
+  ) {
+    throw new HttpError(400, 'Worker artifact path must remain within its private run directory.');
+  }
+
+  return relativePrivateStorageKey(input.storageRoot, resolvedArtifactPath);
+}
+
 export async function runLocalWorker(input: {
   documentId: string;
+  classificationRunId: string;
   organizationId: string;
   sourceText: string;
   documentTitle: string;
@@ -181,8 +208,10 @@ export async function runLocalWorker(input: {
 }): Promise<RuntimeWorkerOutput> {
   const runDir = path.join(
     getLocalStorageRoot(),
-    'worker-inputs',
-    input.documentId,
+    'organizations',
+    input.organizationId,
+    'classification-runs',
+    input.classificationRunId,
   );
   await fs.mkdir(runDir, { recursive: true });
 
@@ -217,11 +246,23 @@ export async function runLocalWorker(input: {
 
     const parsed = workerCliOutputSchema.parse(JSON.parse(stdout));
     const mapped = mapCliOutput(parsed);
+    const storageRoot = getLocalStorageRoot();
+    const normalizeArtifact = (artifactPath: string) =>
+      normalizeLocalWorkerArtifactKey({
+        storageRoot,
+        runDir,
+        artifactPath,
+      });
     return {
       ...mapped,
+      artifacts: {
+        extractedTextPath: normalizeArtifact(mapped.artifacts.extractedTextPath),
+        structuredOutputPath: normalizeArtifact(mapped.artifacts.structuredOutputPath),
+        memoPath: normalizeArtifact(mapped.artifacts.memoPath),
+      },
       runMetadata: {
         ...(mapped.runMetadata ?? {}),
-        workerLogPath,
+        workerLogPath: relativePrivateStorageKey(storageRoot, workerLogPath),
       },
     } as RuntimeWorkerOutput;
   } catch (error) {
@@ -235,6 +276,9 @@ export async function runLocalWorker(input: {
     logWorkerStderr(input.documentId, stderr);
     const message =
       error instanceof Error ? error.message : 'Local worker execution did not complete.';
+    if (error instanceof HttpError) {
+      throw error;
+    }
     throw new HttpError(500, 'Classification worker did not complete.', { message });
   }
 }

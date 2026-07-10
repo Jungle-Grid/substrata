@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { ChangeEvent, useState, useTransition } from 'react';
 import { createDocumentFromText, fetchCsrfToken, uploadDocument } from '../lib/api';
 import { InlineNotice } from './ui';
+import { Icon } from './icon';
 
 const sampleTitle = 'Asteria A112 Edge Accelerator Datasheet';
 
@@ -18,6 +19,7 @@ export function DocumentCreateForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [statusMessage, setStatusMessage] = useState(
     'Upload a PDF or text file. If extraction needs support, paste source text below.',
   );
@@ -30,16 +32,20 @@ export function DocumentCreateForm() {
       .replace(/\s+/g, ' ')
       .trim();
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleFileSelection = (file?: File | null) => {
     if (!file) {
       return;
     }
+    setSelectedFile(file);
 
     const derivedTitle = deriveTitleFromFileName(file.name);
     if (derivedTitle) {
       setTitle(derivedTitle);
     }
+  };
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    handleFileSelection(event.target.files?.[0]);
   };
 
   return (
@@ -50,7 +56,8 @@ export function DocumentCreateForm() {
         setError(null);
         const form = new FormData(event.currentTarget);
         const submittedTitle = String(form.get('title') ?? '').trim();
-        const file = form.get('file');
+        const formFile = form.get('file');
+        const file = selectedFile ?? formFile;
         const rawText = String(form.get('rawText') ?? '').trim();
 
         if (!submittedTitle) {
@@ -100,8 +107,8 @@ export function DocumentCreateForm() {
         });
       }}
     >
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-2">
+      <div className="space-y-4">
+        <label className="block space-y-2">
           <span className="text-sm font-medium text-ink">Document title</span>
           <input
             className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm shadow-sm outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-steel focus:ring-2 focus:ring-steel/20"
@@ -112,16 +119,21 @@ export function DocumentCreateForm() {
             required
           />
         </label>
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-ink">Datasheet file</span>
-          <input
-            className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm shadow-sm outline-none transition file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium hover:border-slate-400 focus:border-steel focus:ring-2 focus:ring-steel/20"
-            name="file"
-            type="file"
-            accept=".pdf,.txt,.md,.csv,.json,text/plain,application/pdf"
-            onChange={handleFileChange}
-          />
+      </div>
+
+      <div
+        className="rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-5 text-center transition hover:border-sky-400 hover:bg-sky-50/40"
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => { event.preventDefault(); handleFileSelection(event.dataTransfer.files?.[0]); }}
+      >
+        <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-white text-sky-700 shadow-sm"><Icon name="upload" size={20} /></span>
+        <p className="mt-3 text-sm font-semibold text-slate-900">Drop a source package here, or choose a file</p>
+        <p className="mt-1 text-xs leading-5 text-slate-500">Datasheet PDF, product brief, extracted text, CSV, JSON, or prior technical material.</p>
+        <label className="mt-4 inline-flex min-h-9 cursor-pointer items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+          Choose file
+          <input name="file" type="file" accept=".pdf,.txt,.md,.csv,.json,text/plain,application/pdf" onChange={handleFileChange} className="sr-only" />
         </label>
+        {selectedFile ? <p className="mt-3 text-xs font-medium text-slate-700">Selected: {selectedFile.name}</p> : null}
       </div>
 
       <InlineNotice tone="default" title="Document intake status">
@@ -133,7 +145,7 @@ export function DocumentCreateForm() {
           Optional source text
         </span>
         <span className="block text-xs text-slate-500">
-          Use this for extracted text, public snippets, or a sanitized datasheet excerpt.
+          Use this for extracted technical text, product excerpts, or internal engineering notes.
         </span>
         <textarea
           className="min-h-64 w-full rounded-lg border border-slate-300 px-4 py-3 text-sm shadow-sm outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-steel focus:ring-2 focus:ring-steel/20"
@@ -147,9 +159,10 @@ export function DocumentCreateForm() {
       <button
         type="submit"
         disabled={isPending}
-        className="inline-flex min-h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-white transition hover:bg-steel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-steel focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isPending ? 'Preparing document record...' : 'Create document record'}
+        <Icon name="clipboard-check" size={16} />
+        {isPending ? 'Preparing review workup...' : 'Generate review workup'}
       </button>
     </form>
   );

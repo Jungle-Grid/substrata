@@ -40,7 +40,7 @@ export default async function CompanyHistoryDocumentPage({ params }: { params: P
             </div>
             <div className="flex items-center gap-2"><Badge tone="default">{historyDocument.recordType.replace(/_/g, ' ')}</Badge><StatusBadge status={historyDocument.ingestionStatus} /></div>
           </div>
-          <div className="mt-5"><InlineNotice tone="default" title="Internal reference material">This document is available only for qualified reviewer comparison within this organization. It is not regulatory authority.</InlineNotice></div>
+          <div className="mt-5"><InlineNotice tone="default" title="Company-controlled reference library">This document is available only for qualified reviewer comparison within this organization. It supports reviewer analysis and memo drafting; final export classifications remain subject to human approval.</InlineNotice></div>
           {historyDocument.errorMessage ? <div className="mt-4"><InlineNotice tone="error">{historyDocument.errorMessage}</InlineNotice></div> : null}
         </Panel>
 

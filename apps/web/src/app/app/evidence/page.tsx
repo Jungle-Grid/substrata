@@ -1,0 +1,17 @@
+import Link from 'next/link';
+import { AppShell } from '../../../components/app-shell';
+import { Icon } from '../../../components/icon';
+import { EmptyState, Panel, SectionHeader } from '../../../components/ui';
+import { requireCompletedOnboarding } from '../../../lib/server-auth';
+import { fetchServerRuns } from '../../../lib/server-api';
+
+export default async function EvidencePage() {
+  const session = await requireCompletedOnboarding('/app/evidence');
+  const runs = await fetchServerRuns();
+  const facts = runs.flatMap((run) => run.extractedSpecs.slice(0, 8).map((fact) => ({ run, fact }))).slice(0, 24);
+  return (
+    <AppShell session={session} currentPath="/app/evidence" title="Evidence" description="Source-grounded technical facts and cited review material retained across the organization’s classification workups.">
+      {facts.length === 0 ? <EmptyState icon="link" title="No evidence records yet" body="Extracted facts and supporting citations appear here once a classification workup completes." /> : <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)]"><Panel><SectionHeader eyebrow="Source-grounded facts" title="Recent extracted evidence" description="Every fact stays connected to its source context and the case file where a qualified reviewer can assess it." /><div className="mt-5 divide-y divide-slate-100">{facts.map(({ run, fact }) => <Link key={`${run.id}-${fact.id}`} href={`/app/reviews/${run.id}`} className="flex gap-3 py-4 first:pt-0 transition hover:bg-slate-50"><span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-sky-50 text-sky-700"><Icon name="link" size={16} /></span><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-slate-900">{fact.label}</p><span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-600">{fact.confidence}</span></div><p className="mt-1 text-sm text-slate-700">{fact.value}{fact.unit ? ` ${fact.unit}` : ''}</p><p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{fact.sourceSnippet}</p><p className="mt-1.5 text-[11px] font-medium text-slate-400">{run.document.title} · {fact.category}</p></div></Link>)}</div></Panel><div className="space-y-6"><Panel><SectionHeader eyebrow="Evidence guidance" title="Review with context" /><div className="mt-4 space-y-3 text-sm leading-6 text-slate-600"><p>Facts support recommended review paths only when the underlying source excerpt is complete and applicable to the shipping configuration.</p><p>Company history may add comparison context, but it never substitutes for current source evidence or qualified reviewer confirmation.</p></div></Panel><Panel><SectionHeader eyebrow="Evidence coverage" title="Case-file linkage" /><div className="mt-4 space-y-3">{runs.slice(0, 5).map((run) => <Link key={run.id} href={`/app/reviews/${run.id}`} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-3 transition hover:bg-slate-50"><span className="min-w-0"><span className="block truncate text-sm font-semibold text-slate-900">{run.document.title}</span><span className="mt-0.5 block text-xs text-slate-500">{run.extractedSpecs.length} facts · {run.reviewPaths.length} review paths</span></span><Icon name="arrow-up-right" size={16} className="shrink-0 text-slate-400" /></Link>)}</div></Panel></div></div>}
+    </AppShell>
+  );
+}

@@ -2,7 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
-const demoHref = 'https://calendar.app.google/UqNdDvK2Ya1VQ4Rm6';
+const consultationHref = 'https://calendar.app.google/UqNdDvK2Ya1VQ4Rm6';
 
 function CTA({
   href,
@@ -63,7 +63,7 @@ export default function PricingPage() {
             <Link className="hover:text-[var(--substrata-ink)]" href="/app">
               Workspace
             </Link>
-            <CTA href={demoHref}>Want a demo?</CTA>
+            <CTA href={consultationHref}>Schedule a consultation</CTA>
           </nav>
         </div>
       </header>
@@ -86,7 +86,7 @@ export default function PricingPage() {
               Substrata is priced around review workflow needs, document volume, team structure, and implementation support. We work directly with hardware compliance teams to scope the right operating model.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <CTA href={demoHref}>Want a demo?</CTA>
+              <CTA href={consultationHref}>Schedule a consultation</CTA>
               <CTA href="mailto:substrata@junglegrid.dev?subject=Substrata%20pricing" variant="secondary">
                 Email us
               </CTA>
@@ -142,7 +142,7 @@ export default function PricingPage() {
               We can walk through document intake, extracted technical facts, recommended review paths, memo drafting, and human review workflow in one session.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <CTA href={demoHref}>Want a demo?</CTA>
+              <CTA href={consultationHref}>Schedule a consultation</CTA>
               <CTA href="/app" variant="secondary">Open workspace</CTA>
             </div>
           </div>
@@ -155,8 +155,8 @@ export default function PricingPage() {
           <div className="flex flex-wrap gap-4">
             <Link href="/" className="hover:text-white">Product</Link>
             <Link href="/pricing" className="hover:text-white">Pricing</Link>
-            <a href={demoHref} target="_blank" rel="noreferrer" className="hover:text-white">
-              Want a demo?
+            <a href={consultationHref} target="_blank" rel="noreferrer" className="hover:text-white">
+              Talk to our team
             </a>
             <a href="mailto:substrata@junglegrid.dev?subject=Substrata%20pricing" className="hover:text-white">
               substrata@junglegrid.dev

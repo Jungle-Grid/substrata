@@ -25,17 +25,16 @@ export function SampleDatasheetButton() {
               setError(
                 creationError instanceof Error
                   ? creationError.message
-                  : 'Sample datasheet creation did not complete.',
+                  : 'Starter document creation did not complete.',
               );
             }
           });
         }}
       >
-        {isPending ? 'Preparing sample review...' : 'Run sample review'}
+        {isPending ? 'Preparing starter review...' : 'Create starter review'}
       </button>
       <p className="text-xs leading-5 text-slate-500">
-        Uses a bundled public/sample semiconductor datasheet text file for demo
-        purposes.
+        Creates a bundled semiconductor document for workspace orientation.
       </p>
       {error ? (
         <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">

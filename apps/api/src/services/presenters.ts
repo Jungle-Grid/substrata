@@ -119,8 +119,13 @@ function presentValidationIssues(value: unknown) {
   return Array.isArray(value) ? value : [];
 }
 
-function safeDemoDocumentName(publication: PublicDemoPublication, document: Document) {
-  return publication.sourceDocumentDisplayName ?? document.displayFileName ?? null;
+function safeDemoDocumentName(
+  publication: PublicDemoPublication,
+  document: Document,
+) {
+  return (
+    publication.sourceDocumentDisplayName ?? document.displayFileName ?? null
+  );
 }
 
 function presentRegulationSource(source?: RegulationSource | null) {
@@ -149,7 +154,8 @@ function presentCitation(citation: CitationWithSource) {
     id: citation.id,
     citationLabel: citation.sourceTitle,
     citationText: citation.quotedText,
-    source: citation.sourceSection ?? citation.sourceUrl ?? citation.sourceTitle,
+    source:
+      citation.sourceSection ?? citation.sourceUrl ?? citation.sourceTitle,
     relevance: citation.relevanceNote,
     regulationSource: presentRegulationSource(citation.regulationSource),
   };
@@ -242,22 +248,30 @@ function presentCandidate(candidate: ECCNCandidateWithRelations) {
   };
 }
 
-export function hasVerifiedSpecificCandidateEvidence(candidate: Pick<ECCNCandidate, 'isSpecificEccn' | 'eccn' | 'paragraphReference' | 'controlCriteria'> & {
-  regulationSource?: Pick<RegulationSource, 'verificationStatus' | 'regulationVersion' | 'lastVerifiedAt'> | null;
-  factMappings: Array<unknown>;
-  citations: Array<unknown>;
-}) {
+export function hasVerifiedSpecificCandidateEvidence(
+  candidate: Pick<
+    ECCNCandidate,
+    'isSpecificEccn' | 'eccn' | 'paragraphReference' | 'controlCriteria'
+  > & {
+    regulationSource?: Pick<
+      RegulationSource,
+      'verificationStatus' | 'regulationVersion' | 'lastVerifiedAt'
+    > | null;
+    factMappings: Array<unknown>;
+    citations: Array<unknown>;
+  },
+) {
   return Boolean(
     candidate.isSpecificEccn &&
-      isValidSpecificEccn(candidate.eccn) &&
-      candidate.regulationSource?.verificationStatus === 'current' &&
-      candidate.regulationSource.regulationVersion &&
-      candidate.regulationSource.lastVerifiedAt &&
-      candidate.paragraphReference &&
-      Array.isArray(candidate.controlCriteria) &&
-      candidate.controlCriteria.length > 0 &&
-      candidate.factMappings.length > 0 &&
-      candidate.citations.length > 0,
+    isValidSpecificEccn(candidate.eccn) &&
+    candidate.regulationSource?.verificationStatus === 'current' &&
+    candidate.regulationSource.regulationVersion &&
+    candidate.regulationSource.lastVerifiedAt &&
+    candidate.paragraphReference &&
+    Array.isArray(candidate.controlCriteria) &&
+    candidate.controlCriteria.length > 0 &&
+    candidate.factMappings.length > 0 &&
+    candidate.citations.length > 0,
   );
 }
 
@@ -315,7 +329,9 @@ function presentHumanReview(review: HumanReview & { reviewer?: User | null }) {
   };
 }
 
-function presentReviewerAction(action: ReviewerAction & { actorUser?: User | null }) {
+function presentReviewerAction(
+  action: ReviewerAction & { actorUser?: User | null },
+) {
   return {
     id: action.id,
     actionType: action.actionType,
@@ -351,7 +367,9 @@ function presentCompanyHistoryMatch(match: CompanyHistoryMatchWithRelations) {
     score: match.score,
     matchTier: match.matchTier,
     matchReasons: Array.isArray(match.matchReasons)
-      ? match.matchReasons.filter((reason): reason is string => typeof reason === 'string')
+      ? match.matchReasons.filter(
+          (reason): reason is string => typeof reason === 'string',
+        )
       : [],
     retrievalMethod: match.retrievalMethod,
     retrievalVersion: match.retrievalVersion,
@@ -362,6 +380,78 @@ function presentCompanyHistoryMatch(match: CompanyHistoryMatchWithRelations) {
     companyHistoryDocumentId: match.companyHistoryDocumentId,
     companyHistoryChunkId: match.companyHistoryChunkId,
     excerpt: match.companyHistoryChunk.content,
+  };
+}
+
+function metadataRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function metadataBoolean(metadata: Record<string, unknown>, key: string) {
+  return typeof metadata[key] === 'boolean' ? metadata[key] : undefined;
+}
+
+function metadataNumber(metadata: Record<string, unknown>, key: string) {
+  return typeof metadata[key] === 'number' ? metadata[key] : undefined;
+}
+
+export function presentExecutionSummary(run: RunWithRelations) {
+  const metadata = metadataRecord(run.executionJob?.metadata);
+  const backendStatus =
+    typeof metadata.backendStatus === 'string' ? metadata.backendStatus : null;
+  const backendCompleted =
+    (metadataBoolean(metadata, 'backendCompleted') ??
+      backendStatus === 'completed') ||
+    run.executionJob?.status === 'completed';
+  const backendOutputValidated =
+    metadataBoolean(metadata, 'backendOutputValidated') ??
+    (backendCompleted && Boolean(run.reviewMemo?.contentMarkdown));
+  const memoValidated =
+    metadataBoolean(metadata, 'memoValidated') ??
+    Boolean(run.reviewMemo?.contentMarkdown);
+  const fallbackUsed =
+    run.fallbackUsed ||
+    metadataBoolean(metadata, 'fallbackUsed') === true ||
+    metadata.classificationMode === 'heuristic_fallback';
+  const validationIssues = presentValidationIssues(
+    run.validationIssues,
+  ) as Array<{
+    severity?: string;
+  }>;
+  const evidenceChecksUnresolved =
+    (metadataBoolean(metadata, 'evidenceChecksUnresolved') ??
+      validationIssues.length > 0) ||
+    run.uncertaintyFlags.length > 0 ||
+    run.factIssues.length > 0;
+  const companyHistoryMatchCount = run.companyHistoryMatches?.length ?? 0;
+
+  return {
+    backendSelected:
+      (typeof metadata.backendSelected === 'string'
+        ? metadata.backendSelected
+        : null) ??
+      run.executionJob?.backend ??
+      run.backendUsed,
+    backendCompleted,
+    backendOutputValidated,
+    memoValidated,
+    fallbackEnabled:
+      metadataBoolean(metadata, 'fallbackEnabled') ??
+      !['0', 'false', 'no', 'off'].includes(
+        String(process.env.AI_FALLBACK_TO_HEURISTIC ?? 'true').toLowerCase(),
+      ),
+    fallbackUsed,
+    missingFactCount: metadataNumber(metadata, 'missingFactCount') ?? 0,
+    warningCount:
+      metadataNumber(metadata, 'warningCount') ??
+      validationIssues.filter((issue) => issue.severity === 'warning').length,
+    evidenceChecksUnresolved,
+    companyHistoryRetrieved:
+      metadataBoolean(metadata, 'companyHistoryRetrieved') ??
+      companyHistoryMatchCount > 0,
+    companyHistoryMatchCount,
   };
 }
 
@@ -402,6 +492,7 @@ export function presentRun(run: RunWithRelations) {
     validationIssues: presentValidationIssues(run.validationIssues),
     fallbackUsed: run.fallbackUsed,
     validationStatus: run.validationStatus,
+    executionSummary: presentExecutionSummary(run),
     executionProvenance: run.executionJob
       ? {
           id: run.executionJob.id,
@@ -438,7 +529,9 @@ export function presentRun(run: RunWithRelations) {
       sha256: artifact.sha256,
       createdAt: artifact.createdAt,
     })),
-    companyHistoryMatches: (run.companyHistoryMatches ?? []).map(presentCompanyHistoryMatch),
+    companyHistoryMatches: (run.companyHistoryMatches ?? []).map(
+      presentCompanyHistoryMatch,
+    ),
     completedAt: run.completedAt,
     createdAt: run.createdAt,
     lastReviewerActionAt: run.lastReviewerActionAt,
@@ -477,10 +570,14 @@ export function presentRun(run: RunWithRelations) {
   };
 }
 
-export function presentPublicDemoRun(publication: PublicDemoRunWithPublication) {
+export function presentPublicDemoRun(
+  publication: PublicDemoRunWithPublication,
+) {
   const run = publication.activeClassificationRun;
   if (!run) {
-    throw new Error('Public demo publication is missing its active classification run.');
+    throw new Error(
+      'Public demo publication is missing its active classification run.',
+    );
   }
 
   const review = latestReview(run);
@@ -561,10 +658,14 @@ export function presentPublicDemoRun(publication: PublicDemoRunWithPublication) 
   };
 }
 
-export function presentPublicDemoMetadata(publication: PublicDemoRunWithPublication) {
+export function presentPublicDemoMetadata(
+  publication: PublicDemoRunWithPublication,
+) {
   const run = publication.activeClassificationRun;
   if (!run) {
-    throw new Error('Public demo publication is missing its active classification run.');
+    throw new Error(
+      'Public demo publication is missing its active classification run.',
+    );
   }
 
   return {
@@ -607,8 +708,8 @@ export function presentDocument(document: DocumentWithRunRelations) {
       document.classificationRuns?.map((run) =>
         presentRun({
           ...(run as RunWithRelations),
-          document:
-            ((run as { document?: Document }).document ?? document) as Document,
+          document: ((run as { document?: Document }).document ??
+            document) as Document,
         }),
       ) ?? [],
   };

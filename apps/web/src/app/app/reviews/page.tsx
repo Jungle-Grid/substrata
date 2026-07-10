@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import { ActionMenu } from '../../../components/action-menu';
 import { AppShell } from '../../../components/app-shell';
-import { ActionLink, Badge, EmptyState, Panel, StatusBadge, TableContainer } from '../../../components/ui';
+import { Icon } from '../../../components/icon';
+import { ActionLink, Badge, EmptyState, Panel, SectionHeader, StatusBadge, TableContainer } from '../../../components/ui';
 import { requireCompletedOnboarding } from '../../../lib/server-auth';
 import { fetchServerRuns } from '../../../lib/server-api';
 import { formatDateTime } from '../../../lib/workspace';
@@ -8,94 +10,9 @@ import { formatDateTime } from '../../../lib/workspace';
 export default async function ReviewsPage() {
   const session = await requireCompletedOnboarding('/app/reviews');
   const runs = await fetchServerRuns();
-
   return (
-    <AppShell
-      session={session}
-      currentPath="/app/reviews"
-      title="Classification reviews"
-      description="Browse organization-scoped technical workups, review-path packages, memo status, reviewer state, and source-document context."
-    >
-      {runs.length === 0 ? (
-        <EmptyState
-          title="No reviews yet"
-          body="Upload a document and start a classification review to populate this workspace."
-          action={<ActionLink href="/app/documents/new">Create first classification</ActionLink>}
-        />
-      ) : (
-        <div className="space-y-4">
-          <div className="grid gap-3 md:hidden">
-            {runs.map((run) => (
-              <Panel key={run.id}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <Link href={`/app/reviews/${run.id}`} className="block truncate font-medium text-slate-950">
-                      {run.document.title}
-                    </Link>
-                    <p className="mt-1 text-xs text-slate-500">{run.reviewPaths.length} recommended review paths / {run.eccnCandidates.length} potential ECCN candidates</p>
-                  </div>
-                  <StatusBadge status={run.reviewStatus ?? run.humanReviewStatus} />
-                </div>
-                <dl className="mt-4 grid gap-3 text-sm">
-                  <div>
-                    <dt className="text-xs uppercase tracking-[0.14em] text-slate-500">Reviewer</dt>
-                    <dd className="mt-1 text-slate-700">{run.humanReviews[0]?.reviewer?.name ?? 'Unassigned'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs uppercase tracking-[0.14em] text-slate-500">Last updated</dt>
-                    <dd className="mt-1 text-slate-700">{formatDateTime(run.completedAt ?? run.createdAt)}</dd>
-                  </div>
-                </dl>
-              </Panel>
-            ))}
-          </div>
-          <Panel className="hidden p-0 md:block">
-            <TableContainer>
-              <table className="min-w-full text-left text-sm">
-                <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.16em] text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3">Review</th>
-                    <th className="px-4 py-3">Document</th>
-                    <th className="px-4 py-3">Reviewer</th>
-                    <th className="px-4 py-3">Uncertainty</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Updated</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {runs.map((run) => (
-                    <tr key={run.id}>
-                      <td className="px-4 py-4">
-                        <Link href={`/app/reviews/${run.id}`} className="font-medium text-slate-950">
-                          Open review
-                        </Link>
-                      </td>
-                      <td className="px-4 py-4 text-slate-600">
-                        <span className="block max-w-[18rem] truncate">{run.document.title}</span>
-                      </td>
-                      <td className="px-4 py-4 text-slate-600">
-                        {run.humanReviews[0]?.reviewer?.name ?? 'Unassigned'}
-                      </td>
-                      <td className="px-4 py-4 text-slate-600">
-                        {run.uncertaintyFlags.length > 0 ? `${run.uncertaintyFlags.length} flags` : 'No open flags'}
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="space-y-1">
-                          <Badge tone={run.status === 'completed' ? 'success' : run.status === 'needs_attention' ? 'danger' : 'info'}>
-                            {run.processingLabel ?? run.status}
-                          </Badge>
-                          <StatusBadge status={run.reviewStatus ?? run.humanReviewStatus} />
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-slate-600">{formatDateTime(run.completedAt ?? run.createdAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </TableContainer>
-          </Panel>
-        </div>
-      )}
+    <AppShell session={session} currentPath="/app/reviews" title="Classification reviews" description="Case files with source-grounded facts, recommended ECCN review paths, reviewer questions, memo drafts, and audit-ready history." actions={<Link href="/app/documents/new" className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"><Icon name="plus" size={16} /> New classification</Link>}>
+      {runs.length === 0 ? <EmptyState icon="clipboard-check" title="No classification reviews yet" body="Upload a source package and start a classification review to create the first case file." action={<ActionLink href="/app/documents/new">Create first classification</ActionLink>} /> : <Panel className="p-0"><div className="border-b border-slate-200 px-5 py-4"><SectionHeader eyebrow="Case file register" title={`${runs.length} review${runs.length === 1 ? '' : 's'}`} description="Operational state, reviewer ownership, and evidence completeness for each workup." /></div><TableContainer><table className="min-w-full text-left text-sm"><thead className="border-b border-slate-200 bg-slate-50/80 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-5 py-3">Review case</th><th className="px-5 py-3">Reviewer</th><th className="px-5 py-3">Evidence</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Updated</th><th className="w-12 px-3 py-3" /></tr></thead><tbody className="divide-y divide-slate-100">{runs.map((run) => <tr key={run.id} className="transition hover:bg-slate-50/70"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700"><Icon name="clipboard-check" size={17} /></span><div className="min-w-0"><Link href={`/app/reviews/${run.id}`} className="block max-w-[30rem] truncate font-semibold text-slate-950 hover:underline">{run.document.title}</Link><p className="mt-0.5 text-xs text-slate-500">{run.reviewPaths.length} recommended paths · {run.eccnCandidates.length} specific candidates</p></div></div></td><td className="px-5 py-4 text-slate-600">{run.humanReviews[0]?.reviewer?.name ?? 'Unassigned'}</td><td className="px-5 py-4"><p className="text-slate-700">{run.extractedSpecs.length} extracted facts</p><p className="mt-0.5 text-xs text-slate-400">{run.uncertaintyFlags.length ? `${run.uncertaintyFlags.length} open flags` : 'No open flags'}</p></td><td className="px-5 py-4"><div className="space-y-1.5"><Badge tone={run.status === 'completed' ? 'success' : run.status === 'needs_attention' || run.status === 'blocked' ? 'danger' : 'info'}>{run.processingLabel ?? run.status}</Badge><StatusBadge status={run.reviewStatus ?? run.humanReviewStatus} /></div></td><td className="px-5 py-4 text-slate-600">{formatDateTime(run.completedAt ?? run.createdAt)}</td><td className="px-3 py-4"><ActionMenu items={[{ label: 'Open case file', href: `/app/reviews/${run.id}` }, { label: 'Open source document', href: `/app/documents/${run.document.id}` }]} /></td></tr>)}</tbody></table></TableContainer></Panel>}
     </AppShell>
   );
 }

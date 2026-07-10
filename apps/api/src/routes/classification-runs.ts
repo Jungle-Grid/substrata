@@ -25,6 +25,21 @@ import {
   updateReviewPathRecord,
 } from '../services/classification.service';
 import { presentRun } from '../services/presenters';
+import { createStorageDriver } from '../services/storage';
+
+const storage = createStorageDriver();
+
+async function readPrivateArtifactPreview(storagePath?: string | null) {
+  if (!storagePath) {
+    return null;
+  }
+
+  try {
+    return await fs.readFile(storage.resolve(storagePath), 'utf8');
+  } catch {
+    return null;
+  }
+}
 
 type ClassificationRunsRouterDeps = {
   loadClassificationRun?: typeof getClassificationRun;
@@ -374,12 +389,8 @@ export function createClassificationRunsRouter(
     }
 
     const [memoPreview, extractedTextPreview] = await Promise.all([
-      run.memoArtifactPath
-        ? fs.readFile(run.memoArtifactPath, 'utf8').catch(() => null)
-        : Promise.resolve(null),
-      run.extractedTextPath
-        ? fs.readFile(run.extractedTextPath, 'utf8').catch(() => null)
-        : Promise.resolve(null),
+      readPrivateArtifactPreview(run.memoArtifactPath),
+      readPrivateArtifactPreview(run.extractedTextPath),
     ]);
 
     return res.json({

@@ -27,7 +27,7 @@ export function CompanyHistoryUploadForm() {
         const recordType = String(form.get('recordType') ?? 'other') as Parameters<typeof uploadCompanyHistoryBatch>[0]['recordType'];
 
         if (!files.length) {
-          setError('Choose at least one historical file to continue.');
+          setError('Choose at least one reference file to continue.');
           return;
         }
         if (files.length > MAX_FILES) {
@@ -66,7 +66,7 @@ export function CompanyHistoryUploadForm() {
           <input
             name="name"
             maxLength={120}
-            placeholder="Q3 prior product and compliance materials"
+            placeholder="Q3 accelerator classification records"
             className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm shadow-sm outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-steel focus:ring-2 focus:ring-steel/20"
           />
         </label>
@@ -77,20 +77,20 @@ export function CompanyHistoryUploadForm() {
             defaultValue="other"
             className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm shadow-sm outline-none transition hover:border-slate-400 focus:border-steel focus:ring-2 focus:ring-steel/20"
           >
+            <option value="prior_memo">Prior ECCN classifications and memos</option>
             <option value="datasheet">Product datasheets</option>
-            <option value="prior_memo">Prior internal review memos</option>
-            <option value="catalog">Product catalog</option>
-            <option value="review_note">Export review notes</option>
-            <option value="approval_record">Internal approval records</option>
+            <option value="review_note">Engineering notes</option>
+            <option value="approval_record">Export review records</option>
+            <option value="spreadsheet">Classification spreadsheets</option>
             <option value="technical_spec">Technical specifications</option>
-            <option value="spreadsheet">Spreadsheet export</option>
-            <option value="other">Mixed or other material</option>
+            <option value="catalog">Product catalogs</option>
+            <option value="other">Mixed materials</option>
           </select>
         </label>
       </div>
 
       <label className="block space-y-2">
-        <span className="text-sm font-medium text-ink">Historical files</span>
+        <span className="text-sm font-medium text-ink">Reference materials</span>
         <input
           name="files"
           type="file"
@@ -104,8 +104,8 @@ export function CompanyHistoryUploadForm() {
         </p>
       </label>
 
-      <InlineNotice tone="default" title="Internal reference material">
-        Files are indexed only within this compliance workspace. They help reviewers compare future products with prior internal materials; they do not create automatic classifications or regulatory authority.
+      <InlineNotice tone="default" title="Company-controlled reference library">
+        Uploaded files are indexed within this workspace and used to retrieve relevant internal history during future reviews. Substrata supports reviewer analysis, memo drafting, and auditability; final export classifications remain subject to human approval.
       </InlineNotice>
 
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
@@ -115,7 +115,7 @@ export function CompanyHistoryUploadForm() {
         disabled={isPending}
         className="inline-flex min-h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-white transition hover:bg-steel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-steel focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isPending ? 'Creating history batch…' : 'Upload Company History'}
+        {isPending ? 'Adding to Reference Library…' : 'Add to Reference Library'}
       </button>
     </form>
   );

@@ -98,7 +98,7 @@ test('public demo CTA links target onboarding sign-up and sign-in', () => {
 test('public demo page renders without auth/session controls', () => {
   const markup = renderToStaticMarkup(<PublicClassificationRunDemo run={demoRun} />);
 
-  assert.match(markup, /Public product demo/);
+  assert.match(markup, /Public shared review/);
   assert.match(markup, /Run your own classification/);
   assert.match(markup, /Already have an account\? Sign in/);
   assert.match(markup, /Download memo/);

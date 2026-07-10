@@ -81,7 +81,7 @@ export function PublicClassificationRunDemo({
                 </div>
               </a>
               <div className="mt-6 flex flex-wrap items-center gap-3">
-                <Badge tone="info">Public product demo</Badge>
+                <Badge tone="info">Public shared review</Badge>
                 <Badge tone="success">{run.processingLabel ?? 'Completed'}</Badge>
                 <Badge tone="warning">{run.reviewStatusDetail ?? run.workflowLabel}</Badge>
                 {run.latestReview?.conclusionRecordedAt ? <Badge tone="success">Reviewer conclusion recorded</Badge> : null}
@@ -100,7 +100,7 @@ export function PublicClassificationRunDemo({
                 ) : null}
               </div>
               <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">
-                {run.publicSummary ?? run.demoBanner}
+                {run.publicSummary ?? 'A source-grounded classification review prepared for qualified review.'}
               </p>
               <div className="mt-4 max-w-4xl">
                 <InlineNotice tone="info" title="Completed analysis for qualified review">
@@ -197,7 +197,7 @@ export function PublicClassificationRunDemo({
                     </div>
                   ))
                 ) : (
-                  <InlineNotice tone="default">No additional open questions were recorded for this demo run.</InlineNotice>
+                  <InlineNotice tone="default">No additional open questions were recorded for this shared review.</InlineNotice>
                 )}
               </div>
             </Panel>
@@ -316,7 +316,7 @@ export function PublicClassificationRunDemo({
                 {run.reviewMemo?.contentMarkdown ? (
                   <MarkdownRenderer markdown={run.reviewMemo.contentMarkdown} />
                 ) : (
-                  <p>No memo is available for this public demo run.</p>
+                  <p>No memo is available for this public shared review.</p>
                 )}
               </div>
             </Panel>

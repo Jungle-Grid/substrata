@@ -43,9 +43,17 @@ export interface RegulationSourceRecord {
   sourceIdentifier?: string | null;
   section?: string | null;
   paragraph?: string | null;
-  kind: 'primary_regulation' | 'agency_guidance' | 'internal_playbook' | 'reviewer_note';
+  kind:
+    | 'primary_regulation'
+    | 'agency_guidance'
+    | 'internal_playbook'
+    | 'reviewer_note';
   lastVerifiedAt?: string | null;
-  verificationStatus: 'current' | 'needs_verification' | 'archived' | 'superseded';
+  verificationStatus:
+    | 'current'
+    | 'needs_verification'
+    | 'archived'
+    | 'superseded';
 }
 
 export interface RegulatoryCitationRecord {
@@ -75,11 +83,7 @@ export interface FactRecord {
   category: string;
   confidence: 'high' | 'medium' | 'low';
   extractionRationale?: string | null;
-  valueType:
-    | 'directly_stated'
-    | 'inferred'
-    | 'normalized'
-    | 'calculated';
+  valueType: 'directly_stated' | 'inferred' | 'normalized' | 'calculated';
   extractionMethod?: string | null;
   extractionMethodVersion?: string | null;
   extractedAt?: string;
@@ -317,6 +321,19 @@ export interface ClassificationRunRecord {
   validationIssues?: ValidationIssueRecord[];
   fallbackUsed?: boolean;
   validationStatus?: string;
+  executionSummary?: {
+    backendSelected?: string | null;
+    backendCompleted: boolean;
+    backendOutputValidated: boolean;
+    memoValidated: boolean;
+    fallbackEnabled: boolean;
+    fallbackUsed: boolean;
+    missingFactCount: number;
+    warningCount: number;
+    evidenceChecksUnresolved: boolean;
+    companyHistoryRetrieved: boolean;
+    companyHistoryMatchCount: number;
+  };
   executionProvenance?: {
     id: string;
     status: string;
@@ -576,7 +593,12 @@ export type CompanyHistoryIngestionStatus =
 export interface CompanyHistoryBatchRecord {
   id: string;
   name: string;
-  status: 'queued' | 'processing' | 'completed' | 'completed_with_errors' | 'failed';
+  status:
+    | 'queued'
+    | 'processing'
+    | 'completed'
+    | 'completed_with_errors'
+    | 'failed';
   fileCount: number;
   completedCount: number;
   failedCount: number;

@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { formatReviewStatus, reviewStatusTone } from '../lib/workspace';
+import { Icon, type IconName } from './icon';
 
 export function Shell({
   title,
@@ -70,14 +71,72 @@ export function Shell({
 export function Panel({
   children,
   className = '',
+  id,
 }: {
   children: ReactNode;
   className?: string;
+  id?: string;
 }) {
   return (
-    <section className={`rounded-xl border border-slate-200 bg-white p-5 shadow-sm ${className}`}>
+    <section id={id} className={`rounded-xl border border-slate-200/90 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] ${className}`}>
       {children}
     </section>
+  );
+}
+
+export function SectionHeader({
+  eyebrow,
+  title,
+  description,
+  action,
+}: {
+  eyebrow?: string;
+  title: string;
+  description?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="min-w-0">
+        {eyebrow ? <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">{eyebrow}</p> : null}
+        <h2 className={`${eyebrow ? 'mt-1.5' : ''} text-base font-semibold text-slate-950`}>{title}</h2>
+        {description ? <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-600">{description}</p> : null}
+      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
+    </div>
+  );
+}
+
+export function MetricCard({
+  label,
+  value,
+  hint,
+  icon,
+  tone = 'slate',
+}: {
+  label: string;
+  value: string | number;
+  hint?: string;
+  icon: IconName;
+  tone?: 'slate' | 'blue' | 'amber' | 'green';
+}) {
+  const tones = {
+    slate: 'bg-slate-100 text-slate-700',
+    blue: 'bg-sky-50 text-sky-700',
+    amber: 'bg-amber-50 text-amber-700',
+    green: 'bg-emerald-50 text-emerald-700',
+  };
+  return (
+    <Panel className="p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{value}</p>
+        </div>
+        <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${tones[tone]}`}><Icon name={icon} size={18} /></span>
+      </div>
+      {hint ? <p className="mt-2 text-xs leading-5 text-slate-500">{hint}</p> : null}
+    </Panel>
   );
 }
 
@@ -134,7 +193,7 @@ export function ActionLink({
   return (
     <Link
       href={href}
-      className="inline-flex min-h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-white transition hover:bg-steel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-steel focus-visible:ring-offset-2"
+      className="inline-flex min-h-10 items-center rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2"
     >
       {children}
     </Link>
@@ -145,18 +204,25 @@ export function EmptyState({
   title,
   body,
   action,
+  icon = 'file-search',
 }: {
   title: string;
   body: string;
   action?: ReactNode;
+  icon?: IconName;
 }) {
   return (
-    <Panel className="border-dashed border-slate-300 bg-slate-50">
-      <h2 className="text-xl font-semibold text-ink">{title}</h2>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{body}</p>
+    <Panel className="border-dashed border-slate-300 bg-slate-50/70 py-8 text-center">
+      <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500"><Icon name={icon} size={19} /></span>
+      <h2 className="mt-4 text-base font-semibold text-slate-950">{title}</h2>
+      <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-600">{body}</p>
       {action ? <div className="mt-5">{action}</div> : null}
     </Panel>
   );
+}
+
+export function FilterBar({ children }: { children: ReactNode }) {
+  return <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.02)] md:flex-row md:items-center">{children}</div>;
 }
 
 export function InlineNotice({

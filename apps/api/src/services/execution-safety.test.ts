@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { determineExecutionCompletion, getPublicDemoEligibility } from './classification.service';
+import {
+  determineExecutionCompletion,
+  getPublicDemoEligibility,
+} from './classification.service';
 import { hasVerifiedSpecificCandidateEvidence } from './presenters';
 import { isValidClassificationStatusTransition } from './classification-integrity';
 
@@ -32,7 +35,11 @@ test('unverified ECCN evidence is hidden from specific-candidate presentation', 
       isSpecificEccn: true,
       paragraphReference: null,
       controlCriteria: [],
-      regulationSource: { verificationStatus: 'needs_verification', regulationVersion: null, lastVerifiedAt: null },
+      regulationSource: {
+        verificationStatus: 'needs_verification',
+        regulationVersion: null,
+        lastVerifiedAt: null,
+      },
       factMappings: [],
       citations: [],
     }),
@@ -56,7 +63,16 @@ test('fallback and unverified public runs are not eligible for demo publication'
 });
 
 test('queued execution follows an explicit status transition path', () => {
-  assert.equal(isValidClassificationStatusTransition('queued', 'running'), true);
-  assert.equal(isValidClassificationStatusTransition('running', 'completed'), true);
-  assert.equal(isValidClassificationStatusTransition('completed', 'running'), false);
+  assert.equal(
+    isValidClassificationStatusTransition('queued', 'running'),
+    true,
+  );
+  assert.equal(
+    isValidClassificationStatusTransition('running', 'completed'),
+    true,
+  );
+  assert.equal(
+    isValidClassificationStatusTransition('completed', 'running'),
+    false,
+  );
 });

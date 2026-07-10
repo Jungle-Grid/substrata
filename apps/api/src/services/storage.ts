@@ -6,6 +6,27 @@ export interface StorageDriver {
   resolve(storagePath: string): string;
 }
 
+export function relativePrivateStorageKey(root: string, absolutePath: string) {
+  if (!absolutePath || !path.isAbsolute(absolutePath)) {
+    throw new HttpError(400, 'Storage path must be an absolute path within private storage.');
+  }
+
+  const resolvedRoot = path.resolve(root);
+  const resolvedPath = path.resolve(absolutePath);
+  const relativePath = path.relative(resolvedRoot, resolvedPath);
+
+  if (
+    !relativePath ||
+    relativePath === '..' ||
+    relativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativePath)
+  ) {
+    throw new HttpError(400, 'Storage path must remain within private storage.');
+  }
+
+  return relativePath.split(path.sep).join('/');
+}
+
 export class LocalStorageDriver implements StorageDriver {
   constructor(private readonly root: string) {}
 
@@ -14,10 +35,11 @@ export class LocalStorageDriver implements StorageDriver {
       throw new HttpError(400, 'Storage path must be a relative private storage key.');
     }
 
-    const resolved = path.resolve(this.root, storagePath);
-    const rootWithSeparator = this.root.endsWith(path.sep)
-      ? this.root
-      : `${this.root}${path.sep}`;
+    const resolvedRoot = path.resolve(this.root);
+    const resolved = path.resolve(resolvedRoot, storagePath);
+    const rootWithSeparator = resolvedRoot.endsWith(path.sep)
+      ? resolvedRoot
+      : `${resolvedRoot}${path.sep}`;
 
     if (!resolved.startsWith(rootWithSeparator)) {
       throw new HttpError(400, 'Storage path must remain within private storage.');

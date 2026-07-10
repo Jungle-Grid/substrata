@@ -48,15 +48,15 @@ export function DemoPublicationControls({
     <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={status.isPublished ? 'success' : 'default'}>
-          {status.isPublished ? 'Public demo live' : 'Private run'}
+          {status.isPublished ? 'Public shared review live' : 'Private run'}
         </Badge>
         {status.willReplaceActiveDemo ? (
-          <Badge tone="warning">Publishing will replace the current public demo</Badge>
+          <Badge tone="warning">Publishing will replace the current public shared review</Badge>
         ) : null}
       </div>
 
       <div className="space-y-2">
-        <h2 className="text-base font-semibold text-slate-950">Public demo controls</h2>
+        <h2 className="text-base font-semibold text-slate-950">Public sharing controls</h2>
         <p className="text-sm leading-6 text-slate-600">
           Only cleared, publicly shareable documents should be published. Private runs stay behind
           the normal workspace authorization boundary.
@@ -64,7 +64,7 @@ export function DemoPublicationControls({
       </div>
 
       {status.isPublished ? (
-        <InlineNotice tone="success" title="This run is live as the public demo">
+        <InlineNotice tone="success" title="This run is available as a public shared review">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <a
               href={status.canonicalUrl}
@@ -80,9 +80,9 @@ export function DemoPublicationControls({
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(publicUrl);
-                  setMessage('Public demo link copied.');
+                  setMessage('Public shared-review link copied.');
                 } catch {
-                  setError('The public demo link could not be copied from this browser.');
+                  setError('The public shared-review link could not be copied from this browser.');
                 }
               }}
             >
@@ -107,7 +107,7 @@ export function DemoPublicationControls({
             setPublishOpen(true);
           }}
         >
-          Publish as public demo
+          Publish shared review
         </button>
         {status.isPublished ? (
           <button
@@ -120,30 +120,26 @@ export function DemoPublicationControls({
               setUnpublishOpen(true);
             }}
           >
-            Unpublish demo
+            Remove public access
           </button>
         ) : null}
       </div>
 
       {!status.canPublish ? (
-        <InlineNotice
-          tone="warning"
-          title={status.publishBlockTitle ?? 'Publication blocked'}
-        >
-          {status.publishBlockReason ??
-            'Only completed runs with a generated classification memo draft can be published.'}
+        <InlineNotice tone="warning" title="Publication blocked">
+          Public sharing requires a completed classification run, a generated memo draft, and source material approved for external viewing.
         </InlineNotice>
       ) : null}
 
       <ConfirmationDialog
         open={publishOpen}
-        title="Publish this run as the public demo"
+        title="Publish this run for public sharing"
         description={
           status.willReplaceActiveDemo
-            ? 'Publishing this run will replace the current public product demo.'
+            ? 'Publishing this run will replace the current public shared review.'
             : 'This will make the canonical classification-run URL viewable without authentication.'
         }
-        confirmLabel="Publish demo"
+        confirmLabel="Publish shared review"
         pending={isPending}
         onClose={() => {
           if (!isPending) {
@@ -152,7 +148,7 @@ export function DemoPublicationControls({
         }}
         onConfirm={() => {
           if (!confirmationChecked) {
-            setError('Public demo publication requires the sharing attestation.');
+            setError('Public sharing requires the sharing attestation.');
             return;
           }
 
@@ -169,14 +165,14 @@ export function DemoPublicationControls({
                 }),
               );
               setPublishOpen(false);
-              setMessage('The public demo is now live.');
+              setMessage('The public shared review is now live.');
               router.refresh();
             } catch (publishError) {
               setPublishOpen(false);
               setError(
                 publishError instanceof Error
                   ? publishError.message
-                  : 'The public demo could not be published.',
+                  : 'The public shared review could not be published.',
               );
             }
           });
@@ -236,9 +232,9 @@ export function DemoPublicationControls({
 
       <ConfirmationDialog
         open={unpublishOpen}
-        title="Unpublish the public demo"
-        description="This will remove unauthenticated access to the current canonical public demo URL."
-        confirmLabel="Unpublish demo"
+        title="Remove public access"
+        description="This will remove unauthenticated access to the current public shared-review URL."
+        confirmLabel="Remove public access"
         tone="destructive"
         pending={isPending}
         onClose={() => {
@@ -251,14 +247,14 @@ export function DemoPublicationControls({
             try {
               await withCsrf((csrfToken) => unpublishDemo({ runId, csrfToken }));
               setUnpublishOpen(false);
-              setMessage('The public demo has been unpublished.');
+              setMessage('Public access to this shared review has been removed.');
               router.refresh();
             } catch (unpublishError) {
               setUnpublishOpen(false);
               setError(
                 unpublishError instanceof Error
                   ? unpublishError.message
-                  : 'The public demo could not be unpublished.',
+                  : 'Public access to this shared review could not be removed.',
               );
             }
           });

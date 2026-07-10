@@ -1,5 +1,6 @@
 import { AppShell } from '../../../components/app-shell';
-import { Badge, EmptyState, Panel, StatusBadge } from '../../../components/ui';
+import { Icon } from '../../../components/icon';
+import { Badge, EmptyState, Panel, SectionHeader, StatusBadge } from '../../../components/ui';
 import { TeamInviteForm } from '../../../components/workspace-forms';
 import { requireCompletedOnboarding } from '../../../lib/server-auth';
 import { fetchServerTeam } from '../../../lib/server-api';
@@ -16,14 +17,12 @@ export default async function TeamPage() {
       session={session}
       currentPath="/app/team"
       title="Team"
-      description="Invite teammates, review current memberships, and track pending workspace invites."
+      description="Reviewer coverage, role assignments, and pending invitations for the compliance workspace."
+      actions={<a href="#invite-member" className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"><Icon name="plus" size={16} /> Invite reviewer</a>}
     >
       <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
-        <Panel>
-          <h2 className="text-lg font-semibold text-slate-950">Invite teammate</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Invite a reviewer, analyst, viewer, or admin into this workspace.
-          </p>
+        <Panel id="invite-member">
+          <SectionHeader eyebrow="Workspace access" title="Invite teammate" description="Invite a compliance reviewer, analyst, viewer, or administrator into this workspace." />
           <div className="mt-4">
             {canManageTeam ? (
               <TeamInviteForm />
@@ -37,7 +36,7 @@ export default async function TeamPage() {
         </Panel>
         <div className="space-y-6">
           <Panel>
-            <h2 className="text-lg font-semibold text-slate-950">Members</h2>
+            <SectionHeader eyebrow="Active workspace access" title="Members" description="Roles shape who can create workups, record reviewer decisions, and manage governance." />
             {team.members.length === 0 ? (
               <div className="mt-4">
                 <EmptyState title="No members found" body="Membership records will appear here once teammates join the workspace." />
@@ -64,7 +63,7 @@ export default async function TeamPage() {
             )}
           </Panel>
           <Panel>
-            <h2 className="text-lg font-semibold text-slate-950">Pending and historical invites</h2>
+            <SectionHeader eyebrow="Invitation history" title="Pending and historical invites" description="Track pending access and accepted workspace invitations." />
             {team.invites.length === 0 ? (
               <div className="mt-4">
                 <EmptyState title="No invites yet" body="Sent invites and their acceptance state will appear here." />

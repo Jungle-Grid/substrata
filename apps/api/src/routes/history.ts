@@ -127,12 +127,38 @@ historyRouter.post('/batches', requireCsrf, upload.array('files', HISTORY_MAX_FI
   });
   const files = (req.files ?? []) as Express.Multer.File[];
 
+  console.info('Company History upload request received', {
+    authenticatedUserId: user.id,
+    organizationId: organization.id,
+    workspaceId: organization.id,
+    membershipRole: req.authContext!.membership.role,
+    requestedBatchName: input.name || null,
+    requestedMaterialType: input.recordType,
+    receivedFileCount: files.length,
+  });
   validateCompanyHistoryBatchFiles(files);
+  console.info('Company History upload files accepted', {
+    authenticatedUserId: user.id,
+    organizationId: organization.id,
+    workspaceId: organization.id,
+    files: files.map((file) => ({
+      fileName: file.originalname,
+      mimeType: file.mimetype,
+      sizeBytes: file.size,
+    })),
+  });
 
   const batch = await createCompanyHistoryBatch({
     organizationId: organization.id,
     createdByUserId: user.id,
     name: input.name || `Company History upload ${new Date().toISOString().slice(0, 10)}`,
+  });
+  console.info('Company History batch created', {
+    batchId: batch.id,
+    referenceLibraryId: batch.id,
+    organizationId: batch.organizationId,
+    workspaceId: batch.organizationId,
+    batchName: batch.name,
   });
 
   for (const file of files) {
@@ -141,6 +167,17 @@ historyRouter.post('/batches', requireCsrf, upload.array('files', HISTORY_MAX_FI
       organizationId: organization.id,
       storageScope: 'history',
       batchId: batch.id,
+    });
+    console.info('Company History storage write completed', {
+      batchId: batch.id,
+      referenceLibraryId: batch.id,
+      organizationId: organization.id,
+      workspaceId: organization.id,
+      fileName: persisted.fileName,
+      mimeType: persisted.mimeType,
+      sizeBytes: persisted.sizeBytes,
+      storagePath: persisted.storagePath,
+      sha256: persisted.sha256,
     });
     const duplicate = await findCompanyHistoryDuplicate({
       organizationId: organization.id,
@@ -161,6 +198,22 @@ historyRouter.post('/batches', requireCsrf, upload.array('files', HISTORY_MAX_FI
         sha256: persisted.sha256,
       },
     });
+    console.info('Company History database record created', {
+      batchId: batch.id,
+      referenceLibraryId: batch.id,
+      referenceFileId: historyDocument.id,
+      documentId: historyDocument.documentId,
+      organizationId: historyDocument.organizationId,
+      workspaceId: historyDocument.organizationId,
+      batchName: batch.name,
+      materialType: historyDocument.recordType,
+      fileName: persisted.fileName,
+      mimeType: persisted.mimeType,
+      sizeBytes: persisted.sizeBytes,
+      ingestionStatus: historyDocument.ingestionStatus,
+      duplicateOfReferenceFileId: historyDocument.duplicateOfHistoryDocumentId,
+      createdAt: historyDocument.createdAt,
+    });
     if (historyDocument.ingestionStatus === 'queued') {
       enqueueCompanyHistoryIngestion(historyDocument.id);
     }
@@ -171,6 +224,13 @@ historyRouter.post('/batches', requireCsrf, upload.array('files', HISTORY_MAX_FI
     throw new HttpError(500, 'Company History batch could not be loaded.');
   }
   const presented = presentHistoryBatch(hydrated);
+  console.info('Company History upload accepted for ingestion', {
+    batchId: batch.id,
+    referenceLibraryId: batch.id,
+    organizationId: organization.id,
+    workspaceId: organization.id,
+    totals: presented.totals,
+  });
   return res.status(202).json({
     id: presented.id,
     status: presented.status,

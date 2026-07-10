@@ -901,6 +901,19 @@ def run(payload_path: str) -> WorkerOutput:
         extracted_text=text,
         output=output,
     )
+    run_metadata.update(
+        {
+            "backendSelected": selected_backend,
+            "backendCompleted": run_metadata.get("backendStatus") == "completed",
+            "backendOutputValidated": True,
+            "memoValidated": True,
+            "fallbackEnabled": fallback_enabled,
+            "fallbackUsed": run_metadata.get("classificationMode") == "heuristic_fallback",
+            "missingFactCount": len(extraction.missing_facts) if extraction else 0,
+            "warningCount": sum(1 for issue in validation_issues if issue.severity == "warning"),
+            "evidenceChecksUnresolved": bool(validation_issues or uncertainty_flags or fact_issues),
+        }
+    )
     _log_worker_event(
         "worker.output_validated",
         document_id=worker_input.document_id,

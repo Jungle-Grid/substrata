@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { AppShell } from '../../../../components/app-shell';
+import { Icon } from '../../../../components/icon';
 import { StartClassificationButton } from '../../../../components/start-classification-button';
-import { EmptyState, Panel, StatusBadge } from '../../../../components/ui';
+import { EmptyState, Panel, SectionHeader, StatusBadge } from '../../../../components/ui';
 import { requireCompletedOnboarding } from '../../../../lib/server-auth';
 import { fetchServerDocument } from '../../../../lib/server-api';
 import { formatDateTime, formatFileSize } from '../../../../lib/workspace';
@@ -25,16 +26,10 @@ export default async function DocumentDetailPage({
     >
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Panel>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-            Source document
-          </p>
-          <p className="mt-3 break-all text-lg font-semibold text-slate-950">{document.fileName}</p>
-          <p className="mt-2 text-sm text-slate-600">
-            {document.mimeType} / {formatFileSize(document.sizeBytes)} / {document.sourceType} / uploaded {formatDateTime(document.createdAt)}
-          </p>
+          <div className="flex gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700"><Icon name="file-text" size={19} /></span><div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">Source package</p><p className="mt-1 break-all text-lg font-semibold text-slate-950">{document.fileName}</p><p className="mt-1 text-sm text-slate-600">{document.mimeType} · {formatFileSize(document.sizeBytes)} · {document.sourceType} · uploaded {formatDateTime(document.createdAt)}</p></div></div>
           <div className="mt-6 border-t border-slate-200 pt-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-950">Classification reviews</h2>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <SectionHeader eyebrow="Related workups" title="Classification reviews" description="Open a case file or generate the first review-ready evidence package." />
               {canCreateClassification ? (
                 <StartClassificationButton
                   documentId={document.id}
@@ -72,11 +67,11 @@ export default async function DocumentDetailPage({
           </div>
         </Panel>
         <Panel>
-          <h2 className="text-lg font-semibold text-slate-950">Review packet posture</h2>
-          <div className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
-            <p>1. Extracted technical facts stay tied to the uploaded source material.</p>
-            <p>2. Recommended ECCN review paths remain cited and uncertainty-aware.</p>
-            <p>3. Human review remains required before any internal decision is recorded.</p>
+          <SectionHeader eyebrow="Evidence package" title="Review packet posture" description="What remains visible as this source moves through the review workflow." />
+          <div className="mt-5 space-y-4 text-sm leading-6 text-slate-600">
+            <div className="flex gap-3"><Icon name="link" size={17} className="mt-1 shrink-0 text-sky-700" /><p>Extracted technical facts stay tied to the uploaded source material.</p></div>
+            <div className="flex gap-3"><Icon name="file-search" size={17} className="mt-1 shrink-0 text-sky-700" /><p>Recommended review paths remain cited and uncertainty-aware.</p></div>
+            <div className="flex gap-3"><Icon name="shield-check" size={17} className="mt-1 shrink-0 text-sky-700" /><p>Human review remains required before any internal decision is recorded.</p></div>
           </div>
         </Panel>
       </div>

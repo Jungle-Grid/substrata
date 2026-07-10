@@ -18,6 +18,10 @@ function excerpt(text: string, start: number, end: number) {
   return text.slice(left, right).replace(/\s+/g, ' ').trim();
 }
 
+function debugPreview(text: string, length = 500) {
+  return text.replace(/\s+/g, ' ').trim().slice(0, length);
+}
+
 function uniqueMarkerEntries(entries: Array<{ value: string; sourceSnippet: string }>) {
   const seen = new Set<string>();
   return entries.filter((entry) => {
@@ -89,12 +93,41 @@ export function chunkCompanyHistoryText(text: string) {
 }
 
 function safeIngestionError(error: unknown) {
+  const diagnostic = [
+    error instanceof Error ? error.message : '',
+    error && typeof error === 'object' && 'details' in error &&
+      (error as { details?: unknown }).details &&
+      typeof (error as { details?: unknown }).details === 'object'
+      ? ['message', 'stderr', 'code']
+        .map((key) => (error as { details: Record<string, unknown> }).details[key])
+        .filter((value): value is string => typeof value === 'string' && Boolean(value.trim()))
+        .join(' | ')
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' | ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 800) || 'Company History ingestion error details unavailable.';
   if (error && typeof error === 'object' && 'statusCode' in error) {
     const statusCode = Number((error as { statusCode?: unknown }).statusCode);
-    if (statusCode === 415) return { code: 'UNSUPPORTED_FILE', message: 'This file type could not be processed.' };
-    if (statusCode === 422) return { code: 'TEXT_EXTRACTION_FAILED', message: 'Text extraction did not complete for this file.' };
+    if (statusCode === 415) {
+      return {
+        code: 'UNSUPPORTED_FILE',
+        message: `Parser rejected this file type. ${diagnostic}`.slice(0, 900),
+      };
+    }
+    if (statusCode === 422) {
+      return {
+        code: 'TEXT_EXTRACTION_FAILED',
+        message: `Parser error: ${diagnostic}`.slice(0, 900),
+      };
+    }
   }
-  return { code: 'INGESTION_FAILED', message: 'Company History ingestion did not complete.' };
+  return {
+    code: 'INGESTION_FAILED',
+    message: `Company History ingestion did not complete. ${diagnostic}`.slice(0, 900),
+  };
 }
 
 export async function ingestCompanyHistoryDocument(historyDocumentId: string) {
@@ -108,6 +141,19 @@ export async function ingestCompanyHistoryDocument(historyDocumentId: string) {
     });
     if (!historyDocument) return;
 
+    console.info('Company History ingestion request accepted', {
+      referenceFileId: historyDocument.id,
+      documentId: historyDocument.documentId,
+      batchId: historyDocument.batchId,
+      organizationId: historyDocument.organizationId,
+      workspaceId: historyDocument.organizationId,
+      fileName: historyDocument.document.fileName,
+      mimeType: historyDocument.document.mimeType,
+      parserStatus: 'queued',
+      indexMethod: 'postgres_full_text',
+      embeddingStatus: 'not_configured',
+    });
+
     const started = await prisma.companyHistoryDocument.update({
       where: { id: historyDocument.id },
       data: {
@@ -119,6 +165,17 @@ export async function ingestCompanyHistoryDocument(historyDocumentId: string) {
       include: { document: true },
     });
     await refreshCompanyHistoryBatch(started.organizationId, started.batchId);
+    console.info('Company History parsing started', {
+      referenceFileId: started.id,
+      documentId: started.documentId,
+      batchId: started.batchId,
+      organizationId: started.organizationId,
+      workspaceId: started.organizationId,
+      fileName: started.document.fileName,
+      mimeType: started.document.mimeType,
+      parserStatus: 'processing',
+      attemptCount: started.attemptCount,
+    });
 
     const extractedText = await extractTextFromStoredFile({
       absolutePath: storage.resolve(started.document.storagePath),
@@ -131,12 +188,33 @@ export async function ingestCompanyHistoryDocument(historyDocumentId: string) {
     if (extractedText.length > MAX_EXTRACTED_TEXT_CHARS) {
       throw new Error('Extracted text exceeds the permitted Company History limit.');
     }
+    console.info('Company History text extraction completed', {
+      referenceFileId: started.id,
+      fileName: started.document.fileName,
+      organizationId: started.organizationId,
+      workspaceId: started.organizationId,
+      parserStatus: 'succeeded',
+      extractedTextLength: extractedText.length,
+      extractedTextPreview: debugPreview(extractedText),
+      parserError: null,
+    });
 
     const metadata = extractCompanyHistoryMetadata(extractedText);
     const chunks = chunkCompanyHistoryText(extractedText);
     if (!chunks.length) {
       throw new Error('No searchable text chunks were produced.');
     }
+    console.info('Company History chunks prepared for indexing', {
+      referenceFileId: started.id,
+      fileName: started.document.fileName,
+      organizationId: started.organizationId,
+      workspaceId: started.organizationId,
+      chunkCount: chunks.length,
+      chunkTextPreview: debugPreview(chunks[0]?.content ?? ''),
+      indexMethod: 'postgres_full_text',
+      embeddingStatus: 'not_configured',
+      embeddingVectorDimensions: null,
+    });
 
     await prisma.$transaction(async (tx) => {
       await tx.document.update({
@@ -168,6 +246,19 @@ export async function ingestCompanyHistoryDocument(historyDocumentId: string) {
     });
 
     await refreshCompanyHistoryBatch(started.organizationId, started.batchId);
+    console.info('Company History indexing completed', {
+      referenceFileId: started.id,
+      documentId: started.documentId,
+      batchId: started.batchId,
+      organizationId: started.organizationId,
+      workspaceId: started.organizationId,
+      fileName: started.document.fileName,
+      indexStatus: 'indexed',
+      chunkCount: chunks.length,
+      indexMethod: 'postgres_full_text',
+      embeddingStatus: 'not_configured',
+      embeddingVectorDimensions: null,
+    });
     await recordAuditEvent({
       organizationId: started.organizationId,
       actor: 'system',
@@ -179,6 +270,10 @@ export async function ingestCompanyHistoryDocument(historyDocumentId: string) {
         documentId: started.documentId,
         ingestionVersion: started.ingestionVersion,
         chunkCount: chunks.length,
+        extractedTextLength: extractedText.length,
+        parserStatus: 'succeeded',
+        indexMethod: 'postgres_full_text',
+        embeddingStatus: 'not_configured',
       },
     });
   } catch (error) {
@@ -188,6 +283,18 @@ export async function ingestCompanyHistoryDocument(historyDocumentId: string) {
       include: { document: true },
     });
     if (existing) {
+      console.error('Company History ingestion failed', {
+        referenceFileId: existing.id,
+        documentId: existing.documentId,
+        batchId: existing.batchId,
+        organizationId: existing.organizationId,
+        workspaceId: existing.organizationId,
+        fileName: existing.document.fileName,
+        mimeType: existing.document.mimeType,
+        parserStatus: 'failed',
+        parserError: details.message,
+        errorCode: details.code,
+      });
       await prisma.$transaction([
         prisma.companyHistoryDocument.update({
           where: { id: existing.id },
@@ -209,7 +316,14 @@ export async function ingestCompanyHistoryDocument(historyDocumentId: string) {
         action: 'company_history.document_failed',
         entityType: 'CompanyHistoryDocument',
         entityId: existing.id,
-        metadata: { batchId: existing.batchId, errorCode: details.code },
+        metadata: {
+          batchId: existing.batchId,
+          errorCode: details.code,
+          parserStatus: 'failed',
+          parserError: details.message,
+          indexMethod: 'postgres_full_text',
+          embeddingStatus: 'not_configured',
+        },
       });
     }
   } finally {
