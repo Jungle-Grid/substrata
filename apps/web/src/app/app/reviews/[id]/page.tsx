@@ -383,18 +383,21 @@ function ReviewPathsTab({ run }: { run: ClassificationRunRecord }) {
   const { reviewCandidates, fallbackCandidates, blockedCandidates } = groupCandidates(
     run.eccnCandidates,
   );
+  const hasReviewPaths = run.reviewPaths.length > 0;
+  const hasCandidates = run.eccnCandidates.length > 0;
   const candidateCard = (candidate: (typeof run.eccnCandidates)[number]) => (
     <div key={candidate.id} className="rounded-lg border border-slate-200 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="font-mono text-sm font-semibold text-slate-950">{candidate.eccn}</p>
-          <p className="mt-1 text-sm text-slate-600">{candidate.officialTitle}</p>
+          <p className="mt-1 text-sm text-slate-600">{candidate.officialTitle || candidate.title}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Badge tone={candidate.candidateType === 'fallback_candidate' ? 'warning' : confidenceTone(candidate.confidence)}>
-            {(candidate.candidateType ?? 'review_candidate').replace(/_/g, ' ')}
+            {candidate.candidateType === 'blocked_candidate' ? 'Evidence required' : candidate.candidateType === 'fallback_candidate' ? 'Fallback path' : 'Review candidate'}
           </Badge>
           <Badge tone={confidenceTone(candidate.confidence)}>{candidate.confidence} evidence</Badge>
+          <Badge tone="warning">Human review required</Badge>
         </div>
       </div>
       <p className="mt-3 text-sm leading-6 text-slate-700"><span className="font-medium">Why it may apply:</span> {candidate.whyItMayApply}</p>
@@ -430,14 +433,14 @@ function ReviewPathsTab({ run }: { run: ClassificationRunRecord }) {
           </div>
         </div>
       </Panel>
-      {run.reviewPaths.length === 0 ? (
+      {!hasReviewPaths && !hasCandidates ? (
         <Panel>
           <EmptyState
-            title="No review paths yet"
-            body="This run has not produced a review-path package yet."
+            title="No review paths generated yet"
+            body="This run has not produced review paths or ECCN candidates."
           />
         </Panel>
-      ) : (
+      ) : hasReviewPaths ? (
         run.reviewPaths.map((path) => (
           <Panel key={path.id}>
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -513,15 +516,18 @@ function ReviewPathsTab({ run }: { run: ClassificationRunRecord }) {
               </div>
             ) : null}
           </Panel>
-        ))
+        ))) : (
+        <InlineNotice tone="info" title="Candidate review paths found">
+          Substrata found ECCN review candidates, but no finalized review-path package has been recorded yet. A qualified reviewer should confirm the applicable path.
+        </InlineNotice>
       )}
+      {hasCandidates ? (
       <Panel>
         <h2 className="text-lg font-semibold text-slate-950">
-          ECCN review candidates
+          Candidate review paths requiring confirmation
         </h2>
         <p className="mt-2 text-sm text-slate-600">
-          Substrata found review candidates that require qualified confirmation.
-          Current Recommendation remains empty until a human reviewer records it.
+          Candidate paths are source-grounded review inputs. They require qualified human confirmation before an internal conclusion is recorded.
         </p>
         {reviewCandidates.length ? (
           <>
@@ -530,17 +536,11 @@ function ReviewPathsTab({ run }: { run: ClassificationRunRecord }) {
             {reviewCandidates.map(candidateCard)}
           </div>
           </>
-        ) : (
-          <div className="mt-4">
-            <EmptyState
-              title="No final ECCN recommendation yet"
-              body="No evidence-backed review candidate is ready to show. Review the open paths and missing evidence checks; a qualified reviewer must record any final internal recommendation."
-            />
-          </div>
-        )}
+        ) : null}
         {fallbackCandidates.length ? <><h3 className="mt-6 border-t border-slate-200 pt-5 text-sm font-semibold text-slate-950">Fallback candidates</h3><p className="mt-1 text-sm text-slate-600">Broad comparison points only after narrower review paths are excluded.</p><div className="mt-4 grid gap-4 lg:grid-cols-2">{fallbackCandidates.map(candidateCard)}</div></> : null}
         {blockedCandidates.length ? <><h3 className="mt-6 border-t border-slate-200 pt-5 text-sm font-semibold text-slate-950">Blocked / evidence required</h3><p className="mt-1 text-sm text-slate-600">Relevant review paths that need affirmative technical evidence before a specific candidate can be supported.</p><div className="mt-4 grid gap-4 lg:grid-cols-2">{blockedCandidates.map(candidateCard)}</div></> : null}
       </Panel>
+      ) : null}
       {run.classificationTrace ? (
         <Panel>
           <h2 className="text-lg font-semibold text-slate-950">Classification trace</h2>

@@ -118,7 +118,9 @@ export function ReviewCaseHeader({
 
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-slate-100 pt-3">
         <Badge tone={processingTone(run)}>
-          {run.processingLabel ?? run.status}
+          {run.status === 'completed' && run.requiresHumanReview
+            ? 'Run completed'
+            : run.processingLabel ?? run.status}
         </Badge>
         <p className="text-sm text-slate-600">
           <span className="font-medium text-slate-700">Review:</span>{' '}

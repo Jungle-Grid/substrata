@@ -1,49 +1,44 @@
-# Substrata
+<div align="center">
+  <a href="https://github.com/Jungle-Grid/substrata">
+    <img src="../apps/web/public/brand/substrata-logo.png" alt="Substrata logo" width="160">
+  </a>
 
-Substrata is an evidence-backed ECCN review assistant for semiconductor, electronics, and advanced hardware companies.
+  <h1>Substrata Documentation</h1>
 
-The initial product wedge is narrow and practical:
+  <p><strong>Evidence-backed ECCN review workups for semiconductor and advanced hardware teams.</strong></p>
+</div>
 
-1. A user uploads a semiconductor or advanced hardware datasheet.
-2. Substrata extracts export-relevant technical specifications.
-3. The system compares those extracted facts against structured EAR and Commerce Control List logic.
-4. The system produces recommended review paths, citations, uncertainty flags, and a human-review-ready classification memo draft.
+This documentation explains how Substrata turns source packages and company history into extracted technical facts, cited review paths, uncertainty flags, and human-review-ready classification memo drafts.
 
-Substrata is a drafting, evidence, and review system for compliance teams that need faster first-pass analysis without losing traceability.
+## Start here
 
-## Primary User
+- [Repository README](../README.md) — local setup and project overview
+- [Submission package](submission/README.md) — product narrative, demo script, and judge-readable materials
+- [Architecture](ARCHITECTURE.md) — application, API, worker, storage, and tenancy boundaries
+- [Execution modes](EXECUTION_MODES.md) — Local Gemma execution and Remote provider routing
 
-The first user is an in-house export compliance manager, trade compliance analyst, or outside advisor supporting a hardware company that repeatedly reviews datasheets, BOM-adjacent technical documents, and product specifications.
+## Product and workflow
 
-## MVP Scope
+- [Product](PRODUCT.md) — product thesis, user workflow, and MVP boundaries
+- [Company history workflow](submission/COMPANY_HISTORY_WORKFLOW.md) — internal precedent as reviewer comparison context
+- [Evidence model](submission/EVIDENCE_MODEL.md) — source document through human signoff and audit record
+- [Human review policy](HUMAN_REVIEW_POLICY.md) — mandatory qualified review requirements
+- [Compliance scope](COMPLIANCE_SCOPE.md) — product boundaries and operating assumptions
 
-The MVP focuses on:
+## Engineering and operations
 
-- Sensitive document upload and storage
-- Structured extraction of export-relevant technical specifications
-- Recommended review paths with evidence and uncertainty annotations
-- Human-review-ready memo generation
-- Human review status tracking
-- Audit-friendly run records and artifacts
+- [API](API.md) — initial API contract
+- [Data model](DATA_MODEL.md) — core entities and audit structure
+- [Worker design](WORKER_DESIGN.md) — classifier worker pipeline
+- [Security](SECURITY.md) — sensitive-document handling assumptions
+- [Jungle Grid integration](JUNGLE_GRID_INTEGRATION.md) — managed execution direction
+- [AMD/Jungle Grid runbook](hackathon-demo-runbook.md) — prototype preflight and verification
 
-## Why This Wedge
+## Planning and validation
 
-Datasheet review is frequent, repetitive, high-stakes, and evidence-heavy. Teams often lose time manually extracting specs, reconciling them with regulatory text, and preparing internal memos. Substrata reduces time-to-first-draft while preserving human judgment.
+- [Roadmap](ROADMAP.md) — staged product evolution
+- [Validation plan](VALIDATION_PLAN.md) — one-week market validation plan
+- [Submission validation notes](submission/VALIDATION_NOTES.md) — target users, insights, and risks
+- [Public demo runbook](PUBLIC_DEMO_RUNBOOK.md) — controlled public-sharing workflow
 
-## What This Documentation Covers
-
-- [../README.md](../README.md): repository setup, local development, and production deployment runbook
-- [PRODUCT.md](./PRODUCT.md): product thesis, user workflow, and MVP boundaries
-- [ARCHITECTURE.md](./ARCHITECTURE.md): system boundaries and data flow
-- [ROADMAP.md](./ROADMAP.md): staged product evolution
-- [COMPLIANCE_SCOPE.md](./COMPLIANCE_SCOPE.md): policy and scope constraints
-- [DATA_MODEL.md](./DATA_MODEL.md): core entities and audit structure
-- [API.md](./API.md): initial API contract
-- [WORKER_DESIGN.md](./WORKER_DESIGN.md): classifier worker pipeline
-- [EXECUTION_MODES.md](./EXECUTION_MODES.md): Local Gemma execution and Remote provider routing
-- [JUNGLE_GRID_INTEGRATION.md](./JUNGLE_GRID_INTEGRATION.md): future execution model
-- [hackathon-demo-runbook.md](./hackathon-demo-runbook.md): AMD/ROCm and Jungle Grid demo preflight and verification
-- [VALIDATION_PLAN.md](./VALIDATION_PLAN.md): one-week market validation plan
-- [SECURITY.md](./SECURITY.md): security and document handling assumptions
-- [HUMAN_REVIEW_POLICY.md](./HUMAN_REVIEW_POLICY.md): mandatory human review policy
-- [PUBLIC_DEMO_RUNBOOK.md](./PUBLIC_DEMO_RUNBOOK.md): controlled publication workflow for the public product demo
+Human review is required for every classification output. Substrata prepares review-ready workups; it does not replace qualified compliance judgment.
