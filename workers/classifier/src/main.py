@@ -525,7 +525,9 @@ def _run_backend_flow(
         "underlyingProvider": result.underlying_provider,
         "backendStatus": result.status,
         "backendModel": (
-            os.environ.get("GEMMA_MODEL", "gemma4:e2b")
+            (result.runtime_metadata or {}).get("model")
+            or os.environ.get("LOCAL_GEMMA_MODEL")
+            or os.environ.get("GEMMA_MODEL", "gemma4:e2b")
             if result.backend == "local"
             else os.environ.get("FIREWORKS_MODEL", "accounts/fireworks/models/gpt-oss-120b")
             if result.backend == "fireworks"
@@ -545,6 +547,9 @@ def _run_backend_flow(
         "inputTokens": result.input_tokens,
         "outputTokens": result.output_tokens,
         "logPath": result.log_path,
+        "localRuntime": (result.runtime_metadata or {}).get("localRuntime"),
+        "localDevice": (result.runtime_metadata or {}).get("device"),
+        "localBackend": (result.runtime_metadata or {}).get("backend"),
     }
     return specs, candidates, uncertainty_flags, confidence, memo_markdown, metadata, extraction, result
 
@@ -935,6 +940,10 @@ def run(payload_path: str) -> WorkerOutput:
         "providerSelectionReason": run_metadata.get("backendReason"),
         "fallbackUsed": run_metadata.get("classificationMode") == "heuristic_fallback",
         "fallbackReason": run_metadata.get("fallbackReason"),
+        "localRuntime": run_metadata.get("localRuntime"),
+        "model": run_metadata.get("backendModel"),
+        "device": run_metadata.get("localDevice"),
+        "backend": run_metadata.get("localBackend"),
     }
     run_metadata["heuristicResult"] = heuristic_result.to_dict()
 

@@ -28,6 +28,7 @@ class BackendResult:
     input_tokens: int | None = None
     output_tokens: int | None = None
     log_path: str | None = None
+    runtime_metadata: dict[str, Any] | None = None
 
 
 class ClassificationBackend(abc.ABC):
