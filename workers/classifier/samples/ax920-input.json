@@ -1,0 +1,14 @@
+{
+  "document_id": "doc_sample_ax920",
+  "document_title": "AX920 NextGen AI Accelerator Card",
+  "file_path": "/home/invinc/code/substrata/workers/classifier/samples/ax920-datasheet.txt",
+  "organization_id": "org_demo",
+  "document_metadata": {
+    "fileName": "ax920-datasheet.txt",
+    "mimeType": "text/plain",
+    "sizeBytes": 0,
+    "sourceType": "seed"
+  },
+  "execution_mode": "local",
+  "selected_provider": "gemma_local"
+}

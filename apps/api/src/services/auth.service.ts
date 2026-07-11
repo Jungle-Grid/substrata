@@ -1014,12 +1014,14 @@ export async function updateCurrentOrganization(input: {
   actorUserId: string;
   name: string;
   industry?: string;
+  defaultExecutionPreference: 'local' | 'remote';
 }) {
   const organization = await prisma.organization.update({
     where: { id: input.organizationId },
     data: {
       name: input.name.trim(),
       industry: input.industry?.trim() || null,
+      defaultExecutionPreference: input.defaultExecutionPreference,
     },
   });
 
@@ -1033,6 +1035,7 @@ export async function updateCurrentOrganization(input: {
     metadata: {
       name: organization.name,
       industry: organization.industry,
+      defaultExecutionPreference: organization.defaultExecutionPreference,
     },
   });
 

@@ -12,6 +12,91 @@ const CHUNK_SIZE = 1_200;
 const CHUNK_OVERLAP = 180;
 const METADATA_VERSION = 'company-history-markers-v1';
 
+type HistoryChunk = {
+  ordinal: number;
+  content: string;
+  charStart: number;
+  charEnd: number;
+  contentHash: string;
+};
+
+function toChunk(ordinal: number, content: string, charStart: number): HistoryChunk {
+  return {
+    ordinal,
+    content,
+    charStart,
+    charEnd: charStart + content.length,
+    contentHash: createHash('sha256').update(content).digest('hex'),
+  };
+}
+
+function parseCsvRows(text: string) {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let quoted = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index]!;
+    if (character === '"') {
+      if (quoted && text[index + 1] === '"') {
+        cell += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (character === ',' && !quoted) {
+      row.push(cell.trim());
+      cell = '';
+    } else if (character === '\n' && !quoted) {
+      row.push(cell.trim());
+      if (row.some(Boolean)) rows.push(row);
+      row = [];
+      cell = '';
+    } else if (character !== '\r') {
+      cell += character;
+    }
+  }
+  row.push(cell.trim());
+  if (row.some(Boolean)) rows.push(row);
+  return rows;
+}
+
+function structuredHistoryChunks(text: string): HistoryChunk[] | null {
+  const normalized = text.replace(/\r\n/g, '\n').trim();
+  if (!normalized) return [];
+  try {
+    const parsed = JSON.parse(normalized) as unknown;
+    const records = Array.isArray(parsed)
+      ? parsed
+      : parsed && typeof parsed === 'object'
+        ? Object.values(parsed).find(Array.isArray) ?? [parsed]
+        : [];
+    if (Array.isArray(records) && records.length) {
+      let offset = 0;
+      return records.map((record, ordinal) => {
+        const content = JSON.stringify(record);
+        const chunk = toChunk(ordinal, content, offset);
+        offset = chunk.charEnd + 1;
+        return chunk;
+      });
+    }
+  } catch {
+    // Continue to CSV detection.
+  }
+  const rows = parseCsvRows(normalized);
+  if (rows.length < 2 || rows[0]!.length < 2) return null;
+  const headers = rows[0]!.map((value, index) => value || `column_${index + 1}`);
+  let offset = 0;
+  return rows.slice(1).map((row, ordinal) => {
+    const content = headers
+      .map((header, index) => `${header}: ${row[index] ?? ''}`)
+      .join('\n');
+    const chunk = toChunk(ordinal, content, offset);
+    offset = chunk.charEnd + 1;
+    return chunk;
+  });
+}
+
 function excerpt(text: string, start: number, end: number) {
   const left = Math.max(0, start - 120);
   const right = Math.min(text.length, end + 180);
@@ -65,7 +150,9 @@ export function extractCompanyHistoryMetadata(text: string) {
 
 export function chunkCompanyHistoryText(text: string) {
   const normalized = text.replace(/\r\n/g, '\n').trim();
-  const chunks: Array<{ ordinal: number; content: string; charStart: number; charEnd: number; contentHash: string }> = [];
+  const structuredChunks = structuredHistoryChunks(normalized);
+  if (structuredChunks) return structuredChunks;
+  const chunks: HistoryChunk[] = [];
 
   for (let charStart = 0, ordinal = 0; charStart < normalized.length; ordinal += 1) {
     let charEnd = Math.min(normalized.length, charStart + CHUNK_SIZE);
@@ -77,13 +164,7 @@ export function chunkCompanyHistoryText(text: string) {
     }
     const content = normalized.slice(charStart, charEnd).trim();
     if (content) {
-      chunks.push({
-        ordinal,
-        content,
-        charStart,
-        charEnd,
-        contentHash: createHash('sha256').update(content).digest('hex'),
-      });
+      chunks.push(toChunk(ordinal, content, charStart));
     }
     if (charEnd >= normalized.length) break;
     charStart = Math.max(charEnd - CHUNK_OVERLAP, charStart + 1);

@@ -3,6 +3,8 @@ function trimTrailingSlash(value: string) {
 }
 
 export function buildApiUrl(path: string) {
-  const base = trimTrailingSlash(process.env.NEXT_PUBLIC_API_BASE_URL ?? '');
+  const base = trimTrailingSlash(
+    process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000',
+  );
   return base ? `${base}${path}` : path;
 }

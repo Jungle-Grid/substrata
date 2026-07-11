@@ -15,9 +15,5 @@ export function ExecutionProgressRefresh({ status }: { status: string }) {
 
   if (!active) return null;
 
-  return (
-    <p className="mt-2 text-xs text-slate-500" role="status">
-      This page refreshes automatically while execution status changes.
-    </p>
-  );
+  return null;
 }

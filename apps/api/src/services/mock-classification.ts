@@ -180,6 +180,10 @@ export function buildMockWorkerOutput(input: {
         ],
         alternativeCandidates: [],
         reviewPathKey: 'category_3_electronics_review',
+        candidateType: 'review_candidate',
+        companyHistorySupport: [],
+        contradictions: [],
+        humanReviewRequired: true,
       },
     ],
     capabilitySignals: [

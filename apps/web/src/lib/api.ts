@@ -252,6 +252,7 @@ export function updateOnboarding(payload: {
 export function updateWorkspaceSettings(payload: {
   name: string;
   industry?: string;
+  defaultExecutionPreference: 'local' | 'remote';
   csrfToken: string;
 }) {
   return clientFetch('/organizations/current', {
@@ -364,7 +365,7 @@ export function createSampleDocument(csrfToken: string) {
 export function startClassificationRun(
   documentId: string,
   csrfToken: string,
-  executionPreference: 'local' | 'fireworks' | 'jungle_grid' | 'auto',
+  executionMode?: 'local' | 'remote',
 ) {
   return clientFetch<ClassificationRunRecord>(`/documents/${documentId}/classification-runs`, {
     method: 'POST',
@@ -373,7 +374,7 @@ export function startClassificationRun(
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ trigger: 'manual', executionPreference }),
+    body: JSON.stringify({ trigger: 'manual', ...(executionMode ? { executionMode } : {}) }),
   });
 }
 

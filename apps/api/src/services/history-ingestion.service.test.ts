@@ -22,3 +22,20 @@ test('history ingestion produces offset chunks and source-backed markers', () =>
   assert.ok((chunks[1]?.charStart ?? 0) < (chunks[0]?.charEnd ?? 0));
   assert.equal(chunks.every((chunk) => chunk.contentHash.length === 64), true);
 });
+
+test('CSV company history is chunked by row to avoid unrelated ECCN leakage', () => {
+  const csv = [
+    'product,description,prior_eccn',
+    'AX900,AI accelerator card with HBM and PCIe Gen5,3A090',
+    'NX100,Secure network interface card with MACsec,5A002',
+  ].join('\n');
+
+  const chunks = chunkCompanyHistoryText(csv);
+  assert.equal(chunks.length, 2);
+  assert.match(chunks[0]?.content ?? '', /AX900/);
+  assert.match(chunks[0]?.content ?? '', /3A090/);
+  assert.doesNotMatch(chunks[0]?.content ?? '', /NX100|5A002/);
+  assert.match(chunks[1]?.content ?? '', /NX100/);
+  assert.match(chunks[1]?.content ?? '', /5A002/);
+  assert.doesNotMatch(chunks[1]?.content ?? '', /AX900|3A090/);
+});

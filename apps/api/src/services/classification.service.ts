@@ -153,14 +153,14 @@ function generatedByForWorker(
   const provider = metadata.underlyingProvider;
   const model = metadata.backendModel;
   if (
-    mode === 'backend_assisted' &&
+    (mode === 'local_assisted' || mode === 'remote_assisted') &&
     typeof backend === 'string' &&
     typeof model === 'string' &&
     backend !== 'jungle_grid'
   ) {
     return `python_worker:${backend}:${model}`;
   }
-  if (mode === 'backend_assisted' && backend === 'jungle_grid') {
+  if ((mode === 'local_assisted' || mode === 'remote_assisted') && backend === 'jungle_grid') {
     return typeof provider === 'string' && provider
       ? `python_worker:jungle_grid:${provider}`
       : 'python_worker:jungle_grid';
@@ -303,7 +303,8 @@ export async function enqueueClassificationRun(input: {
   organizationId: string;
   actorUserId: string;
   trigger: string;
-  executionPreference: 'local' | 'fireworks' | 'jungle_grid' | 'auto';
+  executionMode: 'local' | 'remote';
+  selectedProvider: 'gemma_local' | 'fireworks' | 'junglegrid' | 'amd_notebook_manual';
 }) {
   const document = await prisma.document.findFirstOrThrow({
     where: {
@@ -337,17 +338,20 @@ export async function enqueueClassificationRun(input: {
       executionJob: {
         create: {
           organizationId: input.organizationId,
-          backend: input.executionPreference,
+          backend: input.executionMode,
+          provider: input.selectedProvider,
           status: 'queued',
-          modelName: executionModelForPreference(input.executionPreference),
+          modelName: executionModelForProvider(input.selectedProvider),
           imageName:
-            input.executionPreference === 'jungle_grid'
+            input.selectedProvider === 'junglegrid'
               ? (process.env.JUNGLE_GRID_IMAGE ?? null)
               : null,
           metadata: {
             trigger: input.trigger,
             documentOrigin: document.origin,
             documentVisibility: document.visibility,
+            executionMode: input.executionMode,
+            selectedProvider: input.selectedProvider,
           },
         },
       },
@@ -365,7 +369,8 @@ export async function enqueueClassificationRun(input: {
     metadata: {
       documentId: document.id,
       trigger: input.trigger,
-      executionPreference: input.executionPreference,
+      executionMode: input.executionMode,
+      selectedProvider: input.selectedProvider,
     },
   });
 
@@ -376,13 +381,13 @@ export async function enqueueClassificationRun(input: {
   return run;
 }
 
-function executionModelForPreference(
-  preference: 'local' | 'fireworks' | 'jungle_grid' | 'auto',
+function executionModelForProvider(
+  provider: 'gemma_local' | 'fireworks' | 'junglegrid' | 'amd_notebook_manual',
 ) {
-  if (preference === 'jungle_grid')
+  if (provider === 'junglegrid')
     return process.env.JUNGLE_GRID_MODEL ?? null;
-  if (preference === 'fireworks') return process.env.FIREWORKS_MODEL ?? null;
-  if (preference === 'local') return process.env.GEMMA_MODEL ?? null;
+  if (provider === 'fireworks') return process.env.FIREWORKS_MODEL ?? null;
+  if (provider === 'gemma_local') return process.env.LOCAL_GEMMA_MODEL ?? process.env.GEMMA_MODEL ?? null;
   return null;
 }
 
@@ -474,7 +479,8 @@ export async function executeClassificationRun(input: {
   organizationId: string;
   actorUserId: string;
   trigger: string;
-  executionPreference: 'local' | 'fireworks' | 'jungle_grid' | 'auto';
+  executionMode: 'local' | 'remote';
+  selectedProvider: 'gemma_local' | 'fireworks' | 'junglegrid' | 'amd_notebook_manual';
   classificationRunId?: string;
 }) {
   const document = await prisma.document.findFirstOrThrow({
@@ -522,7 +528,7 @@ export async function executeClassificationRun(input: {
     action: 'classification_run.running',
     entityType: 'ClassificationRun',
     entityId: run.id,
-    metadata: { executionPreference: input.executionPreference },
+    metadata: { executionMode: input.executionMode, selectedProvider: input.selectedProvider },
   });
 
   try {
@@ -549,7 +555,8 @@ export async function executeClassificationRun(input: {
       organizationId: input.organizationId,
       sourceText,
       documentTitle: document.title,
-      executionPreference: input.executionPreference,
+      executionMode: input.executionMode,
+      selectedProvider: input.selectedProvider,
       documentMetadata: {
         fileName: document.fileName,
         mimeType: document.mimeType,
@@ -631,10 +638,120 @@ export async function executeClassificationRun(input: {
         metadata: { retrievalMethod: 'postgres_lexical_v1' },
       });
     }
+    const companyHistorySignals = historyMatches.map((match) => {
+      const historyText = `${match.sourceTitle} ${match.sourceFileName} ${match.excerpt}`;
+      const priorEccns = Array.from(
+        new Set(historyText.match(/\b[0-9][A-Z][0-9]{3}(?:\.[A-Za-z0-9]+|[A-Za-z0-9]*)?\b/g) ?? []),
+      );
+      return {
+        source: match.sourceFileName,
+        score: match.score,
+        matchTier: match.matchTier,
+        priorEccns,
+        influence: 'priority_only',
+        warning:
+          'Internal company history is comparison context, not classification authority. Compare the new product performance envelope against current thresholds.',
+      };
+    });
+
+    for (const candidate of workerOutput.eccnCandidates) {
+      candidate.companyHistorySupport = companyHistorySignals.filter((signal) =>
+        signal.priorEccns.includes(candidate.eccn),
+      );
+      if (candidate.companyHistorySupport.length) {
+        candidate.confidenceRationale = `${candidate.confidenceRationale} Similar internal history increases review priority but does not determine the classification.`;
+      }
+    }
+    const trace = workerOutput.classificationTrace ?? {};
+    workerOutput.classificationTrace = {
+      ...trace,
+      companyHistoryMatchCount: historyMatches.length,
+      companyHistorySignals,
+    };
+    workerOutput.heuristicResult = {
+      ...(workerOutput.heuristicResult ?? {}),
+      company_history_signals: companyHistorySignals,
+      classification_trace: workerOutput.classificationTrace,
+    };
+
     workerOutput.memoMarkdown = appendCompanyHistoryComparison(
       workerOutput.memoMarkdown,
       historyMatches,
     );
+    const contradictionIssues: typeof workerOutput.validationIssues = [];
+    const securityEvidence = /encrypt|crypto|tls|ipsec|macsec|secure boot|key management|firmware signing|remote attestation/i.test(
+      `${sourceText} ${workerOutput.extractedSpecs.map((fact) => `${fact.name} ${fact.value}`).join(' ')}`,
+    );
+    const hasSecurityPath = workerOutput.reviewPaths.some((path) =>
+      /security|cryptograph|category 5 part 2/i.test(path.title),
+    );
+    if (securityEvidence && !hasSecurityPath) {
+      contradictionIssues.push({
+        code: 'SECURITY_EVIDENCE_WITHOUT_REVIEW_PATH',
+        severity: 'error',
+        message:
+          'Security features were extracted but no security or cryptography review path was opened.',
+        path: 'reviewPaths',
+        supportingFactNames: workerOutput.extractedSpecs
+          .filter((fact) => /encrypt|crypto|secure|attestation|signing/i.test(`${fact.name} ${fact.value}`))
+          .map((fact) => fact.name),
+        supportingCitationLabels: [],
+      });
+    }
+    if (
+      securityEvidence &&
+      /no security features|cryptography features were not found/i.test(workerOutput.memoMarkdown)
+    ) {
+      contradictionIssues.push({
+        code: 'MEMO_DENIES_EXTRACTED_SECURITY',
+        severity: 'error',
+        message: 'The memo denies security capabilities that appear in extracted evidence.',
+        path: 'memoMarkdown',
+        supportingFactNames: [],
+        supportingCitationLabels: [],
+      });
+    }
+    if (
+      workerOutput.eccnCandidates.length > 0 &&
+      /no specific eccn candidates|no review candidates/i.test(workerOutput.memoMarkdown)
+    ) {
+      contradictionIssues.push({
+        code: 'MEMO_DENIES_GENERATED_CANDIDATES',
+        severity: 'error',
+        message: 'The memo says no candidates exist although heuristic candidates were generated.',
+        path: 'memoMarkdown',
+        supportingFactNames: [],
+        supportingCitationLabels: [],
+      });
+    }
+    workerOutput.validationIssues.push(...contradictionIssues);
+    workerOutput.classificationTrace = {
+      ...(workerOutput.classificationTrace ?? {}),
+      contradictions: contradictionIssues,
+      companyHistoryMatchCount: historyMatches.length,
+      companyHistoryMatches: historyMatches.map((match) => ({
+        sourceFileName: match.sourceFileName,
+        score: match.score,
+        matchTier: match.matchTier,
+      })),
+      companyHistorySignals,
+      finalFrontendCandidateCounts: {
+        review: workerOutput.eccnCandidates.filter(
+          (candidate) => candidate.candidateType === 'review_candidate',
+        ).length,
+        fallback: workerOutput.eccnCandidates.filter(
+          (candidate) => candidate.candidateType === 'fallback_candidate',
+        ).length,
+        blocked: workerOutput.eccnCandidates.filter(
+          (candidate) => candidate.candidateType === 'blocked_candidate',
+        ).length,
+        excluded: workerOutput.eccnCandidates.filter(
+          (candidate) => candidate.candidateType === 'excluded_candidate',
+        ).length,
+        total: workerOutput.eccnCandidates.length,
+        reviewerFinal: 0,
+      },
+    };
     await fs.writeFile(
       storage.resolve(workerOutput.artifacts.memoPath),
       workerOutput.memoMarkdown,
@@ -821,6 +938,10 @@ export async function executeClassificationRun(input: {
                 ? (reviewPathIdByKey.get(candidate.reviewPathKey) ?? null)
                 : null,
               isSpecificEccn: true,
+              candidateType: candidate.candidateType,
+              companyHistorySupport: candidate.companyHistorySupport as Prisma.InputJsonValue,
+              contradictions: candidate.contradictions as Prisma.InputJsonValue,
+              humanReviewRequired: candidate.humanReviewRequired,
             },
           });
           createdCandidates.push({
@@ -1064,6 +1185,8 @@ export async function executeClassificationRun(input: {
             capabilitySignals:
               normalizedIntegrity.capabilitySignals as Prisma.InputJsonValue,
             validationIssues: validationIssues as Prisma.InputJsonValue,
+            heuristicResult: workerOutput.heuristicResult as Prisma.InputJsonValue,
+            classificationTrace: workerOutput.classificationTrace as Prisma.InputJsonValue,
             fallbackUsed,
             validationStatus,
             errorMessage:

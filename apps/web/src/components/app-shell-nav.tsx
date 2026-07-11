@@ -4,13 +4,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { AuthSessionRecord } from '../lib/types';
-import { Icon, type IconName } from './icon';
+import type { WorkspaceNavGroup } from '../lib/workspace-navigation';
+import { Icon } from './icon';
 import { SignOutButton } from './sign-out-button';
-
-export type WorkspaceNavGroup = {
-  label: string;
-  items: Array<{ href: string; label: string; icon: IconName }>;
-};
 
 function isActive(currentPath: string, href: string) {
   return currentPath === href || (href !== '/app' && currentPath.startsWith(`${href}/`));

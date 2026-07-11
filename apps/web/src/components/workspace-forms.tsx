@@ -165,13 +165,16 @@ export function OnboardingForm({
 export function WorkspaceSettingsForm({
   defaultName,
   defaultIndustry,
+  defaultExecutionPreference = 'remote',
 }: {
   defaultName: string;
   defaultIndustry?: string | null;
+  defaultExecutionPreference?: 'local' | 'remote';
 }) {
   const router = useRouter();
   const [name, setName] = useState(defaultName);
   const [industry, setIndustry] = useState(defaultIndustry ?? '');
+  const [executionPreference, setExecutionPreference] = useState(defaultExecutionPreference);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [pending, startTransition] = useTransition();
@@ -193,6 +196,7 @@ export function WorkspaceSettingsForm({
             await updateWorkspaceSettings({
               name,
               industry,
+              defaultExecutionPreference: executionPreference,
               csrfToken: await fetchCsrfToken(),
             });
             setMessage('Workspace settings updated.');
@@ -214,6 +218,19 @@ export function WorkspaceSettingsForm({
         onChange={setIndustry}
         helper="Used only as workspace context. It does not change review logic."
       />
+      <label className="block">
+        <span className="mb-2 block text-sm font-medium text-slate-700">Default execution mode</span>
+        <select
+          value={executionPreference}
+          onChange={(event) => setExecutionPreference(event.target.value as typeof executionPreference)}
+          disabled={pending}
+          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition hover:border-slate-400 focus:border-slate-950 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <option value="local">Local</option>
+          <option value="remote">Remote</option>
+        </select>
+        <span className="mt-2 block text-xs text-slate-500">Local uses Gemma and the deterministic review engine. Remote lets Substrata choose the configured remote provider.</span>
+      </label>
       {message ? <InlineNotice tone="success">{message}</InlineNotice> : null}
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
       <button

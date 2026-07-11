@@ -243,6 +243,14 @@ function presentCandidate(candidate: ECCNCandidateWithRelations) {
     reviewerDispositionRationale: candidate.reviewerDispositionRationale,
     reviewPathId: candidate.reviewPathId,
     isSpecificEccn: candidate.isSpecificEccn,
+    candidateType: candidate.candidateType ?? 'review_candidate',
+    companyHistorySupport: Array.isArray(candidate.companyHistorySupport)
+      ? candidate.companyHistorySupport
+      : [],
+    contradictions: Array.isArray(candidate.contradictions)
+      ? candidate.contradictions
+      : [],
+    humanReviewRequired: candidate.humanReviewRequired ?? true,
     regulationSource: presentRegulationSource(candidate.regulationSource),
     regulatoryCitations: candidate.citations.map(presentCitation),
   };
@@ -403,14 +411,17 @@ export function presentExecutionSummary(run: RunWithRelations) {
     typeof metadata.backendStatus === 'string' ? metadata.backendStatus : null;
   const backendCompleted =
     (metadataBoolean(metadata, 'backendCompleted') ??
-      backendStatus === 'completed') ||
-    run.executionJob?.status === 'completed';
+      (backendStatus === 'completed' ||
+        run.executionJob?.status === 'completed'));
   const backendOutputValidated =
     metadataBoolean(metadata, 'backendOutputValidated') ??
     (backendCompleted && Boolean(run.reviewMemo?.contentMarkdown));
   const memoValidated =
     metadataBoolean(metadata, 'memoValidated') ??
     Boolean(run.reviewMemo?.contentMarkdown);
+  const workerOutputValidated =
+    metadataBoolean(metadata, 'workerOutputValidated') ??
+    backendOutputValidated;
   const fallbackUsed =
     run.fallbackUsed ||
     metadataBoolean(metadata, 'fallbackUsed') === true ||
@@ -420,14 +431,26 @@ export function presentExecutionSummary(run: RunWithRelations) {
   ) as Array<{
     severity?: string;
   }>;
+  const missingFactCount = metadataNumber(metadata, 'missingFactCount') ?? 0;
+  const warningCount =
+    metadataNumber(metadata, 'warningCount') ??
+    validationIssues.filter((issue) => issue.severity === 'warning').length;
   const evidenceChecksUnresolved =
-    (metadataBoolean(metadata, 'evidenceChecksUnresolved') ??
-      validationIssues.length > 0) ||
+    (metadataBoolean(metadata, 'evidenceChecksUnresolved') ?? false) ||
+    missingFactCount > 0 ||
+    warningCount > 0 ||
+    validationIssues.length > 0 ||
     run.uncertaintyFlags.length > 0 ||
     run.factIssues.length > 0;
   const companyHistoryMatchCount = run.companyHistoryMatches?.length ?? 0;
 
   return {
+    executionMode:
+      (typeof metadata.executionMode === 'string' ? metadata.executionMode : null) ??
+      (run.executionJob?.backend === 'local' ? 'local' : 'remote'),
+    selectedProvider:
+      (typeof metadata.selectedProvider === 'string' ? metadata.selectedProvider : null) ??
+      run.executionJob?.provider ?? null,
     backendSelected:
       (typeof metadata.backendSelected === 'string'
         ? metadata.backendSelected
@@ -437,16 +460,15 @@ export function presentExecutionSummary(run: RunWithRelations) {
     backendCompleted,
     backendOutputValidated,
     memoValidated,
+    workerOutputValidated,
     fallbackEnabled:
       metadataBoolean(metadata, 'fallbackEnabled') ??
       !['0', 'false', 'no', 'off'].includes(
         String(process.env.AI_FALLBACK_TO_HEURISTIC ?? 'true').toLowerCase(),
       ),
     fallbackUsed,
-    missingFactCount: metadataNumber(metadata, 'missingFactCount') ?? 0,
-    warningCount:
-      metadataNumber(metadata, 'warningCount') ??
-      validationIssues.filter((issue) => issue.severity === 'warning').length,
+    missingFactCount,
+    warningCount,
     evidenceChecksUnresolved,
     companyHistoryRetrieved:
       metadataBoolean(metadata, 'companyHistoryRetrieved') ??
@@ -490,6 +512,8 @@ export function presentRun(run: RunWithRelations) {
     memoArtifactPath: run.memoArtifactPath,
     capabilitySignals: presentCapabilitySignals(run.capabilitySignals),
     validationIssues: presentValidationIssues(run.validationIssues),
+    heuristicResult: run.heuristicResult ?? null,
+    classificationTrace: run.classificationTrace ?? null,
     fallbackUsed: run.fallbackUsed,
     validationStatus: run.validationStatus,
     executionSummary: presentExecutionSummary(run),
@@ -559,9 +583,7 @@ export function presentRun(run: RunWithRelations) {
     extractedSpecs: (run.extractedSpecs ?? []).map(presentFact),
     factIssues: (run.factIssues ?? []).map(presentFactIssue),
     reviewPaths: (run.reviewPaths ?? []).map(presentReviewPath),
-    eccnCandidates: (run.eccnCandidates ?? [])
-      .filter(hasVerifiedSpecificCandidateEvidence)
-      .map(presentCandidate),
+    eccnCandidates: (run.eccnCandidates ?? []).map(presentCandidate),
     reviewMemo: presentMemo(run.reviewMemo, run.reviewMemoVersions ?? []),
     humanReviews: (run.humanReviews ?? []).map(presentHumanReview),
     reviewerActions: (run.reviewerActions ?? []).map(presentReviewerAction),
@@ -629,9 +651,7 @@ export function presentPublicDemoRun(
     extractedSpecs: run.extractedSpecs.map(presentFact),
     factIssues: run.factIssues.map(presentFactIssue),
     reviewPaths: run.reviewPaths.map(presentReviewPath),
-    eccnCandidates: run.eccnCandidates
-      .filter(hasVerifiedSpecificCandidateEvidence)
-      .map(presentCandidate),
+    eccnCandidates: run.eccnCandidates.map(presentCandidate),
     reviewMemo: run.reviewMemo
       ? {
           contentMarkdown: run.reviewMemo.contentMarkdown,

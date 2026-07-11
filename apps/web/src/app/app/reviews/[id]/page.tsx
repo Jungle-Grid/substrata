@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { ActionMenu } from '../../../../components/action-menu';
 import { AppShell } from '../../../../components/app-shell';
 import { DemoPublicationControls } from '../../../../components/demo-publication-controls';
 import { ExecutionProgressRefresh } from '../../../../components/execution-progress-refresh';
@@ -8,6 +7,7 @@ import { MarkdownRenderer } from '../../../../components/markdown-renderer';
 import { MemoDownloadLink } from '../../../../components/memo-download-link';
 import { ReviewActionForm } from '../../../../components/review-action-form';
 import { ReviewTabDeepLink } from '../../../../components/review-tab-deep-link';
+import { ReviewCaseHeader } from '../../../../components/review-case-header';
 import {
   Badge,
   EmptyState,
@@ -16,7 +16,6 @@ import {
   StatusBadge,
 } from '../../../../components/ui';
 import { buildApiUrl } from '../../../../lib/api-base';
-import { getExecutionNotice } from '../../../../lib/execution-status';
 import type {
   ClassificationRunRecord,
   FactRecord,
@@ -27,6 +26,7 @@ import {
   fetchServerRun,
 } from '../../../../lib/server-api';
 import { formatDateTime } from '../../../../lib/workspace';
+import { groupCandidates } from '../../../../lib/candidate-groups';
 
 const tabs = [
   { id: 'overview', label: 'Overview' },
@@ -51,10 +51,6 @@ function tabId(value: string | string[] | undefined): TabId {
   return tabs.some((tab) => tab.id === candidate)
     ? (candidate as TabId)
     : 'overview';
-}
-
-function tabHref(id: TabId, runId: string) {
-  return `/app/reviews/${runId}?tab=${id}`;
 }
 
 function Stat({
@@ -125,7 +121,15 @@ function FactCard({ fact }: { fact: FactRecord }) {
 }
 
 function OverviewTab({ run }: { run: ClassificationRunRecord }) {
-  const executionNotice = getExecutionNotice(run);
+  const reviewCandidates = run.eccnCandidates.filter(
+    (candidate) => (candidate.candidateType ?? 'review_candidate') === 'review_candidate',
+  );
+  const blockedCandidates = run.eccnCandidates.filter(
+    (candidate) => candidate.candidateType === 'blocked_candidate',
+  );
+  const fallbackCandidates = run.eccnCandidates.filter(
+    (candidate) => candidate.candidateType === 'fallback_candidate',
+  );
   return (
     <div className="space-y-6">
       <Panel>
@@ -147,18 +151,17 @@ function OverviewTab({ run }: { run: ClassificationRunRecord }) {
           <Stat
             label="Execution mode"
             value={
-              run.backendUsed
-                ? run.backendUsed.replace(/_/g, ' ')
-                : 'Not recorded'
+              run.executionSummary?.executionMode === 'local'
+                ? 'Local'
+                : run.executionSummary?.executionMode === 'remote'
+                  ? 'Remote'
+                  : 'Not recorded'
             }
             tone="info"
           />
         </div>
         <ExecutionProgressRefresh status={run.status} />
       </Panel>
-      <InlineNotice tone={executionNotice.tone} title={executionNotice.title}>
-        {executionNotice.body}
-      </InlineNotice>
       <Panel>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -201,32 +204,116 @@ function OverviewTab({ run }: { run: ClassificationRunRecord }) {
         </Panel>
         <Panel>
           <h2 className="text-lg font-semibold text-slate-950">
-            Current recommendation
+            Recommended review paths
           </h2>
-          <p className="mt-2 text-sm leading-6 text-slate-700">
-            {run.finalInternalRecommendation ??
-              'No reviewer recommendation has been recorded yet.'}
-          </p>
+          <div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
+            {reviewCandidates.length ? (
+              <div className="flex items-start gap-3 border-b border-slate-200 bg-sky-50/60 px-4 py-3">
+                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-sky-600" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-sky-800">Active review</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {reviewCandidates.map((candidate) => (
+                      <Badge key={candidate.id} tone="info">{candidate.eccn}</Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {blockedCandidates.length ? (
+              <div className="flex items-start gap-3 border-b border-slate-200 bg-amber-50/70 px-4 py-3">
+                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-900">Evidence required</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {blockedCandidates.map((candidate) => (
+                      <Badge key={candidate.id} tone="warning">{candidate.eccn}</Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {fallbackCandidates.length ? (
+              <div className="flex items-start gap-3 bg-slate-50 px-4 py-3">
+                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-slate-400" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">Fallback after exclusion</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {fallbackCandidates.map((candidate) => (
+                      <Badge key={candidate.id}>{candidate.eccn}</Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {!reviewCandidates.length && !blockedCandidates.length && !fallbackCandidates.length ? (
+              <p className="px-4 py-3 text-sm text-slate-600">No review candidates were generated from the available source evidence.</p>
+            ) : null}
+          </div>
+          {run.finalInternalRecommendation ? (
+            <div className="mt-4 border-t border-slate-200 pt-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Recorded human conclusion
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">
+                {run.finalInternalRecommendation}
+              </p>
+            </div>
+          ) : null}
           {run.uncertaintyFlags.length ? (
             <div className="mt-4">
-              <InlineNotice tone="warning" title="Open uncertainty flags">
-                {run.uncertaintyFlags
-                  .map((flag) => flag.replace(/_/g, ' '))
-                  .join(', ')}
-              </InlineNotice>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                Uncertainty flags
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {run.uncertaintyFlags.map((flag) => (
+                  <Badge key={flag} tone="warning">{flag.replace(/_/g, ' ')}</Badge>
+                ))}
+              </div>
             </div>
-          ) : (
-            <p className="mt-4 text-sm text-slate-500">
-              No open uncertainty flags are recorded.
-            </p>
-          )}
-          <p className="mt-4 text-sm font-medium text-slate-900">
-            Next action: review the cited paths and record a human reviewer
-            conclusion.
-          </p>
+          ) : null}
         </Panel>
       </div>
     </div>
+  );
+}
+
+function ProcessingRunState({ run }: { run: ClassificationRunRecord }) {
+  return (
+    <Panel className="overflow-hidden p-0">
+      <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 sm:px-6">
+        <div className="flex items-center gap-3">
+          <span
+            className="flex h-9 w-9 shrink-0 animate-spin items-center justify-center rounded-full border-2 border-sky-200 border-t-sky-700"
+            aria-hidden="true"
+          />
+          <div>
+            <p className="text-sm font-semibold text-slate-950">
+              Analysis in progress
+            </p>
+            <p className="mt-0.5 text-sm text-slate-600">
+              Substrata is preparing extracted technical facts and cited review paths.
+            </p>
+          </div>
+        </div>
+        <ExecutionProgressRefresh status={run.status} />
+      </div>
+      <div className="grid divide-y divide-slate-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        {[
+          ['Source document', 'Reading the uploaded material'],
+          ['Technical facts', 'Extracting source-backed details'],
+          ['Review output', 'Preparing review paths and memo draft'],
+        ].map(([label, detail]) => (
+          <div key={label} className="p-5 sm:p-6">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+              {label}
+            </p>
+            <div className="mt-3 h-2 w-20 animate-pulse rounded-full bg-slate-200" />
+            <p className="mt-3 text-sm leading-6 text-slate-600">{detail}</p>
+          </div>
+        ))}
+      </div>
+    </Panel>
   );
 }
 
@@ -293,6 +380,33 @@ function FactsTab({ run }: { run: ClassificationRunRecord }) {
 
 function ReviewPathsTab({ run }: { run: ClassificationRunRecord }) {
   const latestReview = run.humanReviews[0];
+  const { reviewCandidates, fallbackCandidates, blockedCandidates } = groupCandidates(
+    run.eccnCandidates,
+  );
+  const candidateCard = (candidate: (typeof run.eccnCandidates)[number]) => (
+    <div key={candidate.id} className="rounded-lg border border-slate-200 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-mono text-sm font-semibold text-slate-950">{candidate.eccn}</p>
+          <p className="mt-1 text-sm text-slate-600">{candidate.officialTitle}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge tone={candidate.candidateType === 'fallback_candidate' ? 'warning' : confidenceTone(candidate.confidence)}>
+            {(candidate.candidateType ?? 'review_candidate').replace(/_/g, ' ')}
+          </Badge>
+          <Badge tone={confidenceTone(candidate.confidence)}>{candidate.confidence} evidence</Badge>
+        </div>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-slate-700"><span className="font-medium">Why it may apply:</span> {candidate.whyItMayApply}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-600"><span className="font-medium">Why it may not apply:</span> {candidate.whyItMayNotApply}</p>
+      {candidate.matchedTechnicalFacts.length ? (
+        <div className="mt-3"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Supporting facts</p><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">{candidate.matchedTechnicalFacts.slice(0, 5).map((fact) => <li key={fact}>{fact}</li>)}</ul></div>
+      ) : null}
+      {candidate.missingInformation.length ? <div className="mt-3 rounded-md bg-amber-50 p-3 text-sm text-amber-900"><span className="font-medium">Missing evidence:</span> {candidate.missingInformation.slice(0, 4).join('; ')}</div> : null}
+      {candidate.companyHistorySupport?.length ? <div className="mt-3 rounded-md bg-sky-50 p-3 text-sm text-sky-900"><span className="font-medium">Company history influence:</span> Similar internal material increases review priority only; it is not classification authority.</div> : null}
+      {candidate.reviewerQuestions.length ? <p className="mt-3 text-sm text-slate-700"><span className="font-medium">Reviewer action:</span> {candidate.reviewerQuestions[0]}</p> : null}
+    </div>
+  );
   return (
     <div className="space-y-6">
       <Panel>
@@ -403,55 +517,78 @@ function ReviewPathsTab({ run }: { run: ClassificationRunRecord }) {
       )}
       <Panel>
         <h2 className="text-lg font-semibold text-slate-950">
-          Potential ECCN candidates
+          ECCN review candidates
         </h2>
         <p className="mt-2 text-sm text-slate-600">
-          Specific identifiers with regulation mapping are analytical starting
-          points and require qualified reviewer confirmation.
+          Substrata found review candidates that require qualified confirmation.
+          Current Recommendation remains empty until a human reviewer records it.
         </p>
-        {run.eccnCandidates.length ? (
+        {reviewCandidates.length ? (
+          <>
+            <h3 className="mt-5 text-sm font-semibold text-slate-950">Review candidates</h3>
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            {run.eccnCandidates.map((candidate) => (
-              <div
-                key={candidate.id}
-                className="rounded-lg border border-slate-200 p-4"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-slate-950">
-                      {candidate.eccn}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {candidate.officialTitle}
-                    </p>
-                  </div>
-                  <Badge tone={confidenceTone(candidate.confidence)}>
-                    {candidate.confidence} evidence confidence
-                  </Badge>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-slate-700">
-                  {candidate.whyItMayApply}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  {candidate.whyItMayNotApply}
-                </p>
-                {candidate.missingInformation.length ? (
-                  <p className="mt-3 text-sm text-amber-800">
-                    Missing: {candidate.missingInformation.join('; ')}
-                  </p>
-                ) : null}
-              </div>
-            ))}
+            {reviewCandidates.map(candidateCard)}
           </div>
+          </>
         ) : (
           <div className="mt-4">
             <EmptyState
-              title="No specific ECCN candidates supported"
-              body="Substrata did not find enough regulation-backed evidence to support a specific candidate yet."
+              title="No final ECCN recommendation yet"
+              body="No evidence-backed review candidate is ready to show. Review the open paths and missing evidence checks; a qualified reviewer must record any final internal recommendation."
             />
           </div>
         )}
+        {fallbackCandidates.length ? <><h3 className="mt-6 border-t border-slate-200 pt-5 text-sm font-semibold text-slate-950">Fallback candidates</h3><p className="mt-1 text-sm text-slate-600">Broad comparison points only after narrower review paths are excluded.</p><div className="mt-4 grid gap-4 lg:grid-cols-2">{fallbackCandidates.map(candidateCard)}</div></> : null}
+        {blockedCandidates.length ? <><h3 className="mt-6 border-t border-slate-200 pt-5 text-sm font-semibold text-slate-950">Blocked / evidence required</h3><p className="mt-1 text-sm text-slate-600">Relevant review paths that need affirmative technical evidence before a specific candidate can be supported.</p><div className="mt-4 grid gap-4 lg:grid-cols-2">{blockedCandidates.map(candidateCard)}</div></> : null}
       </Panel>
+      {run.classificationTrace ? (
+        <Panel>
+          <h2 className="text-lg font-semibold text-slate-950">Classification trace</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Deterministic routing details for audit and debugging.
+          </p>
+          <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Backend / extraction</dt>
+              <dd className="mt-1 text-sm text-slate-800">
+                {String(run.classificationTrace.backendMode ?? 'legacy')} /{' '}
+                {String(run.classificationTrace.extractionSource ?? 'not recorded').replace(/_/g, ' ')}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Profiles</dt>
+              <dd className="mt-1 text-sm text-slate-800">
+                {Array.isArray(run.classificationTrace.detectedProfiles)
+                  ? run.classificationTrace.detectedProfiles.join(', ').replace(/_/g, ' ')
+                  : 'Legacy run'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Paths / signals</dt>
+              <dd className="mt-1 text-sm text-slate-800">
+                {Array.isArray(run.classificationTrace.reviewPathsOpened) ? run.classificationTrace.reviewPathsOpened.length : 0} paths /{' '}
+                {Array.isArray(run.classificationTrace.matchedSignals) ? run.classificationTrace.matchedSignals.length : 0} signals
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Candidates shown</dt>
+              <dd className="mt-1 text-sm text-slate-800">
+                {reviewCandidates.length} review / {fallbackCandidates.length} fallback / {blockedCandidates.length} blocked
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">History matches</dt>
+              <dd className="mt-1 text-sm text-slate-800">{Number(run.classificationTrace.companyHistoryMatchCount ?? 0)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Contradictions</dt>
+              <dd className="mt-1 text-sm text-slate-800">
+                {Array.isArray(run.classificationTrace.contradictions) ? run.classificationTrace.contradictions.length : 0}
+              </dd>
+            </div>
+          </dl>
+        </Panel>
+      ) : null}
     </div>
   );
 }
@@ -875,7 +1012,6 @@ export default async function ReviewDetailPage({
       ? fetchServerDemoPublicationStatus(id).catch(() => null)
       : Promise.resolve(null),
   ]);
-  const latestReview = run.humanReviews[0];
   const canReview =
     session.membership?.role === 'OWNER' ||
     session.membership?.role === 'ADMIN' ||
@@ -883,8 +1019,10 @@ export default async function ReviewDetailPage({
   const memoDownloadHref = buildApiUrl(
     `/v1/classification-runs/${run.id}/memo/download`,
   );
-  const content =
-    activeTab === 'facts' ? (
+  const isProcessing = ['pending', 'queued', 'running'].includes(run.status);
+  const content = isProcessing ? (
+    <ProcessingRunState run={run} />
+  ) : activeTab === 'facts' ? (
       <FactsTab run={run} />
     ) : activeTab === 'review-paths' ? (
       <ReviewPathsTab run={run} />
@@ -910,112 +1048,17 @@ export default async function ReviewDetailPage({
       session={session}
       currentPath="/app/reviews"
       title={run.document.title}
-      description="Classification case file with source-grounded facts, recommended review paths, uncertainty flags, company context, and human reviewer controls."
-      actions={
-        <div className="flex flex-wrap gap-2">
-          <Badge
-            tone={
-              run.status === 'completed'
-                ? 'success'
-                : run.status === 'needs_attention' || run.status === 'blocked'
-                  ? 'danger'
-                  : 'info'
-            }
-          >
-            {run.processingLabel ?? run.status}
-          </Badge>
-          <Badge tone={run.hasReviewerConclusion ? 'success' : 'warning'}>
-            {run.reviewStatusDetail ?? run.workflowLabel}
-          </Badge>
-          <Link
-            href={`/app/documents/${run.document.id}`}
-            className="inline-flex items-center rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-          >
-            Source document
-          </Link>
-          <ActionMenu
-            items={[
-              {
-                label: 'Open source document',
-                href: `/app/documents/${run.document.id}`,
-              },
-              { label: 'Open memo draft', href: tabHref('memo', run.id) },
-              {
-                label: 'Open company history',
-                href: tabHref('company-history', run.id),
-              },
-            ]}
-          />
-        </div>
+      headerContent={
+        <ReviewCaseHeader
+          session={session}
+          run={run}
+          activeTab={activeTab}
+          tabs={tabs}
+        />
       }
     >
       <ReviewTabDeepLink />
       <div className="min-w-0 space-y-6 overflow-x-hidden">
-        <Panel className="p-4 sm:p-5">
-          <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex min-w-0 gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
-                <Icon name="clipboard-check" size={21} />
-              </span>
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">
-                  Classification case file
-                </p>
-                <p className="mt-1 truncate text-lg font-semibold text-slate-950">
-                  {run.document.fileName}
-                </p>
-                <p className="mt-1 text-sm text-slate-600">
-                  {run.requiresHumanReview
-                    ? 'Human review required before any internal classification decision.'
-                    : 'Reviewer decision state recorded.'}
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3 text-center sm:flex sm:text-left">
-              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  Confidence
-                </p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">
-                  {run.confidence
-                    ? `${Math.round(run.confidence * 100)}%`
-                    : 'Pending'}
-                </p>
-              </div>
-              <div className="rounded-lg bg-amber-50 px-3 py-2">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-700">
-                  Uncertainty
-                </p>
-                <p className="mt-1 text-sm font-semibold text-amber-900">
-                  {run.uncertaintyFlags.length} flags
-                </p>
-              </div>
-              <div className="rounded-lg bg-sky-50 px-3 py-2">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-700">
-                  Reviewer
-                </p>
-                <p className="mt-1 max-w-28 truncate text-sm font-semibold text-sky-950">
-                  {latestReview?.reviewer?.name ?? 'Unassigned'}
-                </p>
-              </div>
-            </div>
-          </div>
-          <nav
-            aria-label="Case file sections"
-            className="mt-5 flex max-w-full gap-1 overflow-x-auto border-t border-slate-100 pt-4"
-          >
-            {tabs.map((tab) => (
-              <Link
-                key={tab.id}
-                href={tabHref(tab.id, run.id)}
-                aria-current={activeTab === tab.id ? 'page' : undefined}
-                className={`shrink-0 rounded-lg px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200 ${activeTab === tab.id ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'}`}
-              >
-                {tab.label}
-              </Link>
-            ))}
-          </nav>
-        </Panel>
         <main aria-live="polite">{content}</main>
       </div>
     </AppShell>

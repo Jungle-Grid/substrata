@@ -41,6 +41,7 @@ organizationsRouter.patch(
       actorUserId: req.authContext!.user.id,
       name: input.name,
       industry: input.industry,
+      defaultExecutionPreference: input.defaultExecutionPreference ?? 'remote',
     });
     res.json({ organization });
   },

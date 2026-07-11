@@ -33,8 +33,7 @@ export default async function DocumentDetailPage({
               {canCreateClassification ? (
                 <StartClassificationButton
                   documentId={document.id}
-                  documentOrigin={document.origin}
-                  documentVisibility={document.visibility}
+                  defaultExecutionPreference={session.organization?.defaultExecutionPreference}
                 />
               ) : null}
             </div>

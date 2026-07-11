@@ -1,0 +1,3 @@
+FlexLogic X900 FPGA Board
+
+The board contains a high-density FPGA with 900k logic cells, LUT-based programmable logic, 32 high-speed SERDES transceivers, PCIe Gen4, and authenticated encrypted bitstream loading. Rugged and extended-temperature variants require ordering-code confirmation.

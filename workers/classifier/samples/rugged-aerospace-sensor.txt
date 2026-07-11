@@ -1,0 +1,3 @@
+NavSense RS-8 Rugged Aerospace Sensor
+
+The RS-8 is a rugged inertial measurement sensor for aerospace navigation and robotics. It is radiation tolerant, space qualified, and rated for extended-temperature operation. Total-ionizing-dose, single-event, military qualification, and exact exported configuration require engineering confirmation.

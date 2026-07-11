@@ -4,7 +4,25 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 SUPPORTED_PRODUCT_PROFILES = {
+    "ai_accelerator",
+    "gpu_accelerator",
+    "advanced_computing_hardware",
+    "server_or_compute_appliance",
+    "networking_hardware",
+    "secure_networking_hardware",
+    "encryption_or_crypto_device",
+    "firmware_or_security_software",
+    "fpga_or_pld",
+    "mcu_or_soc",
     "adc_dac_converter",
+    "rf_microwave_component",
+    "radio_wireless_device",
+    "sensor_or_industrial_control",
+    "rugged_special_environment_hardware",
+    "camera_or_vision_system",
+    "storage_or_memory_device",
+    "general_electronics",
+    # Accepted legacy extraction values; heuristics canonicalize them for new runs.
     "rf_transceiver",
     "mcu_processor_soc",
     "fpga_programmable_logic_soc",
@@ -22,7 +40,8 @@ class WorkerInput:
     file_path: str
     organization_id: str
     document_metadata: dict[str, Any]
-    execution_preference: str = "auto"
+    execution_mode: str = "remote"
+    selected_provider: str | None = None
 
 
 @dataclass
@@ -179,6 +198,10 @@ class ECCNCandidate:
     alternative_candidates: list[dict[str, str]] | None = None
     review_path_id: str | None = None
     review_path_key: str | None = None
+    candidate_type: str = "review_candidate"
+    company_history_support: list[dict[str, Any]] | None = None
+    contradictions: list[dict[str, Any]] | None = None
+    human_review_required: bool = True
 
 
 @dataclass
@@ -198,6 +221,8 @@ class WorkerOutput:
     memo_markdown: str
     artifacts: dict[str, str]
     run_metadata: dict[str, Any] | None = None
+    heuristic_result: dict[str, Any] | None = None
+    classification_trace: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

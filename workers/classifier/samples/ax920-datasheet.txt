@@ -1,0 +1,5 @@
+AX920 NextGen AI Accelerator Card
+
+The AX920 is a PCIe Gen5 x16 AI accelerator card for server inference, training, and fine-tuning workloads. It includes 128 GB HBM3E high-bandwidth memory and delivers up to 310 TOPS INT8 and 155 TFLOPS FP16 performance.
+
+The exported card supports firmware signing and optional remote attestation. Exact memory bandwidth, interconnect bandwidth, security algorithms, key-management behavior, and shipping configuration depend on the selected SKU.

@@ -30,6 +30,7 @@ const completed = {
   backendCompleted: true,
   backendOutputValidated: true,
   memoValidated: true,
+  workerOutputValidated: true,
   fallbackEnabled: true,
   fallbackUsed: false,
   missingFactCount: 3,
@@ -39,10 +40,19 @@ const completed = {
   companyHistoryMatchCount: 23,
 };
 
-test('backend completed with warnings requires expert review', () => {
-  const notice = getExecutionNotice(run({ executionSummary: completed }));
+test('backend completed with missing facts requires expert review', () => {
+  const notice = getExecutionNotice(
+    run({
+      executionSummary: {
+        ...completed,
+        evidenceChecksUnresolved: false,
+        warningCount: 0,
+      },
+    }),
+  );
   assert.equal(notice.title, 'Expert review required');
   assert.doesNotMatch(notice.body, /fallback|could not verify/i);
+  assert.match(notice.body, /relevant internal history/i);
 });
 
 test('fallback enabled but not used does not show fallback warning', () => {
@@ -76,6 +86,37 @@ test('backend failure shows backend verification warning', () => {
     }),
   );
   assert.equal(notice.title, 'Backend verification incomplete');
+});
+
+test('backend output not validated shows backend verification warning', () => {
+  const notice = getExecutionNotice(
+    run({
+      executionSummary: {
+        ...completed,
+        workerOutputValidated: false,
+        evidenceChecksUnresolved: false,
+        missingFactCount: 0,
+        warningCount: 0,
+      },
+    }),
+  );
+  assert.equal(notice.title, 'Backend verification incomplete');
+});
+
+test('clean completed run is ready for review', () => {
+  const notice = getExecutionNotice(
+    run({
+      executionSummary: {
+        ...completed,
+        evidenceChecksUnresolved: false,
+        missingFactCount: 0,
+        warningCount: 0,
+        companyHistoryRetrieved: false,
+        companyHistoryMatchCount: 0,
+      },
+    }),
+  );
+  assert.equal(notice.title, 'Draft ready for review');
 });
 
 test('company history retrieval does not change execution status', () => {

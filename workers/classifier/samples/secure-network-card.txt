@@ -1,0 +1,3 @@
+SecureLink 400G Network Interface Card
+
+PCIe network interface card with 400GbE Ethernet, MACsec, TLS offload, IPsec acceleration, secure boot, signed firmware, and protected key storage. Algorithm, key length, key management, and export configuration details are supplied in the security guide.

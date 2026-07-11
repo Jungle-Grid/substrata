@@ -2,40 +2,14 @@ import Image from 'next/image';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { ActionMenu } from './action-menu';
-import { AppShellNav, type WorkspaceNavGroup } from './app-shell-nav';
+import { AppShellNav } from './app-shell-nav';
 import { Icon, type IconName } from './icon';
 import { SignOutButton } from './sign-out-button';
 import { WorkspaceUserMenu } from './workspace-user-menu';
 import type { AuthSessionRecord } from '../lib/types';
+import { workspaceNavGroups } from '../lib/workspace-navigation';
 
-const navGroups: WorkspaceNavGroup[] = [
-  {
-    label: 'Workspace',
-    items: [
-      { href: '/app', label: 'Overview', icon: 'layout-dashboard' },
-      { href: '/app/documents', label: 'Documents', icon: 'file-text' },
-      { href: '/app/company-history', label: 'Company History', icon: 'history' },
-      { href: '/app/reviews', label: 'Classification Reviews', icon: 'clipboard-check' },
-      { href: '/app/review-queue', label: 'Review Queue', icon: 'inbox' },
-      { href: '/app/memos', label: 'Memos', icon: 'file-search' },
-    ],
-  },
-  {
-    label: 'Governance',
-    items: [
-      { href: '/app/evidence', label: 'Evidence', icon: 'link' },
-      { href: '/app/audit-log', label: 'Audit Log', icon: 'shield-check' },
-      { href: '/app/team', label: 'Team', icon: 'users' },
-    ],
-  },
-  {
-    label: 'Account',
-    items: [
-      { href: '/app/settings', label: 'Settings', icon: 'settings' },
-      { href: '/app/profile', label: 'Profile', icon: 'user' },
-    ],
-  },
-];
+const navGroups = workspaceNavGroups;
 
 function isActive(currentPath: string, href: string) {
   return currentPath === href || (href !== '/app' && currentPath.startsWith(`${href}/`));
@@ -64,6 +38,7 @@ export function AppShell({
   title,
   description,
   actions,
+  headerContent,
   children,
 }: {
   session: AuthSessionRecord;
@@ -71,6 +46,7 @@ export function AppShell({
   title: string;
   description?: string;
   actions?: ReactNode;
+  headerContent?: ReactNode;
   children: ReactNode;
 }) {
   const workspaceName = session.organization?.name ?? 'Substrata workspace';
@@ -121,7 +97,7 @@ export function AppShell({
 
       <main className="min-w-0 lg:pl-[17.5rem]">
         <header className="sticky top-0 z-30 border-b border-slate-200/90 bg-white/95 backdrop-blur">
-          <div className="mx-auto max-w-[1480px] px-4 py-3 sm:px-6 lg:px-8">
+          {headerContent ? headerContent : <div className="mx-auto max-w-[1480px] px-4 py-3 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between gap-3 lg:hidden">
               <Link href="/app" className="flex min-w-0 items-center gap-2.5">
                 <Image src="/brand/substrata-mark.png" alt="Substrata mark" width={32} height={32} className="h-8 w-8" />
@@ -147,7 +123,7 @@ export function AppShell({
                 <WorkspaceUserMenu session={session} />
               </div>
             </div>
-          </div>
+          </div>}
         </header>
         <div className="mx-auto max-w-[1480px] px-4 py-6 sm:px-6 lg:px-8">{children}</div>
       </main>

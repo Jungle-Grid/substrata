@@ -138,6 +138,10 @@ function mapCliOutput(output: WorkerCliOutput): WorkerOutput {
       reviewerQuestions: candidate.reviewer_questions,
       alternativeCandidates: candidate.alternative_candidates,
       reviewPathKey: candidate.review_path_key ?? null,
+      candidateType: candidate.candidate_type,
+      companyHistorySupport: candidate.company_history_support ?? [],
+      contradictions: candidate.contradictions ?? [],
+      humanReviewRequired: candidate.human_review_required,
     })),
     capabilitySignals: output.capability_signals.map((signal) => ({
       key: signal.key,
@@ -162,6 +166,8 @@ function mapCliOutput(output: WorkerCliOutput): WorkerOutput {
       memoPath: output.artifacts.memo_path,
     },
     runMetadata: output.run_metadata ?? null,
+    heuristicResult: output.heuristic_result ?? null,
+    classificationTrace: output.classification_trace ?? null,
   };
 }
 
@@ -196,7 +202,8 @@ export async function runLocalWorker(input: {
   organizationId: string;
   sourceText: string;
   documentTitle: string;
-  executionPreference: 'local' | 'fireworks' | 'jungle_grid' | 'auto';
+  executionMode: 'local' | 'remote';
+  selectedProvider: 'gemma_local' | 'fireworks' | 'junglegrid' | 'amd_notebook_manual';
   documentMetadata: {
     fileName: string;
     mimeType: string;
@@ -228,7 +235,8 @@ export async function runLocalWorker(input: {
         file_path: textPath,
         organization_id: input.organizationId,
         document_metadata: input.documentMetadata,
-        execution_preference: input.executionPreference,
+        execution_mode: input.executionMode,
+        selected_provider: input.selectedProvider,
       },
       null,
       2,

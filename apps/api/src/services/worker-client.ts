@@ -9,7 +9,8 @@ export interface WorkerClient {
     organizationId: string;
     actorUserId: string;
     trigger: string;
-    executionPreference: 'local' | 'fireworks' | 'jungle_grid' | 'auto';
+    executionMode: 'local' | 'remote';
+    selectedProvider: 'gemma_local' | 'fireworks' | 'junglegrid' | 'amd_notebook_manual';
   }): Promise<ClassificationRunRecord>;
 }
 
@@ -19,7 +20,8 @@ export class LocalWorkerClient implements WorkerClient {
     organizationId: string;
     actorUserId: string;
     trigger: string;
-    executionPreference: 'local' | 'fireworks' | 'jungle_grid' | 'auto';
+    executionMode: 'local' | 'remote';
+    selectedProvider: 'gemma_local' | 'fireworks' | 'junglegrid' | 'amd_notebook_manual';
   }) {
     return enqueueClassificationRun(input);
   }

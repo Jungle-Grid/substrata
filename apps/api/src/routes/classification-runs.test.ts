@@ -63,6 +63,23 @@ function createRun(id: string, organizationId = 'org_1', status = 'completed') {
     reviewerClaimedAt: null,
     finalInternalRecommendation: null,
     conclusionDisclaimer: 'Classification support, not legal advice.',
+    classificationTrace: {
+      backendMode: 'backend_assisted',
+      extractionSource: 'llm_extracted_facts',
+      detectedProfiles: ['ai_accelerator'],
+      profileScores: { ai_accelerator: 20 },
+      matchedSignals: [{ signal: 'ai_accelerator_identity' }],
+      candidatesGenerated: ['3A090', '4A090'],
+      candidatesBlocked: ['5A002'],
+      candidatesFilteredOut: [],
+      filterReasons: [{ candidate: '5A002', reason: 'Affirmative crypto evidence required.' }],
+      companyHistoryMatchCount: 1,
+      companyHistoryMatches: [{ sourceFileName: 'AX900 memo', score: 0.91 }],
+      companyHistorySignals: [{ priorEccns: ['3A090'], influence: 'priority_only' }],
+      contradictions: [],
+      missingEvidenceChecks: ['Memory bandwidth'],
+      finalFrontendCandidateCounts: { review: 2, fallback: 1, blocked: 1, excluded: 0, total: 4, reviewerFinal: 0 },
+    },
     lastReviewerActionAt: null,
     createdAt: new Date('2026-06-20T08:00:00.000Z'),
     updatedAt: new Date('2026-06-20T08:00:00.000Z'),
@@ -111,6 +128,47 @@ function createRun(id: string, organizationId = 'org_1', status = 'completed') {
     reviewMemoVersions: [],
     humanReviews: [],
     reviewerActions: [],
+    executionJob: {
+      id: 'execution_1',
+      organizationId,
+      classificationRunId: id,
+      backend: 'fireworks',
+      status: 'completed',
+      externalJobId: 'job_1',
+      provider: 'fireworks',
+      gpuVendor: null,
+      gpuName: null,
+      runtimeVersion: null,
+      modelName: null,
+      imageName: null,
+      imageDigest: null,
+      queuedAt: new Date('2026-06-20T08:00:00.000Z'),
+      submittedAt: new Date('2026-06-20T08:00:05.000Z'),
+      startedAt: new Date('2026-06-20T08:00:10.000Z'),
+      completedAt: new Date('2026-06-20T08:05:00.000Z'),
+      durationMs: 290000,
+      costEstimateUsd: null,
+      costActualUsd: null,
+      inputTokens: null,
+      outputTokens: null,
+      logPath: null,
+      errorMessage: null,
+      metadata: {
+        backendSelected: 'fireworks',
+        backendCompleted: true,
+        backendOutputValidated: true,
+        memoValidated: true,
+        workerOutputValidated: true,
+        fallbackEnabled: true,
+        fallbackUsed: false,
+        missingFactCount: 5,
+        warningCount: 3,
+        evidenceChecksUnresolved: true,
+        companyHistoryRetrieved: true,
+      },
+      createdAt: new Date('2026-06-20T08:00:00.000Z'),
+      updatedAt: new Date('2026-06-20T08:05:00.000Z'),
+    },
   };
 }
 
@@ -323,4 +381,29 @@ test('normal authenticated private-run access still works', async () => {
 
   assert.equal(response.statusCode, 200);
   assert.equal((response.body as { id: string }).id, 'run_1');
+  assert.deepEqual(
+    (response.body as { classificationTrace: { candidatesBlocked: string[]; finalFrontendCandidateCounts: { blocked: number } } }).classificationTrace.candidatesBlocked,
+    ['5A002'],
+  );
+  assert.equal(
+    (response.body as { classificationTrace: { finalFrontendCandidateCounts: { blocked: number } } }).classificationTrace.finalFrontendCandidateCounts.blocked,
+    1,
+  );
+  assert.deepEqual(
+    (response.body as { executionSummary: unknown }).executionSummary,
+    {
+      backendSelected: 'fireworks',
+      backendCompleted: true,
+      backendOutputValidated: true,
+      memoValidated: true,
+      workerOutputValidated: true,
+      fallbackEnabled: true,
+      fallbackUsed: false,
+      missingFactCount: 5,
+      warningCount: 3,
+      evidenceChecksUnresolved: true,
+      companyHistoryRetrieved: true,
+      companyHistoryMatchCount: 0,
+    },
+  );
 });

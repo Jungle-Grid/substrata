@@ -36,6 +36,7 @@ export default async function SettingsPage() {
             <div className="mt-5"><WorkspaceSettingsForm
               defaultName={session.organization?.name ?? ''}
               defaultIndustry={session.organization?.industry}
+              defaultExecutionPreference={session.organization?.defaultExecutionPreference}
             /></div>
           ) : (
             <InlineNotice tone="warning" title="Workspace settings access required">

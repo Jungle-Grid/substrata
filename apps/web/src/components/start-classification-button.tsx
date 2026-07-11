@@ -5,27 +5,26 @@ import { useState, useTransition } from 'react';
 import { fetchCsrfToken, startClassificationRun } from '../lib/api';
 import { InlineNotice } from './ui';
 
-type ExecutionPreference = 'local' | 'fireworks' | 'jungle_grid' | 'auto';
+type ExecutionMode = 'local' | 'remote';
+type ExecutionSelection = ExecutionMode | 'workspace_default';
+
+const executionModeLabel: Record<ExecutionMode, string> = {
+  local: 'Local',
+  remote: 'Remote',
+};
 
 export function StartClassificationButton({
   documentId,
-  documentOrigin,
-  documentVisibility,
+  defaultExecutionPreference = 'remote',
 }: {
   documentId: string;
-  documentOrigin?: string | null;
-  documentVisibility?: string | null;
+  defaultExecutionPreference?: ExecutionMode;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [executionPreference, setExecutionPreference] =
-    useState<ExecutionPreference>('auto');
+    useState<ExecutionSelection>('workspace_default');
   const [isPending, startTransition] = useTransition();
-  const isNonPublicDocument =
-    documentOrigin !== 'public' || documentVisibility === 'private';
-  const isRemoteOverride =
-    isNonPublicDocument &&
-    (executionPreference === 'fireworks' || executionPreference === 'jungle_grid');
 
   return (
     <div className="space-y-3">
@@ -37,27 +36,21 @@ export function StartClassificationButton({
         <select
           value={executionPreference}
           onChange={(event) =>
-            setExecutionPreference(event.target.value as ExecutionPreference)
+            setExecutionPreference(event.target.value as ExecutionSelection)
           }
           disabled={isPending}
           className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition hover:border-slate-400 focus:border-steel focus:outline-none focus:ring-2 focus:ring-steel/20 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <option value="auto">Auto (recommended)</option>
+          <option value="workspace_default">Workspace default ({executionModeLabel[defaultExecutionPreference]})</option>
           <option value="local">Local</option>
-          <option value="fireworks">Fireworks</option>
-          <option value="jungle_grid">Jungle Grid</option>
+          <option value="remote">Remote</option>
         </select>
+        <span className="block text-xs leading-5 text-slate-500">
+          {(executionPreference === 'workspace_default' ? defaultExecutionPreference : executionPreference) === 'local'
+            ? 'Run using the local Gemma model and Substrata’s deterministic review engine.'
+            : 'Let Substrata choose the best configured remote backend for this review.'}
+        </span>
       </label>
-      {isNonPublicDocument && executionPreference === 'auto' ? (
-        <InlineNotice tone="info">
-          Auto will prefer local execution for this document because it is not marked public.
-        </InlineNotice>
-      ) : null}
-      {isRemoteOverride ? (
-        <InlineNotice tone="warning" title="Remote execution override">
-          This document is not marked public. You can still continue, but the selected backend may send source text to a remote execution service.
-        </InlineNotice>
-      ) : null}
       <button
         type="button"
         disabled={isPending}
@@ -69,7 +62,7 @@ export function StartClassificationButton({
               const run = await startClassificationRun(
                 documentId,
                 await fetchCsrfToken(),
-                executionPreference,
+                executionPreference === 'workspace_default' ? undefined : executionPreference,
               );
               router.push(`/app/reviews/${run.id}`);
             } catch (runError) {

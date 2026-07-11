@@ -118,6 +118,14 @@ export const eccnCandidateStatusSchema = z.enum([
   'review_required',
 ]);
 
+export const candidateTypeSchema = z.enum([
+  'review_candidate',
+  'fallback_candidate',
+  'blocked_candidate',
+  'excluded_candidate',
+  'reviewer_final',
+]);
+
 export const reviewSubmissionStatusSchema = z.enum([
   'pending_review',
   'reviewed',
@@ -163,9 +171,7 @@ export const documentCreateSchema = z.object({
 
 export const classificationRunCreateSchema = z.object({
   trigger: z.enum(['manual', 'api', 'reprocess']).default('manual'),
-  executionPreference: z
-    .enum(['local', 'fireworks', 'jungle_grid', 'auto'])
-    .default('auto'),
+  executionMode: z.enum(['local', 'remote']).default('remote'),
 });
 
 export const reviewSubmissionSchema = z.object({
@@ -304,6 +310,9 @@ export const onboardingSchema = z.object({
 export const organizationUpdateSchema = z.object({
   name: z.string().trim().min(1).max(120),
   industry: z.string().trim().max(120).optional().or(z.literal('')),
+  defaultExecutionPreference: z
+    .enum(['local', 'remote'])
+    .default('remote'),
 });
 
 export const inviteCreateSchema = z.object({
@@ -463,6 +472,10 @@ export const eccnCandidateSchema = z.object({
   reviewerQuestions: z.array(z.string().trim().min(1).max(500)).max(20),
   alternativeCandidates: z.array(alternativeCandidateSchema).max(10),
   reviewPathKey: z.string().trim().max(255).optional().nullable(),
+  candidateType: candidateTypeSchema.default('review_candidate'),
+  companyHistorySupport: z.array(z.record(z.string(), z.unknown())).default([]),
+  contradictions: z.array(z.record(z.string(), z.unknown())).default([]),
+  humanReviewRequired: z.literal(true).default(true),
 });
 
 export const workerOutputSchema = z
@@ -486,6 +499,8 @@ export const workerOutputSchema = z
       memoPath: z.string(),
     }),
     runMetadata: z.record(z.string(), z.unknown()).optional().nullable(),
+    heuristicResult: z.record(z.string(), z.unknown()).optional().nullable(),
+    classificationTrace: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .superRefine((value, ctx) => {
     const hasCryptoFacts = value.extractedSpecs.some(
@@ -635,6 +650,10 @@ export const workerCliOutputSchema = z.object({
         }),
       ),
       review_path_key: z.string().nullable().optional(),
+      candidate_type: candidateTypeSchema.default('review_candidate'),
+      company_history_support: z.array(z.record(z.string(), z.unknown())).nullable().optional().default([]),
+      contradictions: z.array(z.record(z.string(), z.unknown())).nullable().optional().default([]),
+      human_review_required: z.literal(true).default(true),
     }),
   ),
   capability_signals: z.array(
@@ -664,6 +683,8 @@ export const workerCliOutputSchema = z.object({
     memo_path: z.string(),
   }),
   run_metadata: z.record(z.string(), z.unknown()).optional().nullable(),
+  heuristic_result: z.record(z.string(), z.unknown()).optional().nullable(),
+  classification_trace: z.record(z.string(), z.unknown()).optional().nullable(),
 });
 
 export type DocumentCreateInput = z.infer<typeof documentCreateSchema>;

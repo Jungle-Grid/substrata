@@ -72,12 +72,12 @@ def infer_missing_review_points(specs: list[ExtractedSpec]) -> list[str]:
             "A digital output interface or lane-rate detail was not found in the provided datasheet text. Interface details matter because high-speed serial output can be classification-relevant."
         )
 
-    if not _has_name(specs, {"radiation_tolerance", "space_qualification", "military_grade", "operating_temperature_range"}):
+    if not _has_name(specs, {"radiation_tolerance", "space_qualification", "military_grade", "operating_temperature_range"}) and not any(spec.category == "environmental_qualification" for spec in specs):
         findings.append(
             "Special-environment qualification details were not found in the provided datasheet text. Radiation, military, space, or extended-temperature language matters because specialized design intent can affect the review path."
         )
 
-    if not _has_name(specs, {"security_feature", "cryptographic_algorithm", "secure_boot", "trusted_execution"}):
+    if not _has_name(specs, {"security_feature", "cryptographic_algorithm", "secure_boot", "trusted_execution"}) and not any(spec.category == "security_cryptography" for spec in specs):
         findings.append(
             "Security or cryptography features were not found in the provided datasheet text. That matters because embedded cryptographic capability can require a different expert review path."
         )

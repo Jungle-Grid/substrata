@@ -84,7 +84,8 @@ class FireworksBackend(ClassificationBackend):
         ).encode("utf-8")
 
         started = time.perf_counter()
-        retries = 3
+        retries = max(0, int(os.getenv("FIREWORKS_MAX_RETRIES", "3")))
+        timeout_seconds = max(5.0, float(os.getenv("FIREWORKS_TIMEOUT_SECONDS", "90")))
         delay = 0.8
         last_error: str | None = None
 
@@ -99,7 +100,7 @@ class FireworksBackend(ClassificationBackend):
                 method="POST",
             )
             try:
-                with urllib.request.urlopen(request, timeout=90) as response:
+                with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
                     payload = json.loads(response.read().decode("utf-8"))
 
                 latency_ms = (time.perf_counter() - started) * 1000.0

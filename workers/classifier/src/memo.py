@@ -49,6 +49,7 @@ def generate_memo(
     candidates: list[ECCNCandidate],
     uncertainty_flags: list[str],
     capability_signals: list[WorkerCapabilitySignal],
+    review_paths: list[dict[str, object]] | None = None,
 ) -> str:
     generated_at = datetime.now(UTC).replace(microsecond=0).isoformat()
     grouped_specs = group_specs_by_category(specs)
@@ -68,9 +69,27 @@ def generate_memo(
         profile_summary_lines.append(f"- Profile confidence: {spec_by_name['profile_confidence'].value}")
     if spec_by_name.get("profile_rationale"):
         profile_summary_lines.append(f"- Profile rationale: {spec_by_name['profile_rationale'].value}")
+    advanced_evidence_names = {
+        "device_type",
+        "pcie_interface",
+        "hbm_memory",
+        "memory_capacity",
+        "peak_int8_performance",
+        "peak_fp16_performance",
+        "application_examples",
+        "workloads",
+    }
+    advanced_evidence = [
+        f"{display_name_for_spec_name(spec.name)}: {spec.value}{f' {spec.unit}' if spec.unit else ''}"
+        for spec in specs
+        if spec.name in advanced_evidence_names
+    ]
 
     fact_sections: list[str] = []
     for category, category_specs in grouped_specs.items():
+        category_specs = [spec for spec in category_specs if not spec.name.startswith("heuristic_signal_")]
+        if not category_specs:
+            continue
         display_name = CATEGORY_DISPLAY_NAMES.get(category, category.replace("_", " ").title())
         lines = [f"### {display_name}"]
         for spec in category_specs:
@@ -116,6 +135,20 @@ def generate_memo(
 """
         )
 
+    if review_paths:
+        review_path_sections = []
+        for path in review_paths:
+            path_key = str(path.get("pathKey", ""))
+            title = str(path.get("title", "Review path"))
+            why = str(path.get("whyTriggered", "Opened from extracted technical evidence."))
+            if path_key == "general_electronics_fallback":
+                why = "This fallback remains relevant only after narrower review paths are reviewed and excluded."
+            missing = path.get("missingInformation", [])
+            missing_lines = "\n".join(f"- {item}" for item in missing if isinstance(item, str))
+            review_path_sections.append(
+                f"### {title}\n- Why this path is open: {why}\n\n#### Missing information\n{missing_lines or '- No additional missing information recorded.'}"
+            )
+
     candidate_sections: list[str] = []
     for candidate in eccn_candidates:
         citation_lines: list[str] = []
@@ -136,7 +169,8 @@ def generate_memo(
         uncertainty_lines = "\n".join(f"- {item}" for item in candidate.uncertainty_flags)
 
         candidate_sections.append(
-            f"""### {candidate.eccn} — {candidate.title}
+            f"""### {candidate.eccn} — {candidate.title.removeprefix(f'{candidate.eccn} — ')}
+- Candidate type: {candidate.candidate_type.replace('_', ' ')}
 - Confidence: {candidate.confidence}
 - Why it may apply: {candidate.why_it_may_apply}
 - Why it may not apply: {candidate.why_it_may_not_apply}
@@ -170,37 +204,35 @@ def generate_memo(
             "Are there omitted security, environmental, or end-use details that could change the review path?",
         ]
 
-    has_category_3 = any(candidate.eccn == "Category 3" for candidate in review_path_candidates) or any(
-        candidate.eccn == "3A001" for candidate in eccn_candidates
+    active_candidates = [candidate for candidate in eccn_candidates if candidate.candidate_type == "review_candidate"]
+    blocked_candidates = [candidate for candidate in eccn_candidates if candidate.candidate_type == "blocked_candidate"]
+    fallback_candidates = [candidate for candidate in eccn_candidates if candidate.candidate_type == "fallback_candidate"]
+    security_evidence_present = any(
+        spec.category == "security_cryptography"
+        or any(term in f"{spec.name} {spec.value} {spec.source_snippet}".lower() for term in ("firmware signing", "remote attestation", "secure boot", "encryption", "cryptograph"))
+        for spec in specs
     )
-    has_category_5 = any(candidate.eccn == "Category 5 Part 2" for candidate in review_path_candidates)
-    is_family_overview = any(spec.name == "is_family_overview" and spec.value.lower() == "true" for spec in specs)
-    profile_value = _profile_value(specs)
-    crypto_signal = next((signal for signal in capability_signals if signal.key == "hasCryptography"), None)
     security_summary = (
-        "Cryptographic and security functionality was identified in the source material. The available documentation does not yet establish all implementation details, performance characteristics, algorithm coverage, key-management behavior, or applicable regulatory thresholds. Qualified review is required to determine whether Category 5 Part 2 or another applicable control framework is implicated."
-        if crypto_signal and crypto_signal.detected
+        "Security indicators open an evidence-required Category 5 Part 2 review path, but the current source does not affirm user-accessible encryption, confidentiality functionality, key management, network cryptography, cryptographic acceleration, or HSM behavior."
+        if blocked_candidates or security_evidence_present
         else "Cryptographic or security functionality was not identified in the reviewed source material. This remains a source-limited observation rather than a final exclusion."
     )
-    if has_category_3 and has_category_5:
-        if profile_value == "mcu_processor_soc":
-            conclusion_lines = [
-                "Substrata recommends reviewing Category 3 electronics / MCU / processor paths and Category 5 Part 2 security/cryptography paths based on the extracted datasheet evidence.",
-                "A qualified reviewer should confirm the applicable ordering code, security functionality, algorithm availability, mass-market/license-exception treatment, and current CCL threshold mapping.",
-            ]
-        else:
-            conclusion_lines = [
-                "Substrata recommends reviewing Category 3 electronics / programmable-logic / SoC paths and Category 5 Part 2 security/cryptography paths based on the extracted datasheet evidence.",
-                "Because this is a family overview, a qualified reviewer should confirm the exact ordering code, speed grade, package, security functionality, and applicable CCL threshold mapping."
-                if is_family_overview
-                else "A qualified reviewer should confirm the exact device variant, security functionality, and applicable CCL threshold mapping.",
-            ]
-    else:
-        recommended_paths = _recommended_path_summary(review_path_candidates or eccn_candidates)
-        conclusion_lines = [
-            f"Substrata recommends reviewing {recommended_paths or 'the extracted technical evidence'} based on the extracted datasheet evidence.",
-            "A qualified reviewer should confirm the applicable threshold mapping, specialized design intent, missing information, and current CCL mapping.",
-        ]
+    active_codes = [candidate.eccn for candidate in active_candidates]
+    conclusion_lines = [
+        f"Substrata recommends qualified review of the {' and '.join(active_codes) if active_codes else 'open review'} advanced-computing paths based on the extracted datasheet evidence."
+    ]
+    if blocked_candidates:
+        conclusion_lines.append(
+            f"The Category 5 Part 2 / {', '.join(candidate.eccn for candidate in blocked_candidates)} path remains blocked pending evidence of user-accessible encryption, confidentiality functionality, key management, network cryptography, cryptographic acceleration, or HSM behavior."
+        )
+    elif security_evidence_present:
+        conclusion_lines.append(
+            "The Category 5 Part 2 security/cryptography review path remains evidence-required pending confirmation of user-accessible encryption, confidentiality functionality, key management, network cryptography, cryptographic acceleration, or HSM behavior."
+        )
+    if fallback_candidates:
+        conclusion_lines.append(
+            f"{', '.join(candidate.eccn for candidate in fallback_candidates)} remains a fallback only if narrower controls are reviewed and excluded."
+        )
 
     open_information = []
     for candidate in [*review_path_candidates, *eccn_candidates]:
@@ -216,6 +248,9 @@ def generate_memo(
 - File name: {document_metadata.get("fileName", "Not recorded")}
 - Generated timestamp: {generated_at}
 {chr(10).join(profile_summary_lines) + chr(10) if profile_summary_lines else ""}- Disclaimer: Draft for expert review only.
+
+### Evidence supporting advanced-computing review
+{chr(10).join(f"- {fact}" for fact in advanced_evidence) if advanced_evidence else "- Review-path evidence is summarized from the extracted technical facts below."}
 
 ## 2. Extracted Technical Facts
 {chr(10).join(fact_sections) if fact_sections else "- No technical facts were extracted from the provided datasheet text."}

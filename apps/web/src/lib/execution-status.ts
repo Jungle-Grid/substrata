@@ -18,21 +18,9 @@ export function getExecutionNotice(
     summary?.backendOutputValidated ?? Boolean(run.reviewMemo?.contentMarkdown);
   const memoValidated =
     summary?.memoValidated ?? Boolean(run.reviewMemo?.contentMarkdown);
+  const workerOutputValidated =
+    summary?.workerOutputValidated ?? backendOutputValidated;
   const fallbackUsed = summary?.fallbackUsed ?? run.fallbackUsed === true;
-
-  if (
-    !backendCompleted ||
-    !backendOutputValidated ||
-    !memoValidated ||
-    run.status === 'failed' ||
-    run.status === 'partial'
-  ) {
-    return {
-      tone: 'error',
-      title: 'Backend verification incomplete',
-      body: 'Substrata could not verify this as a completed backend-assisted run. Re-run the analysis or review the draft manually.',
-    };
-  }
 
   if (fallbackUsed) {
     return {
@@ -43,7 +31,25 @@ export function getExecutionNotice(
   }
 
   if (
-    summary?.evidenceChecksUnresolved ??
+    !backendCompleted ||
+    !backendOutputValidated ||
+    !memoValidated ||
+    !workerOutputValidated ||
+    run.status === 'failed' ||
+    run.status === 'partial' ||
+    run.status === 'unknown'
+  ) {
+    return {
+      tone: 'error',
+      title: 'Backend verification incomplete',
+      body: 'Substrata could not verify this as a completed backend-assisted run. Re-run the analysis or review the draft manually.',
+    };
+  }
+
+  if (
+    summary?.evidenceChecksUnresolved ||
+    (summary?.missingFactCount ?? 0) > 0 ||
+    (summary?.warningCount ?? 0) > 0 ||
     Boolean(
       run.validationIssues?.length ||
       run.factIssues.length ||
@@ -53,7 +59,7 @@ export function getExecutionNotice(
     return {
       tone: 'warning',
       title: 'Expert review required',
-      body: 'This draft was generated successfully, but unresolved evidence checks remain. A qualified reviewer should confirm missing technical details, current CCL threshold mapping, and final classification before sign-off.',
+      body: 'This draft was generated successfully, but unresolved evidence checks remain. A qualified reviewer should confirm missing technical details, current CCL threshold mapping, relevant internal history, and final classification before sign-off.',
     };
   }
 

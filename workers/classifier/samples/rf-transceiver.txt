@@ -1,0 +1,3 @@
+WaveCore mmWave RF Transceiver
+
+Radio transceiver and RF front-end operating from 24 GHz to 44 GHz with phased-array antenna support, integrated low noise amplifier and power amplifier. Output power, instantaneous bandwidth, modulation, radar use, and aerospace qualification vary by configuration.

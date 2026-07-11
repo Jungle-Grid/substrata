@@ -12,6 +12,9 @@ from typing import Any
 from backends import FireworksBackend, JungleGridBackend, LocalBackend
 from backends.base import BackendResult
 from capabilities import derive_capability_signals
+from citations import build_document_citation
+from classification_heuristics import evaluate as evaluate_classification_heuristics
+from classification_heuristics.rules import PATH_TITLES
 from eccn_rules import generate_eccn_candidates
 from extract_specs import extract_specs
 from extract_text import extract_text
@@ -137,24 +140,20 @@ def _ai_max_input_chars() -> int:
         return 120000
 
 
-def select_backend(execution_preference: str, document: dict[str, Any]) -> str:
-    if execution_preference in ("local", "fireworks", "jungle_grid"):
-        return execution_preference
-    if document.get("origin") != "public" or document.get("visibility") == "private":
-        return "local"
-    return "fireworks"
+def select_backend(execution_mode: str, selected_provider: str | None) -> str:
+    provider = selected_provider or ("gemma_local" if execution_mode == "local" else "fireworks")
+    return {
+        "gemma_local": "local",
+        "fireworks": "fireworks",
+        "junglegrid": "jungle_grid",
+        "amd_notebook_manual": "amd_notebook_manual",
+    }.get(provider, provider)
 
 
-def _backend_selection_reason(execution_preference: str, selected_backend: str, document: dict[str, Any]) -> str:
-    if execution_preference == selected_backend and execution_preference != "auto":
-        return f"User selected {selected_backend} execution."
-    if selected_backend == "local":
-        if document.get("origin") != "public" or document.get("visibility") == "private":
-            return "Auto-selected local execution because the document is private or non-public."
-        return "Auto-selected local execution."
-    if selected_backend == "fireworks":
-        return "Auto-selected Fireworks execution because the document is marked public and shareable."
-    return "User selected managed remote execution."
+def _backend_selection_reason(execution_mode: str, selected_backend: str, document: dict[str, Any]) -> str:
+    if execution_mode == "local":
+        return "Local execution selected; Gemma Local is required."
+    return f"Remote execution selected; Substrata routed this run to {selected_backend}."
 
 
 def _normalize_whitespace(value: str) -> str:
@@ -436,18 +435,13 @@ def _run_backend_flow(
     worker_input: Any,
     text: str,
     source_label: str,
-    execution_preference: str,
+    execution_mode: str,
+    selected_provider: str | None,
 ) -> tuple[list[ExtractedSpec], list[Any], list[str], float, str, dict[str, Any], AIExtractionResult, BackendResult]:
     backend_text = truncate_for_ai(text, _ai_max_input_chars())
-    selected_backend = select_backend(
-        execution_preference,
-        {
-            "origin": worker_input.document_metadata.get("origin"),
-            "visibility": worker_input.document_metadata.get("visibility"),
-        },
-    )
+    selected_backend = select_backend(execution_mode, selected_provider)
     selection_reason = _backend_selection_reason(
-        execution_preference,
+        execution_mode,
         selected_backend,
         {
             "origin": worker_input.document_metadata.get("origin"),
@@ -458,7 +452,8 @@ def _run_backend_flow(
         "backend_flow.started",
         document_id=worker_input.document_id,
         backend=selected_backend,
-        execution_preference=execution_preference,
+        execution_mode=execution_mode,
+        selected_provider=selected_provider,
         source_text_characters=len(text),
         backend_input_characters=len(backend_text),
         backend_input_truncated=len(backend_text) < len(text),
@@ -474,6 +469,8 @@ def _run_backend_flow(
             "visibility": worker_input.document_metadata.get("visibility"),
             "backend_reason": selection_reason,
             "selected_backend": selected_backend,
+            "execution_mode": execution_mode,
+            "selected_provider": selected_provider,
         },
     )
     if result.status != "completed":
@@ -520,7 +517,9 @@ def _run_backend_flow(
         memo_characters=len(memo_markdown),
     )
     metadata = {
-        "classificationMode": "backend_assisted",
+        "classificationMode": "local_assisted" if execution_mode == "local" else "remote_assisted",
+        "executionMode": execution_mode,
+        "selectedProvider": selected_provider or selected_backend,
         "backendUsed": result.backend,
         "backendReason": result.reason,
         "underlyingProvider": result.underlying_provider,
@@ -642,11 +641,16 @@ def _regulation_source_from_citation(candidate_eccn: str, citation: Any | None) 
 
 def _candidate_fact_mapping(specs: list[ExtractedSpec], matched_facts: list[str]) -> list[CandidateFactMapping]:
     mappings: list[CandidateFactMapping] = []
+    seen: set[tuple[str, str]] = set()
     for fact in matched_facts[:8]:
         fact_name = fact.split(":", 1)[0].strip().lower().replace(" ", "_")
         spec = next((item for item in specs if item.name == fact_name), None)
         if not spec:
             continue
+        mapping_key = (spec.name, spec.display_name or spec.name)
+        if mapping_key in seen:
+            continue
+        seen.add(mapping_key)
         mappings.append(
             CandidateFactMapping(
                 fact_name=spec.name,
@@ -658,10 +662,46 @@ def _candidate_fact_mapping(specs: list[ExtractedSpec], matched_facts: list[str]
     return mappings
 
 
-def _review_paths_from_candidates(candidates: list[Any], specs: list[ExtractedSpec]) -> list[ReviewPath]:
+def _review_paths_from_candidates(candidates: list[Any], specs: list[ExtractedSpec], heuristic_result: Any | None = None) -> list[ReviewPath]:
+    if heuristic_result is not None:
+        paths: list[ReviewPath] = []
+        for item in heuristic_result.review_paths:
+            path_key = item["pathKey"]
+            related = next((candidate for candidate in candidates if candidate.review_path_id == path_key), None)
+            fact_names = list(dict.fromkeys(
+                name
+                for signal in heuristic_result.matched_signals
+                for name in signal.get("supportingFactNames", [])
+            ))[:10] or [spec.name for spec in specs[:6]]
+            citations = related.regulatory_citations if related else [
+                build_document_citation(spec, source="Current document text") for spec in specs[:3]
+            ]
+            path_title = item["title"]
+            path_type = "encryption_security" if "security" in path_title.lower() or "crypto" in path_title.lower() else "special_environment" if "special-environment" in path_title.lower() else "general_fallback" if "fallback" in path_title.lower() else "product_area"
+            paths.append(ReviewPath(
+                path_key=path_key,
+                title=path_title,
+                scope=f"Assess the extracted evidence against the current control text for this {path_title.lower()}.",
+                type=path_type,
+                status="needs_more_evidence" if item.get("missingInformation") else "open",
+                why_triggered=item["whyTriggered"],
+                technical_risk_area="Cryptography and hardware security" if path_type == "encryption_security" else "Technical performance, configuration, and current threshold mapping",
+                triggered_fact_names=fact_names,
+                regulatory_citations=citations,
+                missing_information=item.get("missingInformation", []),
+                reviewer_questions=heuristic_result.reviewer_questions[:6],
+            ))
+        return paths
+
     paths: list[ReviewPath] = []
+    seen_path_keys: set[str] = set()
     for index, candidate in enumerate(candidates):
-        path_type = "encryption_security" if "5 Part 2" in candidate.title or "crypto" in candidate.title.lower() else "product_area"
+        path_key = candidate.review_path_key or candidate.review_path_id or f"review_path_{index + 1}"
+        if path_key in seen_path_keys:
+            continue
+        seen_path_keys.add(path_key)
+        path_title = PATH_TITLES.get(path_key, candidate.title)
+        path_type = "encryption_security" if "security" in path_title.lower() or "crypto" in path_title.lower() else "special_environment" if "special-environment" in path_title.lower() else "general_fallback" if "fallback" in path_title.lower() else "product_area"
         fact_names = [
             spec.name
             for spec in specs
@@ -671,9 +711,9 @@ def _review_paths_from_candidates(candidates: list[Any], specs: list[ExtractedSp
             fact_names = [spec.name for spec in specs[:4]]
         paths.append(
             ReviewPath(
-                path_key=candidate.review_path_key or candidate.review_path_id or f"review_path_{index + 1}",
-                title=candidate.title,
-                scope=f"Assess whether the extracted technical evidence supports the {candidate.title.lower()} path.",
+                path_key=path_key,
+                title=path_title,
+                scope=f"Assess whether the extracted technical evidence supports the {path_title.lower()}.",
                 type=path_type,
                 status="open",
                 why_triggered=candidate.why_it_may_apply,
@@ -721,7 +761,7 @@ def _specific_eccn_candidates(candidates: list[Any], specs: list[ExtractedSpec])
     for candidate in candidates:
         if not SPECIFIC_ECCN_PATTERN.fullmatch(candidate.eccn.strip()):
             continue
-        candidate_key = candidate.review_path_id or f"{candidate.eccn}:{candidate.title}"
+        candidate_key = f"{candidate.eccn}:{candidate.review_path_id or candidate.title}"
         if candidate_key in seen_candidate_keys:
             continue
         seen_candidate_keys.add(candidate_key)
@@ -752,22 +792,18 @@ def run(payload_path: str) -> WorkerOutput:
     worker_input = load_input(payload_path)
     text = extract_text(worker_input.file_path)
     source_label = _document_source_label(worker_input.document_metadata.get("sourceType"))
-    execution_preference = getattr(worker_input, "execution_preference", "auto")
-    selected_backend = select_backend(
-        execution_preference,
-        {
-            "origin": worker_input.document_metadata.get("origin"),
-            "visibility": worker_input.document_metadata.get("visibility"),
-        },
-    )
-    fallback_enabled = _env_truthy("AI_FALLBACK_TO_HEURISTIC", True)
+    execution_mode = getattr(worker_input, "execution_mode", "remote")
+    selected_provider = getattr(worker_input, "selected_provider", None)
+    selected_backend = select_backend(execution_mode, selected_provider)
+    fallback_enabled = _env_truthy("AI_FALLBACK_TO_HEURISTIC", True) and execution_mode != "local"
     extraction: AIExtractionResult | None
     backend_result: BackendResult | None = None
 
     _log_worker_event(
         "worker.backend_gate",
         document_id=worker_input.document_id,
-        execution_preference=execution_preference,
+        execution_mode=execution_mode,
+        selected_provider=selected_provider,
         selected_backend=selected_backend,
         fallback_enabled=fallback_enabled,
         source_text_characters=len(text),
@@ -789,7 +825,8 @@ def run(payload_path: str) -> WorkerOutput:
             worker_input=worker_input,
             text=text,
             source_label=source_label,
-            execution_preference=execution_preference,
+            execution_mode=execution_mode,
+            selected_provider=selected_provider,
         )
     except BackendExecutionError as error:
         backend_result = error.result
@@ -839,6 +876,68 @@ def run(payload_path: str) -> WorkerOutput:
         uncertainty_flags = list(dict.fromkeys([*uncertainty_flags, "requires_engineering_confirmation"]))
         run_metadata["backendErrorMessage"] = str(error)[:500]
 
+    # The deterministic engine is authoritative for profiles, review paths, and
+    # candidate selection in every execution mode. The LLM extraction remains a
+    # source of normalized facts and cited snippets, never the routing authority.
+    specs, candidates, heuristic_result = evaluate_classification_heuristics(
+        specs,
+        text,
+        source_label=source_label,
+    )
+    confidence = float(heuristic_result.confidence_summary["score"])
+    uncertainty_flags = list(
+        dict.fromkeys(
+            [
+                *uncertainty_flags,
+                *(("missing_key_specs",) if heuristic_result.missing_evidence_checks else ()),
+                *(("multiple_plausible_eccns",) if len(candidates) > 1 else ()),
+                "requires_engineering_confirmation",
+            ]
+        )
+    )
+    capability_signals = derive_capability_signals(specs)
+    memo_markdown = generate_memo(
+        worker_input.document_id,
+        worker_input.document_title,
+        worker_input.document_metadata,
+        specs,
+        candidates,
+        uncertainty_flags,
+        capability_signals,
+        heuristic_result.review_paths,
+    )
+    _, _, validated_heuristic_result = evaluate_classification_heuristics(
+        specs,
+        text,
+        source_label=source_label,
+        memo_markdown=memo_markdown,
+    )
+    heuristic_result.contradiction_flags = validated_heuristic_result.contradiction_flags
+    heuristic_result.classification_trace["contradictions"] = validated_heuristic_result.contradiction_flags
+    heuristic_result.classification_trace.update(
+        {
+            "backendMode": run_metadata.get("classificationMode", "unknown"),
+            "backendSelected": selected_backend,
+            "backendStatus": run_metadata.get("backendStatus", "unknown"),
+            "extractionSource": (
+                "llm_extracted_facts"
+                if run_metadata.get("classificationMode") in {"local_assisted", "remote_assisted"}
+                else "deterministic_fallback_extractor"
+            ),
+        }
+    )
+    run_metadata["classificationTrace"] = heuristic_result.classification_trace
+    run_metadata["executionMode"] = execution_mode
+    run_metadata["selectedProvider"] = selected_provider or selected_backend
+    heuristic_result.classification_trace["execution"] = {
+        "executionMode": execution_mode,
+        "selectedProvider": selected_provider or selected_backend,
+        "providerSelectionReason": run_metadata.get("backendReason"),
+        "fallbackUsed": run_metadata.get("classificationMode") == "heuristic_fallback",
+        "fallbackReason": run_metadata.get("fallbackReason"),
+    }
+    run_metadata["heuristicResult"] = heuristic_result.to_dict()
+
     sample_dir = Path(payload_path).resolve().parent
     artifacts_dir = sample_dir / "artifacts"
     artifacts_dir.mkdir(exist_ok=True)
@@ -850,7 +949,7 @@ def run(payload_path: str) -> WorkerOutput:
     facts_path = artifacts_dir / f"{worker_input.document_id}-extracted-facts.json"
     review_paths_path = artifacts_dir / f"{worker_input.document_id}-review-paths.json"
 
-    review_paths = _review_paths_from_candidates(candidates, specs)
+    review_paths = _review_paths_from_candidates(candidates, specs, heuristic_result)
     fact_issues = _fact_issues(specs, extraction)
     specific_candidates = _specific_eccn_candidates(candidates, specs)
     capability_signals = derive_capability_signals(specs)
@@ -894,6 +993,8 @@ def run(payload_path: str) -> WorkerOutput:
             "review_paths_path": str(review_paths_path),
         },
         run_metadata=run_metadata,
+        heuristic_result=heuristic_result.to_dict(),
+        classification_trace=heuristic_result.classification_trace,
     )
 
     validate_worker_output(
@@ -907,11 +1008,21 @@ def run(payload_path: str) -> WorkerOutput:
             "backendCompleted": run_metadata.get("backendStatus") == "completed",
             "backendOutputValidated": True,
             "memoValidated": True,
+            "workerOutputValidated": True,
             "fallbackEnabled": fallback_enabled,
             "fallbackUsed": run_metadata.get("classificationMode") == "heuristic_fallback",
             "missingFactCount": len(extraction.missing_facts) if extraction else 0,
-            "warningCount": sum(1 for issue in validation_issues if issue.severity == "warning"),
-            "evidenceChecksUnresolved": bool(validation_issues or uncertainty_flags or fact_issues),
+            "warningCount": (
+                (len(extraction.warnings) if extraction else 0)
+                + sum(1 for issue in validation_issues if issue.severity == "warning")
+            ),
+            "evidenceChecksUnresolved": bool(
+                validation_issues
+                or uncertainty_flags
+                or fact_issues
+                or (extraction and extraction.missing_facts)
+                or (extraction and extraction.warnings)
+            ),
         }
     )
     _log_worker_event(

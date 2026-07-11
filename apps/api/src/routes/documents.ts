@@ -17,6 +17,7 @@ import {
 } from '../services/document.service';
 import { recordAuditEvent } from '../services/audit.service';
 import { createWorkerClient } from '../services/worker-client';
+import { selectExecutionProvider } from '../services/execution-router.service';
 import {
   loadBundledSampleDatasheet,
   persistUploadedDocument,
@@ -281,7 +282,12 @@ documentsRouter.post('/:id/classification-runs', requireCsrf, async (req, res) =
     organizationId: organization.id,
     actorUserId: user.id,
     trigger: input.trigger ?? 'manual',
-    executionPreference: input.executionPreference ?? 'auto',
+    executionMode: input.executionMode ??
+      (organization.defaultExecutionPreference === 'local' ? 'local' : 'remote'),
+    selectedProvider: selectExecutionProvider(
+      input.executionMode ??
+        (organization.defaultExecutionPreference === 'local' ? 'local' : 'remote'),
+    ).selectedProvider,
   });
 
   return res.status(202).json(presentRun(run));

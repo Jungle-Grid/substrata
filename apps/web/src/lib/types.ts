@@ -13,6 +13,7 @@ export interface AuthOrganization {
   name: string;
   slug: string;
   industry?: string | null;
+  defaultExecutionPreference?: 'local' | 'remote';
 }
 
 export interface MembershipRecord {
@@ -177,6 +178,15 @@ export interface ECCNCandidateRecord {
   isSpecificEccn: boolean;
   regulationSource?: RegulationSourceRecord | null;
   regulatoryCitations: RegulatoryCitationRecord[];
+  candidateType?:
+    | 'review_candidate'
+    | 'fallback_candidate'
+    | 'blocked_candidate'
+    | 'excluded_candidate'
+    | 'reviewer_final';
+  companyHistorySupport?: Array<Record<string, unknown>>;
+  contradictions?: Array<Record<string, unknown>>;
+  humanReviewRequired?: true;
 }
 
 export interface CapabilitySignalRecord {
@@ -319,13 +329,18 @@ export interface ClassificationRunRecord {
   memoArtifactPath?: string | null;
   capabilitySignals?: CapabilitySignalRecord[];
   validationIssues?: ValidationIssueRecord[];
+  heuristicResult?: Record<string, unknown> | null;
+  classificationTrace?: Record<string, unknown> | null;
   fallbackUsed?: boolean;
   validationStatus?: string;
   executionSummary?: {
+    executionMode?: 'local' | 'remote';
+    selectedProvider?: 'gemma_local' | 'fireworks' | 'junglegrid' | 'amd_notebook_manual' | null;
     backendSelected?: string | null;
     backendCompleted: boolean;
     backendOutputValidated: boolean;
     memoValidated: boolean;
+    workerOutputValidated: boolean;
     fallbackEnabled: boolean;
     fallbackUsed: boolean;
     missingFactCount: number;

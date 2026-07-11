@@ -19,12 +19,12 @@ DEFAULT_MODEL = "gemma4:e2b"
 
 
 def _ollama_host() -> str:
-    host = os.getenv("OLLAMA_HOST") or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434"
+    host = os.getenv("LOCAL_GEMMA_BASE_URL") or os.getenv("OLLAMA_HOST") or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434"
     return host.rstrip("/")
 
 
 def _model() -> str:
-    return os.getenv("GEMMA_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
+    return os.getenv("LOCAL_GEMMA_MODEL") or os.getenv("GEMMA_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
 
 
 class LocalBackend(ClassificationBackend):
@@ -66,8 +66,8 @@ class LocalBackend(ClassificationBackend):
         except urllib.error.URLError as exc:
             reason = getattr(exc, "reason", exc)
             raise RuntimeError(
-                "Local inference is not reachable. Start Ollama and confirm "
-                f"OLLAMA_HOST is correct ({_ollama_host()}). Original error: {reason}"
+                "Local execution requires the Gemma model to be running. Start the configured Gemma service or choose Remote. "
+                f"Configured endpoint: {_ollama_host()}. Original error: {reason}"
             ) from exc
 
         latency_ms = (time.perf_counter() - started) * 1000.0

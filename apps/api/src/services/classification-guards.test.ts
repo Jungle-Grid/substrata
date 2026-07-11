@@ -216,6 +216,8 @@ test('run presenter does not label a run human-reviewed without a recorded revie
     memoArtifactPath: null,
     capabilitySignals: null,
     validationIssues: null,
+    heuristicResult: null,
+    classificationTrace: null,
     fallbackUsed: false,
     validationStatus: 'passed',
     errorMessage: null,
