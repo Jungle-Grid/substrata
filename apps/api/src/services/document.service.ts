@@ -45,15 +45,18 @@ export async function createDocument(
   });
 }
 
-export async function listDocuments(organizationId: string, includeArchived = false) {
+export type LifecycleFilter = 'active' | 'archived' | 'all';
+
+export async function listDocuments(organizationId: string, lifecycle: LifecycleFilter = 'active') {
   return prisma.document.findMany({
     where: {
       organizationId,
       companyHistoryDocument: null,
-      ...(includeArchived ? {} : { archivedAt: null }),
+      ...(lifecycle === 'active' ? { archivedAt: null } : lifecycle === 'archived' ? { archivedAt: { not: null } } : {}),
     },
     include: {
       classificationRuns: {
+        where: lifecycle === 'active' ? { archivedAt: null } : lifecycle === 'archived' ? { archivedAt: { not: null } } : {},
         orderBy: { createdAt: 'desc' },
         include: {
           reviewMemo: true,

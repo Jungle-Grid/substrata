@@ -80,6 +80,7 @@ export function isValidClassificationStatusTransition(
     failed: [],
     needs_attention: ['running', 'blocked'],
     blocked: ['running'],
+    cancelled: [],
   };
   return transitions[from].includes(to);
 }

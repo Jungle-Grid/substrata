@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { AppShell } from '../../../../components/app-shell';
 import { Icon } from '../../../../components/icon';
 import { StartClassificationButton } from '../../../../components/start-classification-button';
+import { LifecycleControls } from '../../../../components/lifecycle-controls';
 import { EmptyState, Panel, SectionHeader, StatusBadge } from '../../../../components/ui';
 import { requireCompletedOnboarding } from '../../../../lib/server-auth';
 import { fetchServerDocument } from '../../../../lib/server-api';
@@ -23,6 +24,7 @@ export default async function DocumentDetailPage({
       currentPath="/app/documents"
       title={document.title}
       description="Review source document details, launch a classification review, and inspect the related memo drafts and human review status."
+      actions={<LifecycleControls target="document" id={document.id} archived={Boolean(document.archivedAt)} csrfToken={session.csrfToken} canDelete={session.membership?.role === 'OWNER' || session.membership?.role === 'ADMIN'} />}
     >
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Panel>
@@ -30,12 +32,12 @@ export default async function DocumentDetailPage({
           <div className="mt-6 border-t border-slate-200 pt-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <SectionHeader eyebrow="Related workups" title="Classification reviews" description="Open a case file or generate the first review-ready evidence package." />
-              {canCreateClassification ? (
+              {canCreateClassification && !document.archivedAt ? (
                 <StartClassificationButton
                   documentId={document.id}
                   defaultExecutionPreference={session.organization?.defaultExecutionPreference}
                 />
-              ) : null}
+              ) : document.archivedAt ? <p className="text-sm font-medium text-amber-800">Archived documents cannot start new classification runs.</p> : null}
             </div>
             <div className="mt-4 space-y-3">
               {(document.classificationRuns ?? []).length === 0 ? (

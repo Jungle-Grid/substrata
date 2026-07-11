@@ -194,3 +194,68 @@ Deletion implementation status: archive/restore and scoped permanent document/ru
 deletion are implemented. Active-run cancellation, remote cancellation, individual
 artifact deletion, frontend lifecycle controls, and dedicated lifecycle test coverage
 are **NOT TESTED / incomplete** and remain follow-up work.
+
+## Cancellation and artifact-cleanup increment
+
+| Command | Exit | Status | Result |
+|---|---:|---|---|
+| `corepack pnpm --filter @substrata/api typecheck` | 0 | PASS | Cancellation and artifact-cleanup routes/services typecheck. |
+| `WEB_APP_URL=http://localhost:3000 corepack pnpm test` | 0 | PASS | Existing API suite remains 60/60. |
+| `prisma migrate deploy` / `prisma migrate status` | 0 | PASS | `20260711110000_cancellation_and_artifact_cleanup` applied; 15 migrations up to date. |
+
+Remote cancellation is deliberately represented as unresolved unless provider
+confirmation exists. Frontend lifecycle UX and dedicated cancellation/artifact
+failure-path tests are still NOT TESTED / incomplete.
+
+## Deletion and Retention Readiness Follow-up
+
+| Command | Working directory | Exit | Status | Result |
+|---|---|---:|---|---|
+| `corepack pnpm --filter @substrata/api typecheck` | repository root | 0 | PASS | Lifecycle query and parent-run artifact ownership changes typecheck. |
+| `corepack pnpm --filter @substrata/web typecheck` | repository root | 0 | PASS | Archived views and confirmation controls typecheck. |
+| `WEB_APP_URL=http://localhost:3000 corepack pnpm test` | repository root | 0 | PASS | Existing API suite remains 60/60. |
+| `python3 -m unittest discover -s workers/classifier/tests -v` | repository root | 0 | PASS | Worker baseline remains 32/32. |
+| `corepack pnpm --filter @substrata/web build` | repository root | 1 | FAIL | Initial build caught unused review-list imports after the lifecycle-view edit; fixed, rerun is required. |
+
+### Current lifecycle contract
+
+- Document and run lists now accept `?lifecycle=active|archived|all`; the default is `active` and invalid values return the existing Zod validation response.
+- Lifecycle mutations require an authenticated session and CSRF header/cookie. Document archive/restore require a classification-capable role; permanent document deletion requires workspace management. Run archive/restore/cancel require review permission; run/artifact permanent deletion requires workspace management.
+- Ownership is derived from the authenticated organization. Artifact deletion additionally verifies the route run ID against the stored artifact `classificationRunId`.
+- Permanent deletion requires the exact resource ID in `{ "confirmation": "<id>" }`, requires prior archive, and rejects active runs. Storage failures do not return success; artifact cleanup remains retryable.
+- Remote cancellation remains a truthful `409` unresolved state unless a provider confirms cancellation. It records an audit failure event and does not set `cancelled`.
+
+### Follow-up verdict
+
+**NOT READY.** Archived document/run views and detail lifecycle controls are implemented, but dedicated lifecycle, CSRF, organization-isolation, storage-failure, cancellation-race, artifact UI, and frontend destructive-workflow tests have not been added or executed. The failed initial web build must also be rerun after the import cleanup.
+
+## Final deletion and retention verification pass
+
+| Command | Working directory | Exit | Status | Result |
+|---|---|---:|---|---|
+| `corepack pnpm --filter @substrata/api typecheck` | repository root | 0 | PASS | Lifecycle routes and safe artifact manifest response typecheck. |
+| `corepack pnpm --filter @substrata/web typecheck` | repository root | 0 | PASS | Artifact confirmation/retry controls and run-detail integration typecheck. |
+| `WEB_APP_URL=http://localhost:3000 corepack pnpm test` | repository root | 0 | PASS | Existing API suite: 60/60 passing. |
+| `corepack pnpm lint` | repository root | 0 | PASS | Workspace lint passed. |
+| `corepack pnpm --filter @substrata/web build` | repository root | 0 | PASS | Next production build passed. |
+| `python3 -m py_compile $(rg --files workers/classifier/src -g '*.py')` | repository root | 0 | PASS | Worker Python syntax passed. |
+| `python3 -m unittest discover -s workers/classifier/tests -v` | repository root | 0 | PASS | Worker suite: 32/32 passing. |
+| `corepack pnpm db:generate` | repository root | 0 | PASS | Prisma client generated. |
+| `prisma validate --schema prisma/schema.prisma` | repository root | 0 | PASS | Prisma schema valid. |
+| `prisma migrate deploy --schema prisma/schema.prisma` | repository root | 0 | PASS | No pending migrations. |
+| `prisma migrate status --schema prisma/schema.prisma` | repository root | 0 | PASS | 15 migrations found; database schema up to date. |
+| `psql "$DATABASE_URL" -c 'SELECT 1 AS database_connectivity;'` | repository root | 0 | PASS | Read-only database connectivity check passed. |
+| `docker-compose -f infra/docker-compose.prod.yml --env-file infra/.env.production config --quiet` | repository root | 0 | PASS | Production dotenv and Compose configuration parse. |
+| `git diff --check` | repository root | 0 | PASS | No whitespace errors. |
+
+Artifact lifecycle UX is now mounted on the run-detail audit panel. It uses a
+destructive confirmation dialog, shows pending/failed/retry state from the API,
+and refreshes only after a confirmed successful response. The artifact manifest
+endpoint no longer returns storage paths or file previews; it returns safe
+artifact metadata and deletion eligibility only.
+
+**Verdict remains NOT READY.** The repository has no usable frontend interaction
+test runner beyond static server-render tests, and dedicated API lifecycle CSRF,
+organization-isolation, storage-failure/retry, and cancellation-race tests have
+not been added in this pass. No manual authenticated browser walkthrough was
+performed in this environment.

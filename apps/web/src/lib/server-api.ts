@@ -87,16 +87,16 @@ export async function fetchServerAuthSessionSafe(): Promise<AuthSessionRecord> {
   }
 }
 
-export function fetchServerDocuments() {
-  return serverFetch<DocumentRecord[]>('/documents');
+export function fetchServerDocuments(lifecycle: 'active' | 'archived' | 'all' = 'active') {
+  return serverFetch<DocumentRecord[]>(`/documents?lifecycle=${lifecycle}`);
 }
 
 export function fetchServerDocument(id: string) {
   return serverFetch<DocumentRecord>(`/documents/${id}`);
 }
 
-export function fetchServerRuns() {
-  return serverFetch<ClassificationRunRecord[]>('/classification-runs');
+export function fetchServerRuns(lifecycle: 'active' | 'archived' | 'all' = 'active') {
+  return serverFetch<ClassificationRunRecord[]>(`/classification-runs?lifecycle=${lifecycle}`);
 }
 
 export function fetchServerRun(id: string) {

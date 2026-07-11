@@ -2,6 +2,8 @@
 
 Overall verdict: **NOT READY**
 
+> Deletion and retention follow-up (2026-07-11): the API now supports a consistent, organization-scoped `lifecycle=active|archived|all` list filter, with active as the default. The web workspace has active/archived document and run views plus document/run confirmation controls. Artifact deletion/retry controls are integrated into the run-detail audit panel with explicit deletion confirmation and server-driven pending/failure/retry state. Lifecycle and artifact-manifest responses do not expose storage keys. Artifact route ownership verifies both authenticated organization and parent run. Migration deploy/status was rerun successfully: 15 migrations and schema up to date. This remains **NOT READY** because dedicated lifecycle/CSRF/IDOR/storage failure/cancellation-race tests and authenticated frontend manual validation are not complete; remote cancellation remains safely unresolved without provider confirmation.
+
 ## Executive Summary
 
 Substrata has a substantial, working local product core: the API starts, the database is reachable, authentication and organization isolation work, the sample document workflow persists extracted facts, review paths, candidates, a memo draft, artifacts, and audit events, and the frontend/API builds pass.
@@ -431,3 +433,19 @@ Cancellation, remote provider cancellation, individual-artifact deletion, and
 frontend lifecycle controls remain **NOT TESTED / not implemented in this
 increment**. They must be completed before claiming full deletion readiness for
 sensitive customer data. No external Jungle Grid behavior was changed.
+
+## Follow-up lifecycle increment
+
+`POST /v1/classification-runs/:id/cancel` now cancels local active runs into an
+explicit `cancelled` state and preserves diagnostics. Remote jobs are never
+reported cancelled without provider confirmation: the API records a sanitized
+failure/pending audit event and returns conflict when remote confirmation is not
+available. Artifact deletion and retry routes are available beneath a run:
+`DELETE /v1/classification-runs/:id/artifacts/:artifactId` and `POST
+/v1/classification-runs/:id/artifacts/:artifactId/retry-deletion`.
+
+Artifact deletion stores a requested timestamp, attempt count, and sanitized
+failure reason before cleanup; it deletes metadata only after local storage
+returns deleted or confirmed missing. **WARN:** frontend controls, archived-item
+views, and dedicated lifecycle failure-path tests remain incomplete, so the
+overall deletion-retention verdict remains NOT READY.

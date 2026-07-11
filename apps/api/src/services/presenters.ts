@@ -484,6 +484,16 @@ export function presentRun(run: RunWithRelations) {
   return {
     id: run.id,
     archivedAt: run.archivedAt,
+    lifecycle: run.archivedAt ? 'archived' : 'active',
+    lifecycleActions: {
+      canCancel: !run.archivedAt && ['pending', 'queued', 'running', 'unknown'].includes(run.status),
+      canArchive: !run.archivedAt && !['pending', 'queued', 'running', 'unknown'].includes(run.status),
+      canRestore: Boolean(run.archivedAt),
+      canPermanentlyDelete: Boolean(run.archivedAt) && !['pending', 'queued', 'running', 'unknown'].includes(run.status),
+    },
+    cancellationRequestedAt: run.cancellationRequestedAt,
+    cancelledAt: run.cancelledAt,
+    cancellationFailureReason: run.cancellationFailureReason,
     status: run.status,
     processingStatus: run.status,
     processingLabel: deriveProcessingLabel(run.status),
@@ -547,12 +557,16 @@ export function presentRun(run: RunWithRelations) {
     artifacts: (run.artifacts ?? []).map((artifact) => ({
       id: artifact.id,
       kind: artifact.kind,
-      storagePath: artifact.storagePath,
       fileName: artifact.fileName,
       mimeType: artifact.mimeType,
       sizeBytes: artifact.sizeBytes,
       sha256: artifact.sha256,
       createdAt: artifact.createdAt,
+      deletionRequestedAt: artifact.deletionRequestedAt,
+      deletionAttemptCount: artifact.deletionAttemptCount,
+      deletionFailureReason: artifact.deletionFailureReason,
+      canDelete: !['pending', 'queued', 'running', 'unknown'].includes(run.status),
+      canRetryDeletion: Boolean(artifact.deletionFailureReason),
     })),
     companyHistoryMatches: (run.companyHistoryMatches ?? []).map(
       presentCompanyHistoryMatch,
@@ -725,6 +739,12 @@ export function presentDocument(document: DocumentWithRunRelations) {
     visibility: document.visibility,
     rawText: document.rawText,
     archivedAt: document.archivedAt,
+    lifecycle: document.archivedAt ? 'archived' : 'active',
+    lifecycleActions: {
+      canArchive: !document.archivedAt,
+      canRestore: Boolean(document.archivedAt),
+      canPermanentlyDelete: Boolean(document.archivedAt),
+    },
     createdAt: document.createdAt,
     classificationRuns:
       document.classificationRuns?.map((run) =>

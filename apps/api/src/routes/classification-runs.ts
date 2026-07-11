@@ -1,4 +1,3 @@
-import fs from 'node:fs/promises';
 import { Router } from 'express';
 import { z } from 'zod';
 import {
@@ -29,21 +28,9 @@ import { presentRun } from '../services/presenters';
 import { createStorageDriver } from '../services/storage';
 import { requireCsrf } from '../middleware/auth';
 import { canManageWorkspace } from '../lib/authz';
-import { archiveRun, permanentlyDeleteRun, restoreRun } from '../services/lifecycle.service';
+import { archiveRun, cancelRun, deleteArtifact, permanentlyDeleteRun, restoreRun } from '../services/lifecycle.service';
 
 const storage = createStorageDriver();
-
-async function readPrivateArtifactPreview(storagePath?: string | null) {
-  if (!storagePath) {
-    return null;
-  }
-
-  try {
-    return await fs.readFile(storage.resolve(storagePath), 'utf8');
-  } catch {
-    return null;
-  }
-}
 
 type ClassificationRunsRouterDeps = {
   loadClassificationRun?: typeof getClassificationRun;
@@ -80,7 +67,8 @@ export function createClassificationRunsRouter(
   const getMemoDownload = deps.getMemoDownload ?? getAuthenticatedMemoDownload;
 
   classificationRunsRouter.get('/', async (req, res) => {
-    const runs = await listRuns(req.authContext!.organization.id);
+    const lifecycle = z.enum(['active', 'archived', 'all']).default('active').parse(req.query.lifecycle);
+    const runs = await listRuns(req.authContext!.organization.id, lifecycle);
     res.json(runs.map((run) => presentRun(run)));
   });
 
@@ -130,12 +118,30 @@ export function createClassificationRunsRouter(
   classificationRunsRouter.post('/:id/archive', requireCsrf, async (req, res) => {
     const { organization, user, membership } = req.authContext!;
     if (!canSubmitReview(membership.role)) throw new Error('Forbidden');
-    return res.json(await archiveRun({ organizationId: organization.id, runId: String(req.params.id), actorUserId: user.id }));
+    const run = await archiveRun({ organizationId: organization.id, runId: String(req.params.id), actorUserId: user.id });
+    return res.json({ id: run.id, archivedAt: run.archivedAt, lifecycle: 'archived' });
   });
   classificationRunsRouter.post('/:id/restore', requireCsrf, async (req, res) => {
     const { organization, user, membership } = req.authContext!;
     if (!canSubmitReview(membership.role)) throw new Error('Forbidden');
-    return res.json(await restoreRun({ organizationId: organization.id, runId: String(req.params.id), actorUserId: user.id }));
+    const run = await restoreRun({ organizationId: organization.id, runId: String(req.params.id), actorUserId: user.id });
+    return res.json({ id: run.id, archivedAt: run.archivedAt, lifecycle: 'active' });
+  });
+  classificationRunsRouter.post('/:id/cancel', requireCsrf, async (req, res) => {
+    const { organization, user, membership } = req.authContext!;
+    if (!canSubmitReview(membership.role)) throw new Error('Forbidden');
+    const run = await cancelRun({ organizationId: organization.id, runId: String(req.params.id), actorUserId: user.id });
+    return res.json({ id: run.id, status: run.status, cancellationRequestedAt: run.cancellationRequestedAt, cancelledAt: run.cancelledAt, cancellationFailureReason: run.cancellationFailureReason });
+  });
+  classificationRunsRouter.delete('/:id/artifacts/:artifactId', requireCsrf, async (req, res) => {
+    const { organization, user, membership } = req.authContext!;
+    if (!canManageWorkspace(membership.role)) throw new Error('Forbidden');
+    return res.json(await deleteArtifact({ organizationId: organization.id, runId: String(req.params.id), artifactId: String(req.params.artifactId), actorUserId: user.id, storage }));
+  });
+  classificationRunsRouter.post('/:id/artifacts/:artifactId/retry-deletion', requireCsrf, async (req, res) => {
+    const { organization, user, membership } = req.authContext!;
+    if (!canManageWorkspace(membership.role)) throw new Error('Forbidden');
+    return res.json(await deleteArtifact({ organizationId: organization.id, runId: String(req.params.id), artifactId: String(req.params.artifactId), actorUserId: user.id, storage }));
   });
   classificationRunsRouter.delete('/:id/permanent', requireCsrf, async (req, res) => {
     const { organization, user, membership } = req.authContext!;
@@ -409,22 +415,21 @@ export function createClassificationRunsRouter(
       return res.status(404).json({ error: 'Classification run not found' });
     }
 
-    const [memoPreview, extractedTextPreview] = await Promise.all([
-      readPrivateArtifactPreview(run.memoArtifactPath),
-      readPrivateArtifactPreview(run.extractedTextPath),
-    ]);
-
     return res.json({
       classificationRunId: run.id,
-      artifacts: {
-        extractedTextPath: run.extractedTextPath,
-        structuredOutputPath: run.structuredOutputPath,
-        memoArtifactPath: run.memoArtifactPath,
-      },
-      previews: {
-        memoPreview,
-        extractedTextPreview,
-      },
+      artifacts: (run.artifacts ?? []).map((artifact) => ({
+        id: artifact.id,
+        kind: artifact.kind,
+        fileName: artifact.fileName,
+        mimeType: artifact.mimeType,
+        sizeBytes: artifact.sizeBytes,
+        createdAt: artifact.createdAt,
+        deletionRequestedAt: artifact.deletionRequestedAt,
+        deletionAttemptCount: artifact.deletionAttemptCount,
+        deletionFailureReason: artifact.deletionFailureReason,
+        canDelete: !['pending', 'queued', 'running', 'unknown'].includes(run.status),
+        canRetryDeletion: Boolean(artifact.deletionFailureReason),
+      })),
     });
   });
 

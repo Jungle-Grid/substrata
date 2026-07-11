@@ -5,6 +5,39 @@ import type { StorageDriver } from './storage';
 
 const ACTIVE_RUN_STATUSES = new Set(['pending', 'queued', 'running', 'unknown']);
 
+export async function cancelRun(input: { organizationId: string; runId: string; actorUserId: string }) {
+  const run = await prisma.classificationRun.findFirst({ where: { id: input.runId, organizationId: input.organizationId }, include: { executionJob: true } });
+  if (!run) throw new HttpError(404, 'Classification run not found');
+  if (run.status === 'cancelled') return run;
+  if (!ACTIVE_RUN_STATUSES.has(run.status)) throw new HttpError(409, 'Only active classification runs can be cancelled.');
+  if (run.executionJob?.externalJobId) {
+    await prisma.classificationRun.update({ where: { id: run.id }, data: { cancellationRequestedAt: new Date(), cancellationFailureReason: 'Remote cancellation requires provider confirmation and is not available in this API process.' } });
+    await recordAuditEvent({ organizationId: input.organizationId, actorUserId: input.actorUserId, actor: 'user', action: 'classification_run.cancellation_failed', entityType: 'ClassificationRun', entityId: run.id, metadata: { result: 'unconfirmed_remote_cancellation' } });
+    throw new HttpError(409, 'Remote cancellation could not be confirmed; the run remains active.');
+  }
+  const cancelled = await prisma.classificationRun.update({ where: { id: run.id }, data: { status: 'cancelled', cancellationRequestedAt: new Date(), cancelledAt: new Date(), errorMessage: 'Cancelled by authorized user.' } });
+  await recordAuditEvent({ organizationId: input.organizationId, actorUserId: input.actorUserId, actor: 'user', action: 'classification_run.cancelled', entityType: 'ClassificationRun', entityId: run.id, metadata: { result: 'cancelled_local' } });
+  return cancelled;
+}
+
+export async function deleteArtifact(input: { organizationId: string; runId: string; artifactId: string; actorUserId: string; storage: StorageDriver }) {
+  const artifact = await prisma.artifact.findFirst({ where: { id: input.artifactId, organizationId: input.organizationId, classificationRunId: input.runId }, include: { classificationRun: true } });
+  if (!artifact) throw new HttpError(404, 'Artifact not found');
+  if (artifact.classificationRun && ACTIVE_RUN_STATUSES.has(artifact.classificationRun.status)) throw new HttpError(409, 'Artifacts for active runs cannot be deleted.');
+  await prisma.artifact.update({ where: { id: artifact.id }, data: { deletionRequestedAt: new Date(), deletionAttemptCount: { increment: 1 }, deletionFailureReason: null } });
+  try {
+    const cleanup = await input.storage.delete(artifact.storagePath);
+    await prisma.artifact.delete({ where: { id: artifact.id } });
+    await recordAuditEvent({ organizationId: input.organizationId, actorUserId: input.actorUserId, actor: 'user', action: 'artifact.deleted', entityType: 'Artifact', entityId: artifact.id, metadata: { result: cleanup } });
+    return { id: artifact.id, cleanup };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message.slice(0, 200) : 'storage_cleanup_failed';
+    await prisma.artifact.update({ where: { id: artifact.id }, data: { deletionFailureReason: reason } });
+    await recordAuditEvent({ organizationId: input.organizationId, actorUserId: input.actorUserId, actor: 'user', action: 'artifact.deletion_failed', entityType: 'Artifact', entityId: artifact.id, metadata: { result: 'failed', reason } });
+    throw new HttpError(502, 'Artifact storage cleanup failed; retry is required.');
+  }
+}
+
 function assertTerminal(status: string) {
   if (ACTIVE_RUN_STATUSES.has(status)) {
     throw new HttpError(409, 'Active classification runs must be cancelled or reach a terminal state before deletion.');

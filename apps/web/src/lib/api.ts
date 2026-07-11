@@ -95,6 +95,20 @@ export async function fetchCsrfToken() {
   return result.csrfToken;
 }
 
+function lifecycleMutation<T>(path: string, method: 'POST' | 'DELETE', csrfToken: string, body?: unknown) {
+  return clientFetch<T>(path, { method, csrfToken, requiresAuth: true, headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
+}
+
+export function archiveDocument(id: string, csrfToken: string) { return lifecycleMutation(`/documents/${id}/archive`, 'POST', csrfToken); }
+export function restoreDocument(id: string, csrfToken: string) { return lifecycleMutation(`/documents/${id}/restore`, 'POST', csrfToken); }
+export function permanentlyDeleteDocument(id: string, confirmation: string, csrfToken: string) { return lifecycleMutation(`/documents/${id}/permanent`, 'DELETE', csrfToken, { confirmation }); }
+export function archiveRun(id: string, csrfToken: string) { return lifecycleMutation(`/classification-runs/${id}/archive`, 'POST', csrfToken); }
+export function restoreRun(id: string, csrfToken: string) { return lifecycleMutation(`/classification-runs/${id}/restore`, 'POST', csrfToken); }
+export function cancelRun(id: string, csrfToken: string) { return lifecycleMutation(`/classification-runs/${id}/cancel`, 'POST', csrfToken); }
+export function permanentlyDeleteRun(id: string, confirmation: string, csrfToken: string) { return lifecycleMutation(`/classification-runs/${id}/permanent`, 'DELETE', csrfToken, { confirmation }); }
+export function deleteArtifact(runId: string, artifactId: string, csrfToken: string) { return lifecycleMutation(`/classification-runs/${runId}/artifacts/${artifactId}`, 'DELETE', csrfToken); }
+export function retryArtifactDeletion(runId: string, artifactId: string, csrfToken: string) { return lifecycleMutation(`/classification-runs/${runId}/artifacts/${artifactId}/retry-deletion`, 'POST', csrfToken); }
+
 export function fetchAuthSession() {
   return clientFetch<AuthSessionRecord>('/auth/me');
 }

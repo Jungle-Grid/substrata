@@ -258,7 +258,8 @@ documentsRouter.post('/sample', requireCsrf, async (req, res) => {
 
 documentsRouter.get('/', async (req, res) => {
   const { organization } = req.authContext!;
-  const documents = await listDocuments(organization.id, req.query.archived === 'true');
+  const lifecycle = z.enum(['active', 'archived', 'all']).default('active').parse(req.query.lifecycle);
+  const documents = await listDocuments(organization.id, lifecycle);
   res.json(documents.map((document) => presentDocument(document)));
 });
 
@@ -276,13 +277,13 @@ documentsRouter.get('/:id', async (req, res) => {
 documentsRouter.post('/:id/archive', requireCsrf, async (req, res) => {
   const { organization, user, membership } = req.authContext!;
   if (!canCreateClassification(membership.role)) throw new HttpError(403, 'You do not have access to archive documents.');
-  res.json(await archiveDocument({ organizationId: organization.id, documentId: String(req.params.id), actorUserId: user.id }));
+  res.json(presentDocument(await archiveDocument({ organizationId: organization.id, documentId: String(req.params.id), actorUserId: user.id })));
 });
 
 documentsRouter.post('/:id/restore', requireCsrf, async (req, res) => {
   const { organization, user, membership } = req.authContext!;
   if (!canCreateClassification(membership.role)) throw new HttpError(403, 'You do not have access to restore documents.');
-  res.json(await restoreDocument({ organizationId: organization.id, documentId: String(req.params.id), actorUserId: user.id }));
+  res.json(presentDocument(await restoreDocument({ organizationId: organization.id, documentId: String(req.params.id), actorUserId: user.id })));
 });
 
 documentsRouter.delete('/:id/permanent', requireCsrf, async (req, res) => {

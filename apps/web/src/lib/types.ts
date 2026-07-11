@@ -294,6 +294,12 @@ export interface ReviewerActionRecord {
 
 export interface ClassificationRunRecord {
   id: string;
+  archivedAt?: string | null;
+  lifecycle?: 'active' | 'archived';
+  lifecycleActions?: { canCancel: boolean; canArchive: boolean; canRestore: boolean; canPermanentlyDelete: boolean };
+  cancellationRequestedAt?: string | null;
+  cancelledAt?: string | null;
+  cancellationFailureReason?: string | null;
   status: string;
   processingStatus?: string;
   processingLabel?: string;
@@ -324,6 +330,7 @@ export interface ClassificationRunRecord {
   reviewerClaimedAt?: string | null;
   finalInternalRecommendation?: string | null;
   conclusionDisclaimer?: string | null;
+  /** Legacy client-only fields; lifecycle API responses never expose storage paths. */
   extractedTextPath?: string | null;
   structuredOutputPath?: string | null;
   memoArtifactPath?: string | null;
@@ -376,12 +383,16 @@ export interface ClassificationRunRecord {
   artifacts?: Array<{
     id: string;
     kind: string;
-    storagePath: string;
     fileName: string;
     mimeType?: string | null;
     sizeBytes?: number | null;
     sha256?: string | null;
     createdAt?: string;
+    deletionRequestedAt?: string | null;
+    deletionAttemptCount?: number;
+    deletionFailureReason?: string | null;
+    canDelete?: boolean;
+    canRetryDeletion?: boolean;
   }>;
   companyHistoryMatches?: Array<{
     id: string;
@@ -511,7 +522,6 @@ export interface DocumentRecord {
   displayFileName?: string | null;
   mimeType?: string | null;
   sizeBytes?: number | null;
-  storagePath?: string | null;
   sourceType?: string;
   documentType?: string | null;
   manufacturer?: string | null;
@@ -524,6 +534,9 @@ export interface DocumentRecord {
   origin?: string | null;
   visibility?: string | null;
   rawText?: string | null;
+  archivedAt?: string | null;
+  lifecycle?: 'active' | 'archived';
+  lifecycleActions?: { canArchive: boolean; canRestore: boolean; canPermanentlyDelete: boolean };
   createdAt?: string;
   classificationRuns?: ClassificationRunRecord[];
   demoNote?: string;

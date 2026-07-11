@@ -7,11 +7,12 @@ import { requireCompletedOnboarding } from '../../../lib/server-auth';
 import { fetchServerDocuments } from '../../../lib/server-api';
 import { formatDateTime, formatFileSize } from '../../../lib/workspace';
 
-type SearchParams = Promise<{ q?: string; type?: string; sort?: string }>;
+type SearchParams = Promise<{ q?: string; type?: string; sort?: string; lifecycle?: 'active' | 'archived' }>;
 
 export default async function DocumentsPage({ searchParams }: { searchParams: SearchParams }) {
   const session = await requireCompletedOnboarding('/app/documents');
-  const [{ q = '', type = 'all', sort = 'newest' }, documents] = await Promise.all([searchParams, fetchServerDocuments()]);
+  const { q = '', type = 'all', sort = 'newest', lifecycle = 'active' } = await searchParams;
+  const documents = await fetchServerDocuments(lifecycle);
   const query = q.trim().toLowerCase();
   const filtered = documents
     .filter((document) => {
@@ -35,8 +36,9 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Se
       actions={<Link href="/app/documents/new" className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"><Icon name="upload" size={16} /> Upload source package</Link>}
     >
       <div className="space-y-5">
+        <nav aria-label="Document lifecycle" className="flex gap-4 border-b border-slate-200 text-sm font-semibold"><Link href="/app/documents" className={`border-b-2 px-1 pb-3 ${lifecycle === 'active' ? 'border-slate-900 text-slate-950' : 'border-transparent text-slate-500'}`}>Active documents</Link><Link href="/app/documents?lifecycle=archived" className={`border-b-2 px-1 pb-3 ${lifecycle === 'archived' ? 'border-slate-900 text-slate-950' : 'border-transparent text-slate-500'}`}>Archived documents</Link></nav>
         <FilterBar>
-          <form className="flex flex-1 flex-col gap-3 md:flex-row md:items-center" action="/app/documents">
+          <form className="flex flex-1 flex-col gap-3 md:flex-row md:items-center" action="/app/documents"><input type="hidden" name="lifecycle" value={lifecycle} />
             <div className="relative flex-1"><Icon name="file-search" size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input name="q" defaultValue={q} placeholder="Search titles, filenames, and manufacturers…" className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100" /></div>
             <select name="type" defaultValue={type} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"><option value="all">All source packages</option><option value="datasheets">Datasheets</option><option value="text">Extracted text</option><option value="history">Company history</option><option value="has_memo">Has memo</option></select>
             <select name="sort" defaultValue={sort} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select>
@@ -46,7 +48,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Se
 
         {filtered.length === 0 ? <EmptyState icon="file-text" title={documents.length ? 'No documents match these filters' : 'No documents yet'} body={documents.length ? 'Try a broader source type or clear the search query.' : 'Upload a datasheet, product brief, or extracted technical text to prepare the first evidence package.'} action={!documents.length ? <ActionLink href="/app/documents/new">Upload source package</ActionLink> : undefined} /> : (
           <Panel className="p-0">
-            <div className="border-b border-slate-200 px-5 py-4"><SectionHeader eyebrow="Source document register" title={`${filtered.length} document${filtered.length === 1 ? '' : 's'}`} description="Document lifecycle, related workups, and reviewer-ready state." /></div>
+            <div className="border-b border-slate-200 px-5 py-4"><SectionHeader eyebrow={lifecycle === 'archived' ? 'Archived source document register' : 'Source document register'} title={`${filtered.length} document${filtered.length === 1 ? '' : 's'}`} description={lifecycle === 'archived' ? 'Retained source packages can be restored or permanently deleted when eligible.' : 'Document lifecycle, related workups, and reviewer-ready state.'} /></div>
             <div className="divide-y divide-slate-100 md:hidden">
               {filtered.map((document) => {
                 const latestRun = document.classificationRuns?.[0];

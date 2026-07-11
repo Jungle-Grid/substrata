@@ -63,6 +63,7 @@ enum ClassificationRunStatus {
   failed
   needs_attention
   blocked
+  cancelled
 }
 
 enum ExecutionJobStatus {
@@ -444,6 +445,9 @@ model ClassificationRun {
   errorMessage          String?
   archivedAt            DateTime?
   archivedByUserId      String?
+  cancellationRequestedAt DateTime?
+  cancelledAt           DateTime?
+  cancellationFailureReason String?
   completedAt           DateTime?
   createdAt             DateTime                 @default(now())
   updatedAt             DateTime                 @updatedAt
@@ -514,6 +518,9 @@ model Artifact {
   sizeBytes           Int?
   sha256              String?
   metadata            Json?
+  deletionRequestedAt DateTime?
+  deletionAttemptCount Int @default(0)
+  deletionFailureReason String?
   createdAt           DateTime           @default(now())
   organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   classificationRun   ClassificationRun? @relation(fields: [classificationRunId], references: [id], onDelete: Cascade)

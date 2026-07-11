@@ -392,6 +392,8 @@ test('normal authenticated private-run access still works', async () => {
   assert.deepEqual(
     (response.body as { executionSummary: unknown }).executionSummary,
     {
+      executionMode: 'remote',
+      selectedProvider: 'fireworks',
       backendSelected: 'fireworks',
       backendCompleted: true,
       backendOutputValidated: true,

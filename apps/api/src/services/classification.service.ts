@@ -2250,11 +2250,11 @@ export async function getClassificationRun(
   });
 }
 
-export async function listClassificationRuns(organizationId: string) {
+export async function listClassificationRuns(organizationId: string, lifecycle: 'active' | 'archived' | 'all' = 'active') {
   return prisma.classificationRun.findMany({
     where: {
       organizationId,
-      archivedAt: null,
+      ...(lifecycle === 'active' ? { archivedAt: null } : lifecycle === 'archived' ? { archivedAt: { not: null } } : {}),
     },
     include: classificationRunInclude,
     orderBy: {

@@ -8,6 +8,7 @@ import { MemoDownloadLink } from '../../../../components/memo-download-link';
 import { ReviewActionForm } from '../../../../components/review-action-form';
 import { ReviewTabDeepLink } from '../../../../components/review-tab-deep-link';
 import { ReviewCaseHeader } from '../../../../components/review-case-header';
+import { ArtifactControls, LifecycleControls } from '../../../../components/lifecycle-controls';
 import {
   Badge,
   EmptyState,
@@ -870,7 +871,7 @@ function MemoTab({
   );
 }
 
-function AuditTab({ run }: { run: ClassificationRunRecord }) {
+function AuditTab({ run, csrfToken }: { run: ClassificationRunRecord; csrfToken: string }) {
   return (
     <div className="space-y-6">
       <Panel>
@@ -950,8 +951,9 @@ function AuditTab({ run }: { run: ClassificationRunRecord }) {
             </div>
             <ul className="mt-3 space-y-1 text-sm text-slate-600">
               {run.artifacts.map((artifact) => (
-                <li key={artifact.id} className="break-words">
-                  {artifact.kind.replace(/_/g, ' ')} — {artifact.fileName}
+                <li key={artifact.id} className="break-words rounded-md border border-slate-100 px-3 py-2">
+                  <p>{artifact.kind.replace(/_/g, ' ')} — {artifact.fileName}</p>
+                  <ArtifactControls runId={run.id} artifact={artifact} csrfToken={csrfToken} />
                 </li>
               ))}
             </ul>
@@ -1038,7 +1040,7 @@ export default async function ReviewDetailPage({
         memoDownloadHref={memoDownloadHref}
       />
     ) : activeTab === 'audit' ? (
-      <AuditTab run={run} />
+      <AuditTab run={run} csrfToken={session.csrfToken} />
     ) : (
       <OverviewTab run={run} />
     );
@@ -1049,12 +1051,7 @@ export default async function ReviewDetailPage({
       currentPath="/app/reviews"
       title={run.document.title}
       headerContent={
-        <ReviewCaseHeader
-          session={session}
-          run={run}
-          activeTab={activeTab}
-          tabs={tabs}
-        />
+        <div className="space-y-3"><ReviewCaseHeader session={session} run={run} activeTab={activeTab} tabs={tabs} /><LifecycleControls target="run" id={run.id} archived={Boolean(run.archivedAt)} status={run.status} csrfToken={session.csrfToken} canDelete={session.membership?.role === 'OWNER' || session.membership?.role === 'ADMIN'} /></div>
       }
     >
       <ReviewTabDeepLink />
