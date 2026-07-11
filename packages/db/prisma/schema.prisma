@@ -392,6 +392,8 @@ model Document {
   visibility         DocumentVisibility  @default(private)
   accessControl      Json?
   rawText            String?
+  archivedAt         DateTime?
+  archivedByUserId   String?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -401,6 +403,7 @@ model Document {
   companyHistoryDocument CompanyHistoryDocument?
 
   @@index([organizationId, createdAt])
+  @@index([organizationId, archivedAt, createdAt])
   @@index([organizationId, sha256])
 }
 
@@ -439,6 +442,8 @@ model ClassificationRun {
   fallbackUsed          Boolean                  @default(false)
   validationStatus      String                   @default("pending")
   errorMessage          String?
+  archivedAt            DateTime?
+  archivedByUserId      String?
   completedAt           DateTime?
   createdAt             DateTime                 @default(now())
   updatedAt             DateTime                 @updatedAt
@@ -459,6 +464,7 @@ model ClassificationRun {
   companyHistoryMatches ClassificationHistoryMatch[]
 
   @@index([organizationId, createdAt])
+  @@index([organizationId, archivedAt, createdAt])
   @@index([documentId, createdAt])
 }
 

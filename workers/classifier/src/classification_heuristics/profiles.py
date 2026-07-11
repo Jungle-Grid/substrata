@@ -17,6 +17,7 @@ PROFILES = (
     "secure_networking_hardware",
     "encryption_or_crypto_device",
     "firmware_or_security_software",
+    "fpga_programmable_logic_soc",
     "fpga_or_pld",
     "mcu_or_soc",
     "adc_dac_converter",

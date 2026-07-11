@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import { Router } from 'express';
+import { z } from 'zod';
 import {
   eccnCandidateUpdateSchema,
   factReviewUpdateSchema,
@@ -26,6 +27,9 @@ import {
 } from '../services/classification.service';
 import { presentRun } from '../services/presenters';
 import { createStorageDriver } from '../services/storage';
+import { requireCsrf } from '../middleware/auth';
+import { canManageWorkspace } from '../lib/authz';
+import { archiveRun, permanentlyDeleteRun, restoreRun } from '../services/lifecycle.service';
 
 const storage = createStorageDriver();
 
@@ -121,6 +125,23 @@ export function createClassificationRunsRouter(
     }
 
     return res.json(presentRun(run));
+  });
+
+  classificationRunsRouter.post('/:id/archive', requireCsrf, async (req, res) => {
+    const { organization, user, membership } = req.authContext!;
+    if (!canSubmitReview(membership.role)) throw new Error('Forbidden');
+    return res.json(await archiveRun({ organizationId: organization.id, runId: String(req.params.id), actorUserId: user.id }));
+  });
+  classificationRunsRouter.post('/:id/restore', requireCsrf, async (req, res) => {
+    const { organization, user, membership } = req.authContext!;
+    if (!canSubmitReview(membership.role)) throw new Error('Forbidden');
+    return res.json(await restoreRun({ organizationId: organization.id, runId: String(req.params.id), actorUserId: user.id }));
+  });
+  classificationRunsRouter.delete('/:id/permanent', requireCsrf, async (req, res) => {
+    const { organization, user, membership } = req.authContext!;
+    if (!canManageWorkspace(membership.role)) throw new Error('Forbidden');
+    const input = z.object({ confirmation: z.string().trim().min(1) }).parse(req.body);
+    return res.json(await permanentlyDeleteRun({ organizationId: organization.id, runId: String(req.params.id), actorUserId: user.id, confirmation: input.confirmation, storage }));
   });
 
   classificationRunsRouter.get('/:id/demo-publication-status', async (req, res) => {

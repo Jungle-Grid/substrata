@@ -2254,6 +2254,7 @@ export async function listClassificationRuns(organizationId: string) {
   return prisma.classificationRun.findMany({
     where: {
       organizationId,
+      archivedAt: null,
     },
     include: classificationRunInclude,
     orderBy: {
@@ -2266,6 +2267,7 @@ export async function listReviewQueue(organizationId: string) {
   return prisma.classificationRun.findMany({
     where: {
       organizationId,
+      archivedAt: null,
       requiresHumanReview: true,
       workflowState: {
         in: [

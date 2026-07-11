@@ -10,6 +10,9 @@ import { parseBody } from '../lib/http';
 import { HttpError } from '../lib/errors';
 import { canCreateClassification } from '../lib/authz';
 import { requireCsrf } from '../middleware/auth';
+import { canManageWorkspace } from '../lib/authz';
+import { createStorageDriver } from '../services/storage';
+import { archiveDocument, permanentlyDeleteDocument, restoreDocument } from '../services/lifecycle.service';
 import {
   createDocument,
   getDocument,
@@ -27,6 +30,7 @@ import { presentDocument, presentRun } from '../services/presenters';
 
 export const documentsRouter = Router();
 const workerClient = createWorkerClient();
+const storage = createStorageDriver();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -254,7 +258,7 @@ documentsRouter.post('/sample', requireCsrf, async (req, res) => {
 
 documentsRouter.get('/', async (req, res) => {
   const { organization } = req.authContext!;
-  const documents = await listDocuments(organization.id);
+  const documents = await listDocuments(organization.id, req.query.archived === 'true');
   res.json(documents.map((document) => presentDocument(document)));
 });
 
@@ -269,6 +273,25 @@ documentsRouter.get('/:id', async (req, res) => {
   return res.json(presentDocument(document));
 });
 
+documentsRouter.post('/:id/archive', requireCsrf, async (req, res) => {
+  const { organization, user, membership } = req.authContext!;
+  if (!canCreateClassification(membership.role)) throw new HttpError(403, 'You do not have access to archive documents.');
+  res.json(await archiveDocument({ organizationId: organization.id, documentId: String(req.params.id), actorUserId: user.id }));
+});
+
+documentsRouter.post('/:id/restore', requireCsrf, async (req, res) => {
+  const { organization, user, membership } = req.authContext!;
+  if (!canCreateClassification(membership.role)) throw new HttpError(403, 'You do not have access to restore documents.');
+  res.json(await restoreDocument({ organizationId: organization.id, documentId: String(req.params.id), actorUserId: user.id }));
+});
+
+documentsRouter.delete('/:id/permanent', requireCsrf, async (req, res) => {
+  const { organization, user, membership } = req.authContext!;
+  if (!canManageWorkspace(membership.role)) throw new HttpError(403, 'Only organization administrators may permanently delete documents.');
+  const input = z.object({ confirmation: z.string().trim().min(1) }).parse(req.body);
+  res.json(await permanentlyDeleteDocument({ organizationId: organization.id, documentId: String(req.params.id), actorUserId: user.id, confirmation: input.confirmation, storage }));
+});
+
 documentsRouter.post('/:id/classification-runs', requireCsrf, async (req, res) => {
   const input = parseBody(classificationRunCreateSchema, req);
   const { organization, user, membership } = req.authContext!;
@@ -276,6 +299,10 @@ documentsRouter.post('/:id/classification-runs', requireCsrf, async (req, res) =
   if (!canCreateClassification(membership.role)) {
     throw new HttpError(403, 'You do not have access to create classification reviews.');
   }
+
+  const document = await getDocument(organization.id, String(req.params.id));
+  if (!document) throw new HttpError(404, 'Document not found');
+  if (document.archivedAt) throw new HttpError(409, 'Restore the archived document before creating a classification run.');
 
   const run = await workerClient.createRun({
     documentId: String(req.params.id),

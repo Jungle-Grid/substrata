@@ -1,9 +1,11 @@
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import { repoRoot } from '../lib/paths';
 import { HttpError } from '../lib/errors';
 
 export interface StorageDriver {
   resolve(storagePath: string): string;
+  delete(storagePath: string): Promise<'deleted' | 'missing'>;
 }
 
 export function relativePrivateStorageKey(root: string, absolutePath: string) {
@@ -46,6 +48,17 @@ export class LocalStorageDriver implements StorageDriver {
     }
 
     return resolved;
+  }
+
+  async delete(storagePath: string): Promise<'deleted' | 'missing'> {
+    const resolved = this.resolve(storagePath);
+    try {
+      await fs.unlink(resolved);
+      return 'deleted';
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return 'missing';
+      throw error;
+    }
   }
 }
 

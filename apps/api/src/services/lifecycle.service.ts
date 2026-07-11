@@ -1,0 +1,92 @@
+import { prisma } from '@substrata/db';
+import { HttpError } from '../lib/errors';
+import { recordAuditEvent } from './audit.service';
+import type { StorageDriver } from './storage';
+
+const ACTIVE_RUN_STATUSES = new Set(['pending', 'queued', 'running', 'unknown']);
+
+function assertTerminal(status: string) {
+  if (ACTIVE_RUN_STATUSES.has(status)) {
+    throw new HttpError(409, 'Active classification runs must be cancelled or reach a terminal state before deletion.');
+  }
+}
+
+export async function archiveDocument(input: { organizationId: string; documentId: string; actorUserId: string }) {
+  const document = await prisma.document.findFirst({ where: { id: input.documentId, organizationId: input.organizationId, companyHistoryDocument: null } });
+  if (!document) throw new HttpError(404, 'Document not found');
+  if (document.archivedAt) return document;
+  const archived = await prisma.document.update({ where: { id: document.id }, data: { archivedAt: new Date(), archivedByUserId: input.actorUserId } });
+  await recordAuditEvent({ organizationId: input.organizationId, actorUserId: input.actorUserId, actor: 'user', action: 'document.archived', entityType: 'Document', entityId: document.id, metadata: { result: 'success' } });
+  return archived;
+}
+
+export async function restoreDocument(input: { organizationId: string; documentId: string; actorUserId: string }) {
+  const document = await prisma.document.findFirst({ where: { id: input.documentId, organizationId: input.organizationId, companyHistoryDocument: null } });
+  if (!document) throw new HttpError(404, 'Document not found');
+  if (!document.archivedAt) return document;
+  const restored = await prisma.document.update({ where: { id: document.id }, data: { archivedAt: null, archivedByUserId: null } });
+  await recordAuditEvent({ organizationId: input.organizationId, actorUserId: input.actorUserId, actor: 'user', action: 'document.restored', entityType: 'Document', entityId: document.id, metadata: { result: 'success' } });
+  return restored;
+}
+
+export async function archiveRun(input: { organizationId: string; runId: string; actorUserId: string }) {
+  const run = await prisma.classificationRun.findFirst({ where: { id: input.runId, organizationId: input.organizationId } });
+  if (!run) throw new HttpError(404, 'Classification run not found');
+  assertTerminal(run.status);
+  if (run.archivedAt) return run;
+  const archived = await prisma.classificationRun.update({ where: { id: run.id }, data: { archivedAt: new Date(), archivedByUserId: input.actorUserId } });
+  await recordAuditEvent({ organizationId: input.organizationId, actorUserId: input.actorUserId, actor: 'user', action: 'classification_run.archived', entityType: 'ClassificationRun', entityId: run.id, metadata: { result: 'success' } });
+  return archived;
+}
+
+export async function restoreRun(input: { organizationId: string; runId: string; actorUserId: string }) {
+  const run = await prisma.classificationRun.findFirst({ where: { id: input.runId, organizationId: input.organizationId } });
+  if (!run) throw new HttpError(404, 'Classification run not found');
+  if (!run.archivedAt) return run;
+  const restored = await prisma.classificationRun.update({ where: { id: run.id }, data: { archivedAt: null, archivedByUserId: null } });
+  await recordAuditEvent({ organizationId: input.organizationId, actorUserId: input.actorUserId, actor: 'user', action: 'classification_run.restored', entityType: 'ClassificationRun', entityId: run.id, metadata: { result: 'success' } });
+  return restored;
+}
+
+async function deleteStorageKeys(storage: StorageDriver, keys: string[]) {
+  const results = [] as string[];
+  for (const key of [...new Set(keys.filter(Boolean))]) results.push(await storage.delete(key));
+  return results;
+}
+
+export async function permanentlyDeleteRun(input: { organizationId: string; runId: string; actorUserId: string; confirmation: string; storage: StorageDriver }) {
+  if (input.confirmation !== input.runId) throw new HttpError(400, 'Confirmation must match the classification run identifier.');
+  const run = await prisma.classificationRun.findFirst({ where: { id: input.runId, organizationId: input.organizationId }, include: { artifacts: true } });
+  if (!run) throw new HttpError(404, 'Classification run not found');
+  assertTerminal(run.status);
+  if (!run.archivedAt) throw new HttpError(409, 'Archive the classification run before permanent deletion.');
+  try {
+    const cleanup = await deleteStorageKeys(input.storage, run.artifacts.map((artifact) => artifact.storagePath));
+    await recordAuditEvent({ organizationId: input.organizationId, actorUserId: input.actorUserId, actor: 'user', action: 'classification_run.deletion_requested', entityType: 'ClassificationRun', entityId: run.id, metadata: { artifactCleanup: cleanup } });
+    await prisma.classificationRun.delete({ where: { id: run.id } });
+    await recordAuditEvent({ organizationId: input.organizationId, actorUserId: input.actorUserId, actor: 'user', action: 'classification_run.permanently_deleted', entityType: 'ClassificationRun', entityId: run.id, metadata: { result: 'success', artifactCleanup: cleanup } });
+    return { id: run.id, cleanup };
+  } catch (error) {
+    await recordAuditEvent({ organizationId: input.organizationId, actorUserId: input.actorUserId, actor: 'user', action: 'classification_run.deletion_failed', entityType: 'ClassificationRun', entityId: run.id, metadata: { result: 'failed', reason: error instanceof Error ? error.message.slice(0, 200) : 'cleanup_failed' } });
+    throw error;
+  }
+}
+
+export async function permanentlyDeleteDocument(input: { organizationId: string; documentId: string; actorUserId: string; confirmation: string; storage: StorageDriver }) {
+  const document = await prisma.document.findFirst({ where: { id: input.documentId, organizationId: input.organizationId, companyHistoryDocument: null }, include: { classificationRuns: { include: { artifacts: true } } } });
+  if (!document) throw new HttpError(404, 'Document not found');
+  if (input.confirmation !== document.id) throw new HttpError(400, 'Confirmation must match the document identifier.');
+  if (!document.archivedAt) throw new HttpError(409, 'Archive the document before permanent deletion.');
+  document.classificationRuns.forEach((run) => assertTerminal(run.status));
+  const keys = [document.storagePath, ...document.classificationRuns.flatMap((run) => run.artifacts.map((artifact) => artifact.storagePath))];
+  try {
+    const cleanup = await deleteStorageKeys(input.storage, keys);
+    await recordAuditEvent({ organizationId: input.organizationId, actorUserId: input.actorUserId, actor: 'user', action: 'document.deletion_requested', entityType: 'Document', entityId: document.id, metadata: { artifactCleanup: cleanup } });
+    await prisma.document.delete({ where: { id: document.id } });
+    await recordAuditEvent({ organizationId: input.organizationId, actorUserId: input.actorUserId, actor: 'user', action: 'document.permanently_deleted', entityType: 'Document', entityId: document.id, metadata: { result: 'success', artifactCleanup: cleanup } });
+    return { id: document.id, cleanup };
+  } catch (error) {
+    await recordAuditEvent({ organizationId: input.organizationId, actorUserId: input.actorUserId, actor: 'user', action: 'document.deletion_failed', entityType: 'Document', entityId: document.id, metadata: { result: 'failed', reason: error instanceof Error ? error.message.slice(0, 200) : 'cleanup_failed' } });
+    throw error;
+  }
+}

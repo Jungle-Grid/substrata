@@ -239,6 +239,19 @@ def evaluate(specs: list[ExtractedSpec], source_text: str, *, source_label: str,
     if not detected:
         detected = ["general_electronics"]
         scores["general_electronics"] = 1
+    # Zynq MPSoC evidence is more specific than the generic FPGA/PLD profile.
+    # Keep a single canonical programmable-logic SoC route so the generated
+    # review paths, questions, and validation evidence remain internally aligned.
+    if "fpga_programmable_logic_soc" in detected and "fpga_or_pld" in detected:
+        detected.remove("fpga_or_pld")
+    if "fpga_programmable_logic_soc" in detected:
+        # Peripheral ADCs and Ethernet interfaces are supporting MPSoC facts,
+        # not the primary product identity for this Zynq family overview.
+        detected = [
+            profile
+            for profile in detected
+            if profile not in {"adc_dac_converter", "networking_hardware"}
+        ]
     primary = detected[0]
     # A strong product-identity profile is more useful than its broader umbrella
     # when their evidence scores are close (for example AI accelerator vs advanced
@@ -263,6 +276,11 @@ def evaluate(specs: list[ExtractedSpec], source_text: str, *, source_label: str,
 
     all_terms = tuple(term for rule in SIGNAL_RULES for term in rule.terms)
     supporting_specs = _supporting_specs(specs, all_terms, 12) or specs[:6]
+    technical_supporting_specs = [
+        spec
+        for spec in supporting_specs
+        if spec.category not in {"product_identity", "profile_detection", "device_identity"}
+    ] or supporting_specs
     history_signals = build_history_signals(history_matches)
     crypto_supported, crypto_supporting_specs, crypto_supporting_terms = _affirmative_crypto_evidence(specs, source_text)
     candidate_specs: list[tuple[str, str, str]] = []
@@ -279,23 +297,47 @@ def evaluate(specs: list[ExtractedSpec], source_text: str, *, source_label: str,
     candidates: list[ECCNCandidate] = []
     candidate_dicts: list[dict] = []
     for code, kind, path_key in candidate_specs:
+        is_zynq_soc_path = (
+            primary == "fpga_programmable_logic_soc"
+            and path_key == "fpga_programmable_logic_soc"
+        )
+        is_zynq_security_path = (
+            primary == "fpga_programmable_logic_soc"
+            and path_key == "category_5_part_2_security"
+        )
         evidence = (
             (crypto_supporting_specs or _supporting_specs(specs, PLATFORM_SECURITY_TERMS, 8))
             if code == "5A002"
-            else supporting_specs[:8]
+            else technical_supporting_specs[:8]
         )
         level, numeric = confidence_for(scores[primary], len(evidence), len(missing))
         if kind == "fallback_candidate":
             level, numeric = "low", min(numeric, 0.45)
-        if kind == "blocked_candidate":
+        if is_zynq_soc_path:
+            why_apply = "Source-backed Zynq MPSoC processing-system and programmable-logic facts open a Category 3 electronics / SoC review path for qualified reviewer confirmation."
+            why_not = "Current control thresholds and the exact device ordering code, speed grade, and programmable-logic resources have not been confirmed by a qualified reviewer."
+            questions = [
+                "Do the Zynq MPSoC programmable-logic and processing-system features require Category 3 electronics review?",
+                "Does the family overview require device-specific ordering-code, speed-grade, and programmable-logic-resource evidence before review signoff?",
+            ]
+        elif is_zynq_security_path:
+            why_apply = "Source-backed Zynq MPSoC platform-security facts open a Category 5 Part 2 security and cryptography review path."
+            why_not = "The exact cryptographic functionality, accessibility, and applicable exceptions have not been confirmed by a qualified reviewer."
+            questions = [
+                "Do the Zynq MPSoC security features require separate Category 5 Part 2 security and cryptography review?",
+                "Is the cryptographic functionality user-accessible, configurable, or limited to boot and authentication functions?",
+            ]
+        elif kind == "blocked_candidate":
             level, numeric = "low", min(numeric, 0.35)
         history_support = [signal for signal in history_signals if code in signal["priorEccns"]]
-        if kind == "blocked_candidate":
+        if is_zynq_soc_path or is_zynq_security_path:
+            pass
+        elif kind == "blocked_candidate":
             why_apply = f"Platform-security evidence opens the {PATH_TITLES[path_key]}, but does not by itself support a specific {code} candidate."
             why_not = "Affirmative evidence of user-accessible encryption, confidentiality functionality, key management, network cryptography, cryptographic acceleration, or HSM behavior is required."
             questions = ["Does the exported configuration provide user-accessible encryption, confidentiality, key management, MACsec, TLS, IPsec, VPN, cryptographic acceleration, or HSM behavior?"]
         elif kind == "review_candidate":
-            why_apply = f"Source-backed {', '.join(detected)} signals open the {PATH_TITLES[path_key]}."
+            why_apply = f"Source-backed {', '.join(detected)} signals open the {PATH_TITLES[path_key]} for qualified reviewer confirmation."
             why_not = "Current control thresholds and the exact exported configuration have not been confirmed by a qualified reviewer."
             questions = [f"Does the current control text for {code} apply to the exact exported configuration and documented performance envelope?"]
         else:

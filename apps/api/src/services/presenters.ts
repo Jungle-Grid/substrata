@@ -483,6 +483,7 @@ export function presentRun(run: RunWithRelations) {
 
   return {
     id: run.id,
+    archivedAt: run.archivedAt,
     status: run.status,
     processingStatus: run.status,
     processingLabel: deriveProcessingLabel(run.status),
@@ -723,6 +724,7 @@ export function presentDocument(document: DocumentWithRunRelations) {
     origin: document.origin,
     visibility: document.visibility,
     rawText: document.rawText,
+    archivedAt: document.archivedAt,
     createdAt: document.createdAt,
     classificationRuns:
       document.classificationRuns?.map((run) =>

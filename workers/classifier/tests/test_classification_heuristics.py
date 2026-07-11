@@ -9,6 +9,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from classification_heuristics import evaluate
+from extract_specs import extract_specs
 from schemas import ExtractedSpec
 
 
@@ -74,6 +75,37 @@ class ClassificationHeuristicMatrixTests(unittest.TestCase):
         result = classify("FPGA programmable logic board with 900k logic cells, LUTs, 32 SERDES transceivers, encrypted bitstream and extended temperature qualification.")
         self.assertEqual(result.primary_profile, "fpga_or_pld")
         self.assertTrue(any("logic density" in item.lower() for item in result.missing_evidence_checks))
+
+    def test_zynq_fixture_prefers_the_soc_review_route_over_peripheral_profiles(self):
+        text = (
+            Path(__file__).resolve().parents[1]
+            / "samples"
+            / "zynq-ultrascale-plus-overview.txt"
+        ).read_text()
+        _, candidates, result = evaluate(
+            extract_specs(text),
+            text,
+            source_label="Test datasheet",
+        )
+
+        self.assertEqual(result.primary_profile, "fpga_programmable_logic_soc")
+        self.assertNotIn("adc_dac_converter", result.detected_profiles)
+        self.assertNotIn("networking_hardware", result.detected_profiles)
+        self.assertIn(
+            "fpga_programmable_logic_soc",
+            result.classification_trace["reviewPathsOpened"],
+        )
+        self.assertEqual(
+            [candidate.eccn for candidate in candidates],
+            ["3A001", "5A002", "3A991"],
+        )
+        questions = " ".join(
+            question
+            for candidate in candidates
+            for question in candidate.reviewer_questions
+        ).lower()
+        self.assertIn("programmable-logic", questions)
+        self.assertIn("category 5 part 2", questions)
 
     def test_rugged_aerospace_sensor(self):
         result = classify("Rugged aerospace inertial measurement IMU sensor for navigation, radiation tolerant, space qualified and extended temperature.")

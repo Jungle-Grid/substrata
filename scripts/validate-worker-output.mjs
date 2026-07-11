@@ -155,6 +155,7 @@ function displayName(name) {
     jesd_interface: 'JESD Interface',
     jesd_other_references: 'Other JESD References Found',
     serial_lane_rate: 'Serial Lane Rate',
+    clocking_reference_note: 'Clocking/Reference Design Note',
     interface_lane_count: 'Lane Count',
     application_examples: 'Application Examples',
     package_type: 'Package',

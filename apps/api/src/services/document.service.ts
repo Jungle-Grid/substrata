@@ -45,11 +45,12 @@ export async function createDocument(
   });
 }
 
-export async function listDocuments(organizationId: string) {
+export async function listDocuments(organizationId: string, includeArchived = false) {
   return prisma.document.findMany({
     where: {
       organizationId,
       companyHistoryDocument: null,
+      ...(includeArchived ? {} : { archivedAt: null }),
     },
     include: {
       classificationRuns: {

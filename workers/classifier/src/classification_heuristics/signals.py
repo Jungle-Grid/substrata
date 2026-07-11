@@ -33,6 +33,7 @@ SIGNAL_RULES = (
     SignalRule("converter_identity", ("adc_dac_converter",), 8, ("analog-to-digital converter", "digital-to-analog converter", "adc", "dac")),
     SignalRule("converter_performance", ("adc_dac_converter",), 4, ("gsps", "msps", "enob", "sample rate", "sampling rate", "analog bandwidth")),
     SignalRule("fpga", ("fpga_or_pld",), 8, ("fpga", "programmable logic", "logic cells", "luts", "bitstream")),
+    SignalRule("zynq_mpsoc", ("fpga_programmable_logic_soc",), 10, ("zynq ultrascale+ mpsoc", "zynq mpsoc", "processing system", "pl/ps")),
     SignalRule("fpga_io", ("fpga_or_pld",), 3, ("serdes", "high-speed transceivers", "high speed transceivers")),
     SignalRule("mcu", ("mcu_or_soc",), 8, ("microcontroller", "embedded soc", "risc-v", "cortex-m")),
     SignalRule("soc", ("mcu_or_soc",), 5, ("system-on-chip", "system on chip", "processor core", "arm cortex")),
