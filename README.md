@@ -1,23 +1,16 @@
 
 <div align="center">
-  <a href="https://substrata.example">
-    <img src="/public/brand/substrata-logo.png" alt="Substrata logo" width="160">
+  <a href="https://github.com/Jungle-Grid/substrata">
+    <img src="apps/web/public/brand/substrata-logo.png" alt="Substrata logo" width="160">
   </a>
 
   <h1>Substrata</h1>
 
   <p><strong>Evidence-backed ECCN review assistant for semiconductor and advanced hardware teams.</strong></p>
 
-  <p>
-    <a href="https://substrata.example"><img alt="Website" src="https://img.shields.io/badge/Visit-website-111827?style=for-the-badge"></a>
-    <a href="https://substrata.example/docs"><img alt="Docs" src="https://img.shields.io/badge/Read-the_docs-2563eb?style=for-the-badge"></a>
-    <a href="https://discord.gg"><img alt="Join Discord" src="https://img.shields.io/badge/Join-Discord-5865f2?style=for-the-badge&logo=discord&logoColor=white"></a>
-    <a href="mailto:run@substrata.example"><img alt="Email" src="https://img.shields.io/badge/Email-run@substrata.example-16a34a?style=for-the-badge"></a>
-    <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-f97316?style=for-the-badge"></a>
-  </p>
 </div>
 
-Runnable templates and an ECCN review assistant for building auditable classification workflows.
+Substrata is an evidence-backed ECCN review assistant for semiconductor and advanced hardware teams. Upload a datasheet to extract technical facts, generate cited review paths, identify uncertainty flags, and produce a human-review-ready classification memo draft with an audit trail.
 
 ## What is in this repo
 
@@ -38,7 +31,18 @@ Runnable templates and an ECCN review assistant for building auditable classific
 5. Seed demo data: `pnpm db:seed`.
 6. Start services: `pnpm dev:api` and `pnpm dev:web` (or `pnpm dev`).
 
-See `docs/` for detailed developer and runbook instructions.
+## Execution modes
+
+- **Local** runs the configured local Gemma model with Substrata’s deterministic review engine.
+- **Remote** lets Substrata select the configured remote provider internally.
+
+Provider names such as Fireworks and Jungle Grid are recorded in execution details, not exposed as top-level user choices. See [Execution modes](docs/EXECUTION_MODES.md) for configuration and fallback behavior.
+
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Execution modes](docs/EXECUTION_MODES.md)
+- [Human-review guidance](docs/README.md)
 
 ## Contributing
 
@@ -48,9 +52,4 @@ Please follow the contribution guidelines in `CONTRIBUTING.md`. Keep examples ru
 
 This repository is licensed under the MIT License. See `LICENSE`.
 
-## Notes
-
-- Human review is required for all classification outputs.
-- Do not commit credentials such as `JUNGLE_GRID_API_KEY` or other secrets.
-
-> To display the logo above, add the provided Substrata logo file at `public/brand/substrata-logo.png`.
+Human review is required for every classification output. Do not commit credentials or provider API keys.

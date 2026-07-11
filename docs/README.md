@@ -1,15 +1,15 @@
 # Substrata
 
-Substrata is an AI-native export control and trade compliance review assistant for semiconductor, electronics, and advanced hardware companies.
+Substrata is an evidence-backed ECCN review assistant for semiconductor, electronics, and advanced hardware companies.
 
 The initial product wedge is narrow and practical:
 
 1. A user uploads a semiconductor or advanced hardware datasheet.
 2. Substrata extracts export-relevant technical specifications.
 3. The system compares those extracted facts against structured EAR and Commerce Control List logic.
-4. The system produces likely ECCN candidates, citations, uncertainty flags, and a draft memo for human export-control review.
+4. The system produces recommended review paths, citations, uncertainty flags, and a human-review-ready classification memo draft.
 
-Substrata is not a legal decision-maker. It is a drafting, evidence, and review system for compliance teams that need faster first-pass analysis without losing traceability.
+Substrata is a drafting, evidence, and review system for compliance teams that need faster first-pass analysis without losing traceability.
 
 ## Primary User
 
@@ -21,8 +21,8 @@ The MVP focuses on:
 
 - Sensitive document upload and storage
 - Structured extraction of export-relevant technical specifications
-- Draft ECCN candidate generation with evidence and uncertainty annotations
-- Review-ready memo generation
+- Recommended review paths with evidence and uncertainty annotations
+- Human-review-ready memo generation
 - Human review status tracking
 - Audit-friendly run records and artifacts
 
@@ -40,6 +40,7 @@ Datasheet review is frequent, repetitive, high-stakes, and evidence-heavy. Teams
 - [DATA_MODEL.md](./DATA_MODEL.md): core entities and audit structure
 - [API.md](./API.md): initial API contract
 - [WORKER_DESIGN.md](./WORKER_DESIGN.md): classifier worker pipeline
+- [EXECUTION_MODES.md](./EXECUTION_MODES.md): Local Gemma execution and Remote provider routing
 - [JUNGLE_GRID_INTEGRATION.md](./JUNGLE_GRID_INTEGRATION.md): future execution model
 - [hackathon-demo-runbook.md](./hackathon-demo-runbook.md): AMD/ROCm and Jungle Grid demo preflight and verification
 - [VALIDATION_PLAN.md](./VALIDATION_PLAN.md): one-week market validation plan

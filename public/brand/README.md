@@ -1,6 +1,3 @@
-Place the Substrata logo image at this path so the repository README displays it.
+Brand assets used by the web application live in `apps/web/public/brand/`.
 
-- Expected file: `public/brand/substrata-logo.png`
-- Recommended size: 160px width, transparent PNG or SVG.
-
-You provided the logo in the conversation; add it here to make the README render correctly on GitHub.
+The repository README uses `apps/web/public/brand/substrata-logo.png` directly.
