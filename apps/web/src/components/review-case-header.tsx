@@ -119,9 +119,9 @@ export function ReviewCaseHeader({
         ) : (
           <dl className="hidden items-center gap-3 text-xs text-slate-500 lg:flex">
             <div className="border-l border-slate-200 pl-3">
-              <dt className="sr-only">Confidence</dt>
+              <dt className="sr-only">Evidence package confidence</dt>
               <dd>
-                {run.confidence ? `${Math.round(run.confidence * 100)}% confidence` : 'Confidence pending'}
+                {run.confidence ? `${Math.round(run.confidence * 100)}% evidence package confidence` : 'Evidence package confidence pending'}
               </dd>
             </div>
             <div className="border-l border-slate-200 pl-3">

@@ -28,6 +28,10 @@ import {
 } from '../../../../lib/server-api';
 import { formatDateTime } from '../../../../lib/workspace';
 import { groupCandidates } from '../../../../lib/candidate-groups';
+import {
+  eligibleCandidateState,
+  selectOpenReviewPaths,
+} from '../../../../lib/review-path-summary';
 
 const tabs = [
   { id: 'overview', label: 'Overview' },
@@ -122,6 +126,7 @@ function FactCard({ fact }: { fact: FactRecord }) {
 }
 
 function OverviewTab({ run }: { run: ClassificationRunRecord }) {
+  const openReviewPaths = selectOpenReviewPaths(run.reviewPaths);
   const reviewCandidates = run.eccnCandidates.filter(
     (candidate) => (candidate.candidateType ?? 'review_candidate') === 'review_candidate',
   );
@@ -131,6 +136,7 @@ function OverviewTab({ run }: { run: ClassificationRunRecord }) {
   const fallbackCandidates = run.eccnCandidates.filter(
     (candidate) => candidate.candidateType === 'fallback_candidate',
   );
+  const candidateState = eligibleCandidateState(run.eccnCandidates);
   return (
     <div className="space-y-6">
       <Panel>
@@ -139,7 +145,7 @@ function OverviewTab({ run }: { run: ClassificationRunRecord }) {
             label="Processing status"
             value={run.processingLabel ?? run.status}
           />
-          <Stat label="Review paths" value={run.reviewPaths.length} />
+          <Stat label="Open review paths" value={openReviewPaths.length} />
           <Stat
             label="Eligible ECCN candidates"
             value={reviewCandidates.length}
@@ -207,48 +213,69 @@ function OverviewTab({ run }: { run: ClassificationRunRecord }) {
           <h2 className="text-lg font-semibold text-slate-950">
             Recommended review paths
           </h2>
-          <div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
-            {reviewCandidates.length ? (
-              <div className="flex items-start gap-3 border-b border-slate-200 bg-sky-50/60 px-4 py-3">
-                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-sky-600" aria-hidden="true" />
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-sky-800">Active review</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {reviewCandidates.map((candidate) => (
-                      <Badge key={candidate.id} tone="info">{candidate.eccn}</Badge>
-                    ))}
-                  </div>
+          <div className="mt-4 space-y-3">
+            {openReviewPaths.length ? (
+              openReviewPaths.map((path) => (
+                <div
+                  key={path.id}
+                  className="rounded-lg border border-slate-200 p-4"
+                >
+                  <p className="font-medium text-slate-950">{path.title}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    <span className="font-medium">Why it opened:</span>{' '}
+                    {path.whyTriggered}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    <span className="font-medium">Important missing evidence:</span>{' '}
+                    {path.missingInformation.length
+                      ? path.missingInformation.join('; ')
+                      : 'No important missing evidence recorded.'}
+                  </p>
                 </div>
+              ))
+            ) : (
+              <p className="rounded-lg border border-slate-200 px-4 py-3 text-sm text-slate-600">
+                No review paths identified.
+              </p>
+            )}
+          </div>
+          <div className="mt-4 border-t border-slate-200 pt-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Eligible ECCN candidates</p>
+            {candidateState === 'eligible_candidates' ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {reviewCandidates.map((candidate) => (
+                  <Badge key={candidate.id} tone="info">
+                    {candidate.eccn}
+                  </Badge>
+                ))}
               </div>
             ) : null}
-            {blockedCandidates.length ? (
-              <div className="flex items-start gap-3 border-b border-slate-200 bg-amber-50/70 px-4 py-3">
-                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-900">Evidence required</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {blockedCandidates.map((candidate) => (
-                      <Badge key={candidate.id} tone="warning">{candidate.eccn}</Badge>
-                    ))}
-                  </div>
+            {candidateState === 'no_eligible_candidates' && openReviewPaths.length ? (
+              <p className="mt-2 text-sm text-slate-600">
+                Review paths identified, but no specific ECCN is currently
+                eligible. No specific ECCN candidate is currently eligible.
+              </p>
+            ) : null}
+            {candidateState === 'no_eligible_candidates' && !openReviewPaths.length ? (
+              <p className="mt-2 text-sm text-slate-600">
+                No specific ECCN candidate is currently eligible.
+              </p>
+            ) : null}
+            {candidateState === 'blocked_or_unsupported_candidates' ? (
+              <div className="mt-2">
+                <p className="text-sm text-slate-600">
+                  Specific candidates exist but remain blocked or unsupported.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {[...blockedCandidates, ...fallbackCandidates].map(
+                    (candidate) => (
+                      <Badge key={candidate.id} tone="warning">
+                        {candidate.eccn}
+                      </Badge>
+                    ),
+                  )}
                 </div>
               </div>
-            ) : null}
-            {fallbackCandidates.length ? (
-              <div className="flex items-start gap-3 bg-slate-50 px-4 py-3">
-                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-slate-400" aria-hidden="true" />
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">Fallback after exclusion</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {fallbackCandidates.map((candidate) => (
-                      <Badge key={candidate.id}>{candidate.eccn}</Badge>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-            {!reviewCandidates.length && !blockedCandidates.length && !fallbackCandidates.length ? (
-              <p className="px-4 py-3 text-sm text-slate-600">No review candidates were generated from the available source evidence.</p>
             ) : null}
           </div>
           {run.finalInternalRecommendation ? (
@@ -390,7 +417,8 @@ function ReviewPathsTab({ run }: { run: ClassificationRunRecord }) {
   const { reviewCandidates, fallbackCandidates, blockedCandidates } = groupCandidates(
     run.eccnCandidates,
   );
-  const hasReviewPaths = run.reviewPaths.length > 0;
+  const openReviewPaths = selectOpenReviewPaths(run.reviewPaths);
+  const hasReviewPaths = openReviewPaths.length > 0;
   const hasCandidates = run.eccnCandidates.length > 0;
   const candidateCard = (candidate: (typeof run.eccnCandidates)[number]) => (
     <div key={candidate.id} className="rounded-lg border border-slate-200 p-4">
@@ -448,7 +476,7 @@ function ReviewPathsTab({ run }: { run: ClassificationRunRecord }) {
           />
         </Panel>
       ) : hasReviewPaths ? (
-        run.reviewPaths.map((path) => (
+        openReviewPaths.map((path) => (
           <Panel key={path.id}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
