@@ -19,6 +19,10 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client
+        run: pnpm --filter @substrata/db exec prisma generate --schema prisma/schema.prisma
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/substrata_ci?schema=public
       - run: python3 -m unittest discover -s workers/classifier/tests -v
       - run: pnpm lint
       - run: pnpm typecheck
