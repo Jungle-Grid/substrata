@@ -19,8 +19,9 @@ from eccn_rules import generate_eccn_candidates
 from extract_specs import extract_specs
 from extract_text import extract_text
 from ingest import load_input
-from memo import generate_memo
-from decision import build_classification_decision, validate_memo_against_decision
+from memo import generate_canonical_memo, generate_memo
+from decision import build_classification_decision, semantic_validation_results, assert_semantically_valid
+from entity_resolution import qualify_document
 from schemas import (
     AIExtractionResult,
     CandidateFactMapping,
@@ -44,6 +45,63 @@ class BackendExecutionError(RuntimeError):
     def __init__(self, result: BackendResult):
         super().__init__(result.error or f"{result.backend} execution status: {result.status}")
         self.result = result
+
+
+def _entity_intake_output(worker_input: Any, text: str, qualification: Any, payload_path: str) -> WorkerOutput:
+    """Return a non-classification intake report for unsafe upstream sources."""
+    entities = qualification.entities
+    entity_lines = [
+        f"{index}. {entity.productName or entity.partNumbers[0]} ({', '.join(entity.partNumbers)}) — {entity.relationshipToDocument}"
+        for index, entity in enumerate(entities, 1)
+    ]
+    memo = "\n".join([
+        f"# Document Intake Report — {worker_input.document_title}",
+        "", "## Document qualification",
+        f"- Document role: {qualification.documentRole}",
+        f"- Classifiability: {qualification.classifiability}",
+        *[f"- {reason}" for reason in qualification.reasons],
+        "", "## Detected product entities",
+        *(entity_lines or ["- No coherent product entity was detected."]),
+        "", "## Classification outcome",
+        "- No single-product ECCN review memo was generated.",
+        "- No technical facts, review paths, candidate hypotheses, or company-history query were generated from this document.",
+        "", "## Suggested next action",
+        "- Select one detected entity and upload a technical source document for that product, or submit separate documents for separate review.",
+        "", "## Review state",
+        "- Intake requires human review before any product classification workup is started.",
+    ])
+    sample_dir = Path(payload_path).resolve().parent
+    artifacts_dir = sample_dir / "artifacts"
+    artifacts_dir.mkdir(exist_ok=True)
+    memo_path = artifacts_dir / f"{worker_input.document_id}-memo.md"
+    output_path = artifacts_dir / f"{worker_input.document_id}-output.json"
+    extracted_text_path = artifacts_dir / f"{worker_input.document_id}-extracted.txt"
+    memo_path.write_text(memo)
+    extracted_text_path.write_text(text)
+    trace = {
+        "documentQualification": qualification.to_dict(),
+        "validatedDecision": None,
+        "entityIsolation": {"status": "blocked_before_extraction", "entityCount": len(entities)},
+    }
+    output = WorkerOutput(
+        document_id=worker_input.document_id,
+        organization_id=worker_input.organization_id,
+        requires_human_review=True,
+        confidence=0.0,
+        confidence_rationale="No product-level confidence is available because this document was not classifiable as one coherent exported product.",
+        # Keep the existing API enum contract; detail is retained in the
+        # structured qualification trace rather than invented flag values.
+        uncertainty_flags=["missing_key_specs", "ambiguous_datasheet_language"],
+        extracted_specs=[], fact_issues=[], review_paths=[], eccn_candidates=[], capability_signals=[], validation_issues=[],
+        memo_markdown=memo,
+        artifacts={"extracted_text_path": str(extracted_text_path), "memo_path": str(memo_path), "structured_output_path": str(output_path)},
+        run_metadata={"classificationMode": "entity_intake", "backendStatus": "unknown", "workerOutputValidated": False, "finalSemanticValidation": "not_applicable"},
+        heuristic_result={"documentQualification": qualification.to_dict()},
+        classification_trace=trace,
+    )
+    output_path.write_text(json.dumps(output.to_dict(), indent=2))
+    _log_worker_event("worker.entity_intake_finalized", document_id=worker_input.document_id, document_role=qualification.documentRole, classifiability=qualification.classifiability, entity_count=len(entities))
+    return output
 
 
 def _log_worker_event(event: str, **fields: object) -> None:
@@ -282,6 +340,9 @@ def _first_snippet(extraction: AIExtractionResult) -> str:
 def _identity_specs(extraction: AIExtractionResult) -> list[ExtractedSpec]:
     identity = extraction.product_identity
     snippet = _first_snippet(extraction)
+    source_quotes = "\n".join(
+        [*extraction.product_profile.supporting_snippets, *(fact.source_snippet for fact in extraction.extracted_facts)]
+    ).lower()
     values: list[tuple[str, str | None]] = [
         ("manufacturer", identity.manufacturer),
         ("product_name", identity.product_name),
@@ -297,6 +358,10 @@ def _identity_specs(extraction: AIExtractionResult) -> list[ExtractedSpec]:
     specs: list[ExtractedSpec] = []
     for name, value in values:
         if value is None or not str(value).strip():
+            continue
+        if name == "manufacturer" and str(value).strip().lower() not in source_quotes:
+            # Platform/workspace/provider identity is prompt context, not product
+            # manufacturer evidence. Unverified identity remains unknown.
             continue
         specs.append(
             ExtractedSpec(
@@ -733,6 +798,25 @@ def _review_paths_from_candidates(candidates: list[Any], specs: list[ExtractedSp
     return paths
 
 
+def _review_paths_from_decision(decision: Any) -> list[ReviewPath]:
+    return [
+        ReviewPath(
+            path_key=path["pathKey"],
+            title=path["title"],
+            scope=f"Review the canonical source evidence for {path['title'].lower()}.",
+            type="encryption_security" if path["pathKey"] == "category_5_part_2_security" else "product_area",
+            status="needs_more_evidence" if path["missingEvidence"] else "open",
+            why_triggered=path["whyTriggered"],
+            triggered_fact_names=path["triggeringEvidenceIds"],
+            regulatory_citations=[],
+            missing_information=path["missingEvidence"],
+            reviewer_questions=path["reviewerQuestions"],
+            technical_risk_area=None,
+        )
+        for path in decision.open_review_paths
+    ]
+
+
 def _fact_issues(specs: list[ExtractedSpec], extraction: AIExtractionResult | None) -> list[FactIssue]:
     issues: list[FactIssue] = []
     if extraction and extraction.product_identity.is_family_overview:
@@ -797,6 +881,16 @@ def _specific_eccn_candidates(candidates: list[Any], specs: list[ExtractedSpec])
 def run(payload_path: str) -> WorkerOutput:
     worker_input = load_input(payload_path)
     text = extract_text(worker_input.file_path)
+    qualification = qualify_document(text, worker_input.document_metadata)
+    _log_worker_event(
+        "document.qualified",
+        document_id=worker_input.document_id,
+        document_role=qualification.documentRole,
+        classifiability=qualification.classifiability,
+        entity_count=len(qualification.entities),
+    )
+    if qualification.classifiability != "single_product_classifiable":
+        return _entity_intake_output(worker_input, text, qualification, payload_path)
     source_label = _document_source_label(worker_input.document_metadata.get("sourceType"))
     execution_mode = getattr(worker_input, "execution_mode", "remote")
     selected_provider = getattr(worker_input, "selected_provider", None)
@@ -885,6 +979,8 @@ def run(payload_path: str) -> WorkerOutput:
     # The deterministic engine is authoritative for profiles, review paths, and
     # candidate selection in every execution mode. The LLM extraction remains a
     # source of normalized facts and cited snippets, never the routing authority.
+    prior_stage_candidates = [candidate.eccn for candidate in candidates]
+    backend_proposed_profile = extraction.product_profile.profile if extraction else None
     specs, candidates, heuristic_result = evaluate_classification_heuristics(
         specs,
         text,
@@ -905,22 +1001,59 @@ def run(payload_path: str) -> WorkerOutput:
     decision = build_classification_decision(
         run_id=str(worker_input.document_metadata.get("classificationRunId", worker_input.document_id)),
         document_id=worker_input.document_id,
+        source_text=text,
         specs=specs,
         candidates=candidates,
         heuristic_result=heuristic_result,
+        backend_proposed_profile=backend_proposed_profile,
+        backend_provider=selected_provider or selected_backend,
+        prior_stage_candidates=prior_stage_candidates,
+        target_entity={
+            "id": qualification.entities[0].id,
+            "relationshipToDocument": qualification.entities[0].relationshipToDocument,
+        },
     )
+    canonical_profile = decision.product_level_profile["profile"]
+    for spec in specs:
+        if spec.name == "product_profile":
+            spec.value = canonical_profile
+            spec.extraction_rationale = "Projection of the canonical classification decision."
+        elif spec.name == "profile_confidence":
+            score = float(decision.product_level_profile["confidence"])
+            spec.value = "high" if score >= 0.75 else "medium" if score >= 0.5 else "low"
+            spec.extraction_rationale = "Projection of the canonical classification decision."
+        elif spec.name == "profile_rationale":
+            spec.value = "Resolved from exported product form, component profiles, capabilities, and source-evidence scope."
+            spec.extraction_rationale = "Projection of the canonical classification decision."
     heuristic_result.classification_trace["validatedDecision"] = decision.to_dict()
-    memo_markdown = generate_memo(
-        worker_input.document_id,
-        worker_input.document_title,
-        worker_input.document_metadata,
-        specs,
-        candidates,
-        uncertainty_flags,
-        capability_signals,
-        heuristic_result.review_paths,
+    heuristic_result.classification_trace["detectedProfiles"] = [canonical_profile]
+    heuristic_result.classification_trace["componentProfiles"] = [
+        item["profile"] for item in decision.component_level_profiles
+    ]
+    heuristic_result.classification_trace["reviewPathsOpened"] = [
+        item["pathKey"] for item in decision.open_review_paths
+    ]
+    memo_markdown = generate_canonical_memo(
+        document_title=worker_input.document_title,
+        document_metadata=worker_input.document_metadata,
+        specs=specs,
+        decision=decision,
     )
-    decision.validation_results.extend(validate_memo_against_decision(memo_markdown, decision))
+    decision.validation_results.extend(semantic_validation_results(
+        decision=decision,
+        memo=memo_markdown,
+        specs=specs,
+        backend_proposed_profile=backend_proposed_profile,
+        prior_stage_candidates=prior_stage_candidates,
+    ))
+    semantic_failures = [item for item in decision.validation_results if not item["passed"]]
+    if semantic_failures:
+        _log_worker_event(
+            "worker.semantic_validation_failed",
+            document_id=worker_input.document_id,
+            failures=semantic_failures,
+        )
+    assert_semantically_valid(decision.validation_results)
     heuristic_result.classification_trace["validatedDecision"] = decision.to_dict()
     _, _, validated_heuristic_result = evaluate_classification_heuristics(
         specs,
@@ -943,6 +1076,7 @@ def run(payload_path: str) -> WorkerOutput:
         }
     )
     run_metadata["classificationTrace"] = heuristic_result.classification_trace
+    run_metadata["decisionSchemaVersion"] = decision.schema_version
     run_metadata["executionMode"] = execution_mode
     run_metadata["selectedProvider"] = selected_provider or selected_backend
     heuristic_result.classification_trace["execution"] = {
@@ -969,9 +1103,12 @@ def run(payload_path: str) -> WorkerOutput:
     facts_path = artifacts_dir / f"{worker_input.document_id}-extracted-facts.json"
     review_paths_path = artifacts_dir / f"{worker_input.document_id}-review-paths.json"
 
-    review_paths = _review_paths_from_candidates(candidates, specs, heuristic_result)
+    review_paths = _review_paths_from_decision(decision)
     fact_issues = _fact_issues(specs, extraction)
-    specific_candidates = _specific_eccn_candidates(candidates, specs)
+    eligible_codes = {item["eccn"] for item in decision.eligible_candidates}
+    specific_candidates = _specific_eccn_candidates(
+        [candidate for candidate in candidates if candidate.eccn in eligible_codes], specs
+    )
     capability_signals = derive_capability_signals(specs)
     validation_issues = validate_narrative_consistency(
         capability_signals=capability_signals,
@@ -1028,7 +1165,7 @@ def run(payload_path: str) -> WorkerOutput:
             "backendCompleted": run_metadata.get("backendStatus") == "completed",
             "backendOutputValidated": True,
             "memoValidated": True,
-            "workerOutputValidated": True,
+            "workerPreHistoryValidated": True,
             "fallbackEnabled": fallback_enabled,
             "fallbackUsed": run_metadata.get("classificationMode") == "heuristic_fallback",
             "missingFactCount": len(extraction.missing_facts) if extraction else 0,
@@ -1046,7 +1183,7 @@ def run(payload_path: str) -> WorkerOutput:
         }
     )
     _log_worker_event(
-        "worker.output_validated",
+        "worker.pre_history_decision_validated",
         document_id=worker_input.document_id,
         classification_mode=run_metadata.get("classificationMode"),
         extracted_spec_count=len(specs),

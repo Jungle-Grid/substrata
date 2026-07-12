@@ -12,6 +12,12 @@ class SignalRule:
 
 
 SIGNAL_RULES = (
+    SignalRule("gateway_form", (), 0, ("sensor gateway", "industrial gateway", "edge gateway", "gateway")),
+    SignalRule("router_form", (), 0, ("router",)),
+    SignalRule("network_switch_form", (), 0, ("network switch", "ethernet switch")),
+    SignalRule("server_form_identity", (), 0, ("rack server", "gpu server", "compute server")),
+    SignalRule("evaluation_kit_form", (), 0, ("evaluation kit", "development kit")),
+    SignalRule("board_form", (), 0, ("development board", "evaluation board", "circuit board")),
     SignalRule("ai_accelerator_identity", ("ai_accelerator", "advanced_computing_hardware"), 8, ("ai accelerator", "accelerator card", "npu", "tpu")),
     SignalRule("gpu_identity", ("gpu_accelerator", "advanced_computing_hardware"), 8, ("gpu accelerator", "graphics processing unit", "graphics processing units", "gpu card")),
     SignalRule("ai_workload", ("ai_accelerator", "advanced_computing_hardware"), 3, ("inference", "training", "fine-tuning", "server inference")),

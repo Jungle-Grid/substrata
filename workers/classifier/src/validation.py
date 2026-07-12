@@ -35,7 +35,14 @@ STALE_DEVICE_MARKERS = {
         "3.2 W/Ch",
     ],
 }
-BANNED_MEMO_TERMS = ("placeholder", "mock", "not extracted")
+# Reject unresolved template markers, not ordinary source prose that happens to
+# use words such as "placeholder" or "mock" in a legitimate technical context.
+UNRESOLVED_TEMPLATE_PATTERNS = (
+    r"\[\s*(?:placeholder|todo|insert[^\]]*(?:here|text)|tbd)\s*\]",
+    r"\{\{[^}]+\}\}",
+    r"\b(?:TODO|TBD)\s*:",
+    r"\bINSERT\s+.+\s+HERE\b",
+)
 WEAK_MANUFACTURER_SNIPPET_TERMS = (
     "creating an environment where employees",
     "removing noninclusive language",
@@ -141,8 +148,22 @@ def _markdown_looks_malformed(markdown: str) -> str | None:
         "## 8. ECCN Review Recommendation",
         "## 9. Review State",
     ]
+    canonical_order = [
+        "## Document and canonical product model",
+        "## Extracted source facts",
+        "## Capability assessment",
+        "## Open review paths",
+        "## Eligible candidate ECCNs",
+        "## Specific candidates not yet supportable",
+        "## Reviewer questions",
+        "## ECCN review recommendation",
+        "## Review state",
+    ]
     positions = [markdown.find(section) for section in required_order]
-    if any(position == -1 for position in positions) or positions != sorted(positions):
+    canonical_positions = [markdown.find(section) for section in canonical_order]
+    legacy_valid = all(position != -1 for position in positions) and positions == sorted(positions)
+    canonical_valid = all(position != -1 for position in canonical_positions) and canonical_positions == sorted(canonical_positions)
+    if not legacy_valid and not canonical_valid:
         return "required memo sections are missing or out of order"
     return None
 
@@ -224,14 +245,14 @@ def collect_validation_issues(
             )
         )
 
-    for term in BANNED_MEMO_TERMS:
-        if term in output.memo_markdown.lower():
+    for pattern in UNRESOLVED_TEMPLATE_PATTERNS:
+        if re.search(pattern, output.memo_markdown, flags=re.IGNORECASE):
             issues.append(
                 ValidationIssue(
-                    bad_string=term,
+                    bad_string=pattern,
                     section="memo_markdown",
-                    reason="The memo still contains a banned placeholder-like term.",
-                    remediation="Remove placeholder text and regenerate the memo from current extracted facts only.",
+                    reason="The memo still contains an unresolved template marker.",
+                    remediation="Resolve template markers and regenerate the memo from current extracted facts only.",
                 )
             )
 
@@ -909,9 +930,9 @@ def validate_memo_markdown(memo_markdown: str) -> None:
         issues.append("memo must start with a Markdown heading")
     if normalized.startswith("{") or '"productprofile"' in normalized[:500]:
         issues.append("memo looks like raw JSON")
-    for term in BANNED_MEMO_TERMS:
-        if term in normalized:
-            issues.append(f"memo contains banned term: {term}")
+    for pattern in UNRESOLVED_TEMPLATE_PATTERNS:
+        if re.search(pattern, memo_markdown, flags=re.IGNORECASE):
+            issues.append(f"memo contains unresolved template marker: {pattern}")
     for line in _weak_source_boilerplate_lines(memo_markdown):
         issues.append(f"memo contains weak source-evidence boilerplate: {line[:180]}")
     for pattern in FINAL_DETERMINATION_PATTERNS:

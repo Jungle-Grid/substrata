@@ -6,6 +6,7 @@ import re
 from fact_groups import CATEGORY_DISPLAY_NAMES, group_specs_by_category, infer_missing_review_points
 from labels import display_name_for_spec_name
 from schemas import ECCNCandidate, ExtractedSpec, WorkerCapabilitySignal
+from decision import ClassificationDecision
 
 
 def _profile_value(specs: list[ExtractedSpec]) -> str:
@@ -280,4 +281,127 @@ def generate_memo(
 - Compliance status: Expert review required before classification sign-off
 - Reviewer: Unassigned
 - Note: No reviewer note recorded yet.
+"""
+
+
+def generate_canonical_memo(
+    *,
+    document_title: str,
+    document_metadata: dict[str, object],
+    specs: list[ExtractedSpec],
+    decision: ClassificationDecision,
+) -> str:
+    """Render the canonical decision without reopening profiles or candidates."""
+    profile = decision.product_level_profile["profile"]
+    manufacturer = next(
+        (spec.value for spec in specs if spec.name == "manufacturer" and spec.value.lower() in spec.source_snippet.lower()),
+        "unknown",
+    )
+    source_specs = [
+        spec for spec in specs
+        if spec.category not in {"profile_detection", "normalized_technical_signal"}
+        and not spec.name.startswith("heuristic_signal_")
+        and spec.name != "manufacturer"
+    ]
+    fact_lines = [
+        f'- **{display_name_for_spec_name(spec.name)}**: {spec.value}{f" {spec.unit}" if spec.unit else ""}\n  - Source: “{spec.source_snippet}”'
+        for spec in source_specs
+    ]
+    decisive_negative_facts = [
+        fact for fact in decision.source_facts
+        if fact.get("polarity") == "absent"
+    ]
+    negative_fact_lines = [
+        f'- **{fact.get("fact_type", "source fact").replace("_", " ")}**: absent\n'
+        f'  - Exact quote: “{fact.get("exact_quote") or fact.get("raw_value") or "Not retained"}”\n'
+        f'  - Source location: {fact.get("page") or fact.get("section") or fact.get("chunk_id") or "source document"}; '
+        f'configuration scope: {fact.get("configuration_scope") or "unspecified"}; confidence: {fact.get("confidence", "unknown")}'
+        for fact in decisive_negative_facts
+    ]
+    capability_lines = []
+    for capability in decision.capabilities:
+        capability_lines.append(
+            f'- **{capability["key"].replace("_", " ")}**: {capability["presence"]}; '
+            f'implementation {capability["implementation"]}; user accessibility {capability["userAccessibility"]}; '
+            f'classification significance {capability["classificationSignificance"]}.'
+        )
+    path_sections = []
+    for path in decision.open_review_paths:
+        path_sections.append(
+            f'### {path["title"]}\n'
+            f'- Status: {path["status"]}\n'
+            f'- Why opened: {path["whyTriggered"]}\n'
+            f'- Triggering evidence IDs: {", ".join(path["triggeringEvidenceIds"])}\n'
+            f'- Missing evidence:\n' + "\n".join(f'  - {item}' for item in path["missingEvidence"])
+        )
+    eligible_sections = [
+        f'### {item["eccn"]} — {item["title"]}\n- Status: eligible\n- Triggering evidence IDs: {", ".join(item["triggeringEvidenceIds"])}'
+        for item in decision.eligible_candidates
+    ]
+    blocked_sections = [
+        f'### {item["eccn"]} — {item["title"]}\n'
+        f'- Status: specific candidate not yet supportable\n'
+        f'- Positive path evidence IDs: {", ".join(item["triggeringEvidenceIds"]) or "none"}\n'
+        f'- Blocking reasons: {", ".join(item["blockingReasons"]) or "none"}\n'
+        f'- Missing evidence: {", ".join(item.get("missing_information", [])) or "See the open review path requirements."}'
+        for item in decision.blocked_candidate_hypotheses
+    ]
+    resolution_lines = [
+        f'- {item["proposedByStage"]} proposed `{item["proposedProfile"]}`; canonical decision uses '
+        f'`{item["canonicalProfile"]}` because {item["reason"]}'
+        for item in decision.profile_resolution_records
+    ]
+    recommendation_lines = [f'- Continue qualified review of the {path["title"].lower()}.' for path in decision.open_review_paths]
+    if not recommendation_lines:
+        recommendation_lines = [f'- Abstain: {decision.abstention_reason or "insufficient source evidence"}']
+    limitation_lines = [
+        f'- {item["explanation"]} (Severity: {item["severity"]}; resolution owner: {item["resolutionOwner"]}.)'
+        for item in decision.system_limitations
+    ]
+    return f"""# Classification Memo Draft — {document_title}
+
+## Document and canonical product model
+- File: {document_metadata.get("fileName", "Not recorded")}
+- Manufacturer: {manufacturer}
+- Exported product form: {decision.exported_product_form["value"]}
+- Canonical product profile: {profile}
+- Configuration scope: {decision.configuration_scope}
+- Human review required: yes
+
+### Profile resolution
+{chr(10).join(resolution_lines) if resolution_lines else "- Provider and canonical profile agree, or no provider profile was supplied."}
+
+### Installed component profiles
+{chr(10).join(f'- {item["profile"]} ({item["relationship"]})' for item in decision.component_level_profiles) if decision.component_level_profiles else "- None established from the supplied evidence."}
+
+## Extracted source facts
+{chr(10).join(fact_lines) if fact_lines else "- No material source facts were established."}
+
+## Decisive negative source evidence
+{chr(10).join(negative_fact_lines) if negative_fact_lines else "- No decisive negative source evidence was used in this decision."}
+
+## Capability assessment
+{chr(10).join(capability_lines) if capability_lines else "- No material capabilities were established."}
+
+## Open review paths
+{chr(10).join(path_sections) if path_sections else "- No review path has sufficient positive source evidence."}
+
+## Eligible candidate ECCNs
+{chr(10).join(eligible_sections) if eligible_sections else "- No specific ECCN candidate is currently eligible."}
+
+## Specific candidates not yet supportable
+{chr(10).join(blocked_sections) if blocked_sections else "- None."}
+
+## System limitations
+{chr(10).join(limitation_lines) if limitation_lines else "- No blocking platform limitation was recorded."}
+
+## Reviewer questions
+{chr(10).join(f'- {question}' for question in decision.reviewer_questions) if decision.reviewer_questions else "- Confirm whether additional technical evidence is available."}
+
+## ECCN review recommendation
+{chr(10).join(recommendation_lines)}
+
+## Review state
+- Classification memo draft for qualified human review.
+- Internal precedent is not regulatory authority.
 """

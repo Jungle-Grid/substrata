@@ -28,6 +28,9 @@ test('Company History memo section keeps comparison material separate from revie
       blockingContradictions: [],
       similarityComponents: { lexical: 1, positiveBoost: 3, contradictionPenalty: 0 },
       recommendedUse: 'precedent',
+      recordRole: 'product_precedent',
+      agreements: ['Shared technical evidence: secure boot'],
+      configurationDifferences: [],
     },
   ]);
 
@@ -97,6 +100,7 @@ Use this record as internal precedent only. Do not automatically classify a new 
       title: 'Internal Classification Memo AX900 AI Accelerator',
       importedAt: new Date('2026-07-10T12:00:00.000Z'),
       metadata: { eccnMentions: [{ value: '3A090' }] },
+      recordType: 'prior_memo',
     }];
   }) as typeof prisma.$queryRaw;
 
@@ -170,6 +174,7 @@ test('history retrieval performs a keyword fallback when no full-text candidate 
       title: 'AX900 AI Accelerator',
       importedAt: new Date('2026-07-10T12:00:00.000Z'),
       metadata: null,
+      recordType: 'datasheet',
     }];
   }) as typeof prisma.$queryRaw;
 
@@ -190,6 +195,65 @@ test('history retrieval performs a keyword fallback when no full-text candidate 
     assert.equal(retrieval.trace.primaryCandidateCount, 0);
     assert.equal(retrieval.trace.keywordCandidateCount, 1);
     assert.equal(queryCount, 2);
+  } finally {
+    prisma.$queryRaw = originalQueryRaw;
+    prisma.companyHistoryChunk.count = originalCount;
+  }
+});
+
+test('README and administrative records are excluded from product precedents', async () => {
+  const originalQueryRaw = prisma.$queryRaw;
+  const originalCount = prisma.companyHistoryChunk.count;
+  prisma.companyHistoryChunk.count = (async () => 2) as typeof prisma.companyHistoryChunk.count;
+  prisma.$queryRaw = (async () => [{
+    chunkId: 'chunk_readme', historyDocumentId: 'history_readme',
+    content: 'README upload instructions mention gateways, Ethernet, TLS, and accelerators.',
+    baseScore: 4, fileName: 'README_DEMO_USE.txt', title: 'README',
+    importedAt: new Date(), metadata: null, recordType: 'other',
+  }, {
+    chunkId: 'chunk_product', historyDocumentId: 'history_product',
+    content: 'Industrial gateway with Ethernet and MQTT over TLS.',
+    baseScore: 1, fileName: 'gateway-engineering-note.txt', title: 'Gateway engineering note',
+    importedAt: new Date(), metadata: null, recordType: 'technical_spec',
+  }]) as typeof prisma.$queryRaw;
+  try {
+    const retrieval = await retrieveCompanyHistoryWithTrace({
+      organizationId: 'org_roles', documentTitle: 'ignored title',
+      sourceText: 'Industrial gateway with Ethernet and MQTT over TLS.',
+      extractedSpecs: [{ name: 'interface', value: 'Ethernet' }],
+    });
+    assert.equal(retrieval.matches.length, 1);
+    assert.equal(retrieval.matches[0]?.recordRole, 'product_precedent');
+    assert.equal(retrieval.matches[0]?.sourceFileName, 'gateway-engineering-note.txt');
+    assert.equal(retrieval.pools.productPrecedents.length, 1);
+    assert.equal(retrieval.pools.productPrecedents[0]?.sourceFileName, 'gateway-engineering-note.txt');
+    assert.equal(retrieval.pools.excludedAdministrative[0]?.recordRole, 'dataset_readme');
+  } finally {
+    prisma.$queryRaw = originalQueryRaw;
+    prisma.companyHistoryChunk.count = originalCount;
+  }
+});
+
+test('history explanations cannot turn an absent accelerator into an agreement', async () => {
+  const originalQueryRaw = prisma.$queryRaw;
+  const originalCount = prisma.companyHistoryChunk.count;
+  prisma.companyHistoryChunk.count = (async () => 1) as typeof prisma.companyHistoryChunk.count;
+  prisma.$queryRaw = (async () => [{
+    chunkId: 'chunk_accelerator', historyDocumentId: 'history_accelerator',
+    content: 'AI accelerator card with HBM and 96 TOPS.', baseScore: 1,
+    fileName: 'accelerator-datasheet.txt', title: 'Accelerator datasheet',
+    importedAt: new Date(), metadata: null, recordType: 'datasheet',
+  }]) as typeof prisma.$queryRaw;
+  try {
+    const retrieval = await retrieveCompanyHistoryWithTrace({
+      organizationId: 'org_negative', documentTitle: 'irrelevant',
+      sourceText: 'Industrial gateway. No AI accelerator is included.',
+      extractedSpecs: [{ name: 'product_form', value: 'industrial gateway' }],
+    });
+    const match = retrieval.matches[0];
+    assert.equal(match?.recommendedUse, 'contrast');
+    assert.ok(match?.blockingContradictions.length);
+    assert.doesNotMatch(match?.agreements.join(' ') ?? '', /shared.*AI accelerator product family/i);
   } finally {
     prisma.$queryRaw = originalQueryRaw;
     prisma.companyHistoryChunk.count = originalCount;

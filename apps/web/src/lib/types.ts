@@ -400,6 +400,12 @@ export interface ClassificationRunRecord {
     score: number;
     matchTier: 'direct' | 'partial' | 'weak';
     matchReasons: string[];
+    agreements: string[];
+    materialDifferences: string[];
+    blockingContradictions: string[];
+    configurationDifferences: string[];
+    recordRole: string;
+    recommendedUse: 'precedent' | 'partial_precedent' | 'contrast' | 'context' | 'irrelevant';
     retrievalMethod: string;
     retrievalVersion: string;
     createdAt: string;

@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import {
   Prisma,
   prisma,
@@ -21,8 +22,8 @@ import { HttpError } from '../lib/errors';
 import { createStorageDriver } from './storage';
 import { runLocalWorker } from './worker-runtime';
 import {
-  appendCompanyHistoryComparison,
   retrieveCompanyHistoryWithTrace,
+  appendCompanyHistoryComparison,
   type CompanyHistoryRetrievalTrace,
   type RetrievedCompanyHistoryMatch,
 } from './history-retrieval.service';
@@ -569,7 +570,15 @@ export async function executeClassificationRun(input: {
 
     let historyMatches: RetrievedCompanyHistoryMatch[] = [];
     let companyHistoryTrace: CompanyHistoryRetrievalTrace | null = null;
+    const documentQualification = workerOutput.classificationTrace?.documentQualification as { classifiability?: string; entities?: Array<{ id?: string; partNumbers?: string[] }> } | undefined;
+    const historyRetrievalAllowed = !documentQualification || documentQualification.classifiability === 'single_product_classifiable';
     try {
+      if (!historyRetrievalAllowed) {
+        console.info('Company History retrieval skipped for non-classifiable document', {
+          reviewRunId: run.id,
+          classifiability: documentQualification?.classifiability,
+        });
+      } else {
       const retrieval = await retrieveCompanyHistoryWithTrace({
         organizationId: input.organizationId,
         documentTitle: document.title,
@@ -597,6 +606,7 @@ export async function executeClassificationRun(input: {
         embeddingVectorDimensions: retrieval.trace.embeddingVectorDimensions,
         topResults: retrieval.trace.topResults,
       });
+      }
     } catch (error) {
       console.error('Company History retrieval failed', {
         reviewRunId: run.id,
@@ -636,14 +646,8 @@ export async function executeClassificationRun(input: {
       };
     });
 
-    for (const candidate of workerOutput.eccnCandidates) {
-      candidate.companyHistorySupport = companyHistorySignals.filter((signal) =>
-        signal.priorEccns.includes(candidate.eccn) && signal.recommendedUse === 'precedent',
-      );
-      if (candidate.companyHistorySupport.length) {
-        candidate.confidenceRationale = `${candidate.confidenceRationale} Similar internal history increases review priority but does not determine the classification.`;
-      }
-    }
+    // History is comparison context only. It is intentionally not allowed to
+    // mutate candidates, profiles, paths, or source evidence.
     const trace = workerOutput.classificationTrace ?? {};
     workerOutput.classificationTrace = {
       ...trace,
@@ -656,10 +660,46 @@ export async function executeClassificationRun(input: {
       classification_trace: workerOutput.classificationTrace,
     };
 
-    workerOutput.memoMarkdown = appendCompanyHistoryComparison(
-      workerOutput.memoMarkdown,
-      historyMatches,
-    );
+    const canonicalDecision = workerOutput.classificationTrace?.validatedDecision;
+    if (canonicalDecision && typeof canonicalDecision === 'object' && !Array.isArray(canonicalDecision)) {
+      const roleFilterSummary = historyMatches.reduce<Record<string, number>>((summary, match) => {
+        summary[match.recordRole] = (summary[match.recordRole] ?? 0) + 1;
+        return summary;
+      }, {});
+      const finalizedHistory = {
+        productPrecedents: historyMatches.filter((match) => ['product_precedent', 'classification_memo', 'review_worksheet'].includes(match.recordRole)),
+        technicalComparisons: historyMatches.filter((match) => match.recordRole === 'technical_source'),
+        counselGuidance: historyMatches.filter((match) => match.recordRole === 'counsel_guidance'),
+        internalPolicy: historyMatches.filter((match) => match.recordRole === 'internal_policy'),
+        regulatoryContext: historyMatches.filter((match) => match.recordRole === 'regulatory_material'),
+        excludedResults: [],
+        retrievalMetadata: {
+          queryVersion: companyHistoryTrace?.retrievalMethod ?? 'unavailable',
+          retrievedAt: new Date().toISOString(),
+          candidateCount: companyHistoryTrace?.candidateChunksAfterFiltering ?? 0,
+          roleFilterSummary,
+        },
+      };
+      const decisionSnapshot = canonicalDecision as Record<string, unknown>;
+      // This is canonical finalization, before persistence and final hashes.
+      // It is deliberately the sole point at which role-filtered history enters
+      // the decision that the memo renderer exposes.
+      decisionSnapshot.company_history_matches = finalizedHistory;
+      const renderableHistory = historyMatches.filter((match) => match.recommendedUse !== 'irrelevant');
+      workerOutput.memoMarkdown = appendCompanyHistoryComparison(workerOutput.memoMarkdown, renderableHistory);
+      const memoHash = createHash('sha256').update(workerOutput.memoMarkdown).digest('hex');
+      const decisionForHash = { ...decisionSnapshot, memoHash };
+      const decisionHash = createHash('sha256').update(JSON.stringify(decisionForHash)).digest('hex');
+      workerOutput.classificationTrace = {
+        ...workerOutput.classificationTrace,
+        validatedDecision: {
+          ...decisionForHash,
+          decisionHash,
+          memoHash,
+          finalizedAt: new Date().toISOString(),
+        },
+      };
+    }
     const contradictionIssues: typeof workerOutput.validationIssues = [];
     const securityEvidence = /encrypt|crypto|tls|ipsec|macsec|secure boot|key management|firmware signing|remote attestation/i.test(
       `${sourceText} ${workerOutput.extractedSpecs.map((fact) => `${fact.name} ${fact.value}`).join(' ')}`,
@@ -984,7 +1024,14 @@ export async function executeClassificationRun(input: {
               rank: match.rank,
               score: match.score,
               matchTier: match.matchTier,
-              matchReasons: match.matchReasons as Prisma.InputJsonValue,
+              matchReasons: {
+                agreements: match.agreements,
+                materialDifferences: match.materialDifferences,
+                blockingContradictions: match.blockingContradictions,
+                configurationDifferences: match.configurationDifferences,
+                recordRole: match.recordRole,
+                recommendedUse: match.recommendedUse,
+              } as Prisma.InputJsonValue,
               retrievalMethod: match.retrievalMethod,
               retrievalVersion: match.retrievalVersion,
             })),
@@ -1136,12 +1183,12 @@ export async function executeClassificationRun(input: {
                 ? workerOutput.runMetadata.executionJobId
                 : `local-worker-${run.id}`,
             workerVersion: 'python-local-v4',
-            rulesVersion: 'evidence_eligibility_v1',
-            pipelineVersion: 'classification_pipeline_v1',
-            decisionSchemaVersion: 'classification_decision_v1',
+            rulesVersion: 'canonical_product_model_v2',
+            pipelineVersion: 'classification_pipeline_v2',
+            decisionSchemaVersion: 'classification_decision_v2',
             promptVersion: 'extraction_prompt_v2_untrusted_data',
             regulatoryCorpusVersion: null,
-            retrievalIndexVersion: 'company_history_retrieval_v3',
+            retrievalIndexVersion: 'company_history_retrieval_v4',
             backendUsed:
               typeof workerOutput.runMetadata?.backendUsed === 'string'
                 ? workerOutput.runMetadata.backendUsed
@@ -1351,6 +1398,30 @@ export async function executeClassificationRun(input: {
         latencyMs: updatedRun.latencyMs,
         tokensUsed: updatedRun.tokensUsed,
         validationIssues: updatedRun.validationIssues ?? [],
+      },
+    });
+
+    const finalDecision = workerOutput.classificationTrace?.validatedDecision as Record<string, unknown> | undefined;
+    const transitions = Array.isArray(finalDecision?.candidate_transitions) ? finalDecision.candidate_transitions : [];
+    const candidateStatusCounts = transitions.reduce<Record<string, number>>((counts, transition) => {
+      if (!transition || typeof transition !== 'object') return counts;
+      const status = String((transition as Record<string, unknown>).toStatus ?? 'unknown');
+      counts[status] = (counts[status] ?? 0) + 1;
+      return counts;
+    }, {});
+    await recordAuditEvent({
+      organizationId: input.organizationId,
+      actorUserId: input.actorUserId,
+      actor: 'system',
+      action: 'candidate_lineage.finalized',
+      entityType: 'ClassificationRun',
+      entityId: run.id,
+      metadata: {
+        canonicalDecisionVersion: String(finalDecision?.schema_version ?? 'unknown'),
+        transitionCount: transitions.length,
+        statusCounts: candidateStatusCounts,
+        decisionHash: typeof finalDecision?.decisionHash === 'string' ? finalDecision.decisionHash : null,
+        memoHash: typeof finalDecision?.memoHash === 'string' ? finalDecision.memoHash : null,
       },
     });
 

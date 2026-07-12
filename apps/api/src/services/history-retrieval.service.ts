@@ -2,7 +2,7 @@ import { Prisma, prisma } from '@substrata/db';
 
 const RETRIEVAL_METHOD = 'postgres_source_fact_v3';
 const KEYWORD_FALLBACK_METHOD = 'postgres_keyword_fallback_v1';
-const RETRIEVAL_VERSION = 'company_history_retrieval_v3';
+const RETRIEVAL_VERSION = 'company_history_retrieval_v4';
 const DEFAULT_TOP_K = 3;
 const PRIMARY_CANDIDATE_LIMIT = 50;
 const DEBUG_RESULT_LIMIT = 10;
@@ -48,6 +48,18 @@ type TechnicalConcept = {
 
 const TECHNICAL_CONCEPTS: TechnicalConcept[] = [
   {
+    key: 'networking',
+    label: 'Ethernet or networking capability',
+    currentPattern: /\b(?:ethernet|router|gateway|network interface)\b/i,
+    historyPattern: /\b(?:ethernet|router|gateway|network interface)\b/i,
+  },
+  {
+    key: 'transport_security',
+    label: 'TLS secure-transport capability',
+    currentPattern: /\b(?:mqtt over tls|tls transport|https)\b/i,
+    historyPattern: /\b(?:mqtt over tls|tls transport|https)\b/i,
+  },
+  {
     key: 'ai_accelerator',
     label: 'AI accelerator product family',
     currentPattern: /\b(?:ai\s+accelerator|accelerator\s+(?:card|module)|inference|training)\b/i,
@@ -88,6 +100,7 @@ type LexicalChunkRow = {
   title: string;
   importedAt: Date;
   metadata: Prisma.JsonValue | null;
+  recordType: string;
 };
 
 export type CompanyHistoryRetrievalTraceResult = {
@@ -132,11 +145,36 @@ export type RetrievedCompanyHistoryMatch = {
   materialDifferences: string[];
   blockingContradictions: string[];
   similarityComponents: Record<string, number>;
-  recommendedUse: 'precedent' | 'contrast' | 'irrelevant';
+  recommendedUse: 'precedent' | 'partial_precedent' | 'contrast' | 'context' | 'irrelevant';
+  recordRole: HistoryDocumentRole;
+  agreements: string[];
+  configurationDifferences: string[];
+};
+
+export type HistoryDocumentRole =
+  | 'product_precedent'
+  | 'technical_source'
+  | 'classification_memo'
+  | 'review_worksheet'
+  | 'counsel_guidance'
+  | 'internal_policy'
+  | 'regulatory_material'
+  | 'dataset_readme'
+  | 'administrative'
+  | 'unclassified';
+
+export type CanonicalHistoryPools = {
+  productPrecedents: RetrievedCompanyHistoryMatch[];
+  technicalComparisons: RetrievedCompanyHistoryMatch[];
+  counselGuidance: RetrievedCompanyHistoryMatch[];
+  internalPolicy: RetrievedCompanyHistoryMatch[];
+  regulatoryContext: RetrievedCompanyHistoryMatch[];
+  excludedAdministrative: RetrievedCompanyHistoryMatch[];
 };
 
 export type CompanyHistoryRetrievalResult = {
   matches: RetrievedCompanyHistoryMatch[];
+  pools: CanonicalHistoryPools;
   trace: CompanyHistoryRetrievalTrace;
 };
 
@@ -282,6 +320,20 @@ function capabilityPolarity(text: string, pattern: RegExp) {
   return absent && present ? 'ambiguous' as const : absent ? 'absent' as const : 'present' as const;
 }
 
+function recordRole(row: LexicalChunkRow): HistoryDocumentRole {
+  const text = `${row.fileName}\n${row.title}\n${row.content}`.toLowerCase();
+  if (/\breadme\b/.test(text)) return 'dataset_readme';
+  if (/\b(?:policy|procedure|human review required)\b/.test(text)) return 'internal_policy';
+  if (/\b(?:outside counsel|counsel guidance|legal guidance)\b/.test(text)) return 'counsel_guidance';
+  if (/\b(?:administrative|upload instructions|index manifest)\b/.test(text)) return 'administrative';
+  if (row.recordType === 'prior_memo' || row.recordType === 'approval_record') return 'classification_memo';
+  if (row.recordType === 'review_note') return 'review_worksheet';
+  if (row.recordType === 'datasheet' || row.recordType === 'technical_spec' || row.recordType === 'catalog') return 'product_precedent';
+  if (row.recordType === 'regulatory_material') return 'regulatory_material';
+  if (row.recordType === 'technical_source') return 'technical_source';
+  return 'unclassified';
+}
+
 function scoreCompanyHistoryResult(input: {
   row: LexicalChunkRow;
   identifiers: string[];
@@ -316,7 +368,10 @@ function scoreCompanyHistoryResult(input: {
     reasons.push(`Shared technical evidence: ${factMatches.slice(0, 3).join(', ')}`);
   }
 
-  const conceptMatches = input.technicalConcepts.filter((concept) => concept.historyPattern.test(haystack));
+  const conceptMatches = input.technicalConcepts.filter((concept) =>
+    capabilityPolarity(input.currentProductText, concept.currentPattern) === 'present' &&
+    capabilityPolarity(haystack, concept.historyPattern) === 'present',
+  );
   if (conceptMatches.length) {
     boost += Math.min(3.5, conceptMatches.length * 0.65);
     reasons.push(`Shared product characteristics: ${conceptMatches.slice(0, 5).map((concept) => concept.label).join('; ')}`);
@@ -340,16 +395,23 @@ function scoreCompanyHistoryResult(input: {
     }
   }
 
-  if (!reasons.length) {
-    reasons.push('Lexical similarity to the current product description and extracted technical facts.');
-  }
-
   const matchTier = exactIdentifiers.length
     ? 'direct'
     : factMatches.length >= 2 || familyMatches.length
       ? 'partial'
       : 'weak';
 
+  const role = recordRole(input.row);
+  const productRole = ['product_precedent', 'classification_memo', 'review_worksheet', 'technical_source'].includes(role);
+  const recommendedUse = !productRole
+    ? role === 'dataset_readme' || role === 'administrative' ? 'irrelevant' : 'context'
+    : blockingContradictions.length
+      ? 'contrast'
+      : matchTier === 'direct'
+        ? 'precedent'
+        : matchTier === 'partial' || conceptMatches.length > 0
+          ? 'partial_precedent'
+          : 'irrelevant';
   return {
     score: input.row.baseScore + boost - contradictionPenalty,
     matchTier: blockingContradictions.length ? 'weak' : matchTier,
@@ -362,12 +424,62 @@ function scoreCompanyHistoryResult(input: {
       positiveBoost: boost,
       contradictionPenalty: -contradictionPenalty,
     },
-    recommendedUse: blockingContradictions.length
-      ? 'contrast'
-      : matchTier === 'weak'
-        ? 'irrelevant'
-        : 'precedent',
+    recommendedUse,
+    recordRole: role,
+    agreements: reasons,
+    configurationDifferences: materialDifferences.filter((item) => /configuration/i.test(item)),
   } as const;
+}
+
+function asMatch(result: ReturnType<typeof scoreCompanyHistoryResult> & { row: LexicalChunkRow }, rank: number, retrievalMethod: string): RetrievedCompanyHistoryMatch {
+  return {
+    companyHistoryDocumentId: result.row.historyDocumentId,
+    companyHistoryChunkId: result.row.chunkId,
+    sourceFileName: result.row.fileName,
+    sourceTitle: result.row.title,
+    importedAt: result.row.importedAt,
+    excerpt: result.row.content,
+    rank,
+    score: result.score,
+    matchTier: result.matchTier,
+    matchReasons: result.matchReasons,
+    retrievalMethod,
+    retrievalVersion: RETRIEVAL_VERSION,
+    supportingMatches: result.supportingMatches,
+    materialDifferences: result.materialDifferences,
+    blockingContradictions: result.blockingContradictions,
+    similarityComponents: result.similarityComponents,
+    recommendedUse: result.recommendedUse,
+    recordRole: result.recordRole,
+    agreements: result.agreements,
+    configurationDifferences: result.configurationDifferences,
+  };
+}
+
+/** Allocate independent role pools before a product-precedent top-K is applied. */
+function allocateRolePools(
+  ranked: Array<ReturnType<typeof scoreCompanyHistoryResult> & { row: LexicalChunkRow }>,
+  topK: number,
+  retrievalMethod: string,
+): CanonicalHistoryPools {
+  const matches = ranked.map((result, index) => asMatch(result, index + 1, retrievalMethod));
+  const productEligible = matches.filter((match) =>
+    ['product_precedent', 'classification_memo', 'review_worksheet'].includes(match.recordRole)
+    && ['precedent', 'partial_precedent', 'contrast'].includes(match.recommendedUse),
+  );
+  const technicalEligible = matches.filter((match) =>
+    match.recordRole === 'technical_source' && match.recommendedUse !== 'irrelevant',
+  );
+  return {
+    productPrecedents: productEligible.slice(0, topK),
+    technicalComparisons: technicalEligible.slice(0, topK),
+    counselGuidance: matches.filter((match) => match.recordRole === 'counsel_guidance').slice(0, topK),
+    internalPolicy: matches.filter((match) => match.recordRole === 'internal_policy').slice(0, topK),
+    regulatoryContext: matches.filter((match) => match.recordRole === 'regulatory_material').slice(0, topK),
+    excludedAdministrative: matches.filter((match) =>
+      ['dataset_readme', 'administrative', 'unclassified'].includes(match.recordRole) || match.recommendedUse === 'irrelevant',
+    ),
+  };
 }
 
 function deduplicateByHistoryDocument<T extends { row: LexicalChunkRow; score: number }>(results: T[]) {
@@ -402,6 +514,7 @@ async function findPrimaryCandidates(input: { organizationId: string; ftsQuery: 
       document."title" AS "title",
       history."createdAt" AS "importedAt",
       history."metadata" AS "metadata"
+      ,history."recordType"::text AS "recordType"
     FROM "CompanyHistoryChunk" chunk
     INNER JOIN "CompanyHistoryDocument" history ON history."id" = chunk."companyHistoryDocumentId"
     INNER JOIN "Document" document ON document."id" = history."documentId"
@@ -431,6 +544,7 @@ async function findKeywordFallbackCandidates(input: { organizationId: string; te
       document."title" AS "title",
       history."createdAt" AS "importedAt",
       history."metadata" AS "metadata"
+      ,history."recordType"::text AS "recordType"
     FROM "CompanyHistoryChunk" chunk
     INNER JOIN "CompanyHistoryDocument" history ON history."id" = chunk."companyHistoryDocumentId"
     INNER JOIN "Document" document ON document."id" = history."documentId"
@@ -472,6 +586,7 @@ export async function retrieveCompanyHistoryWithTrace(input: {
   if (!signals.queryTerms.length) {
     return {
       matches: [],
+      pools: { productPrecedents: [], technicalComparisons: [], counselGuidance: [], internalPolicy: [], regulatoryContext: [], excludedAdministrative: [] },
       trace: {
         organizationId: input.organizationId,
         query: signals.query,
@@ -509,28 +624,18 @@ export async function retrieveCompanyHistoryWithTrace(input: {
       .map((row) => ({ row, ...scoreCompanyHistoryResult({ row, ...signals }) }))
       .sort((left, right) => right.score - left.score),
   );
-  const matches = ranked.slice(0, topK).map((result, index) => ({
-    companyHistoryDocumentId: result.row.historyDocumentId,
-    companyHistoryChunkId: result.row.chunkId,
-    sourceFileName: result.row.fileName,
-    sourceTitle: result.row.title,
-    importedAt: result.row.importedAt,
-    excerpt: result.row.content,
-    rank: index + 1,
-    score: result.score,
-    matchTier: result.matchTier,
-    matchReasons: result.matchReasons,
-    retrievalMethod,
-    retrievalVersion: RETRIEVAL_VERSION,
-    supportingMatches: result.supportingMatches,
-    materialDifferences: result.materialDifferences,
-    blockingContradictions: result.blockingContradictions,
-    similarityComponents: result.similarityComponents,
-    recommendedUse: result.recommendedUse,
-  }));
+  const pools = allocateRolePools(ranked, topK, retrievalMethod);
+  const matches = [
+    ...pools.productPrecedents,
+    ...pools.technicalComparisons,
+    ...pools.counselGuidance,
+    ...pools.internalPolicy,
+    ...pools.regulatoryContext,
+  ];
 
   return {
     matches,
+    pools,
     trace: {
       organizationId: input.organizationId,
       query: signals.query,
@@ -576,17 +681,22 @@ export function appendCompanyHistoryComparison(
 ) {
   const header = '## Company History Comparison';
   const beforeExisting = memoMarkdown.split(`\n${header}`)[0]?.trimEnd() ?? memoMarkdown.trimEnd();
+  const productMatches = matches.filter((match) => ['product_precedent', 'technical_source', 'classification_memo', 'review_worksheet'].includes(match.recordRole));
+  const policyMatches = matches.filter((match) => match.recordRole === 'internal_policy');
+  const counselMatches = matches.filter((match) => match.recordRole === 'counsel_guidance');
+  const renderMatch = (match: RetrievedCompanyHistoryMatch) => [
+    `- **${match.recommendedUse === 'precedent' ? 'Similar company history found' : match.recommendedUse === 'partial_precedent' ? 'Partially similar company history found' : match.recommendedUse === 'contrast' ? 'Contrast record — material differences' : 'Context record'} — ${match.sourceFileName}**`,
+    `  - Agreements: ${match.agreements.join('; ') || 'none'}`,
+    ...(match.materialDifferences.length ? [`  - Material differences: ${match.materialDifferences.join('; ')}`] : []),
+    ...(match.blockingContradictions.length ? [`  - Blocking contradictions: ${match.blockingContradictions.join('; ')}`] : []),
+    `  - Source excerpt: “${match.excerpt.replace(/\s+/g, ' ').slice(0, 900)}”`,
+  ];
   const section = matches.length
     ? [
         header,
-        '- Similar company history found. These are internal reference materials for qualified reviewer comparison, not regulatory authority.',
-        ...matches.flatMap((match) => [
-          `- **${match.recommendedUse === 'precedent' ? (match.matchTier === 'direct' ? 'Similar company history found' : 'Partially similar company history found') : match.recommendedUse === 'contrast' ? 'Contrast record — material differences' : 'Potentially related company history'} — ${match.sourceFileName}**`,
-          `  - Match reason: ${match.matchReasons.join('; ')}`,
-          ...(match.materialDifferences.length ? [`  - Material differences: ${match.materialDifferences.join('; ')}`] : []),
-          ...(match.blockingContradictions.length ? [`  - Blocking contradictions: ${match.blockingContradictions.join('; ')}`] : []),
-          `  - Source excerpt: “${match.excerpt.replace(/\s+/g, ' ').slice(0, 900)}”`,
-        ]),
+        ...(productMatches.length ? ['### Similar company history', ...productMatches.flatMap(renderMatch)] : []),
+        ...(policyMatches.length ? ['### Relevant internal policy', ...policyMatches.flatMap(renderMatch)] : []),
+        ...(counselMatches.length ? ['### Relevant counsel guidance', ...counselMatches.flatMap(renderMatch)] : []),
         '- Internal precedent only — not regulatory authority. Reviewer confirmation remains required.',
       ].join('\n')
     : [

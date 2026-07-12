@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ConfirmationDialog } from './confirmation-dialog';
+import { ActionMenu } from './action-menu';
 import {
   archiveDocument, archiveRun, cancelRun, deleteArtifact, permanentlyDeleteDocument,
   permanentlyDeleteRun, restoreDocument, restoreRun, retryArtifactDeletion,
@@ -46,11 +47,14 @@ export function LifecycleControls({ target, id, archived, status, csrfToken, can
       : action === 'cancel'
         ? 'Cancellation is confirmed only when the execution provider confirms it. An unresolved remote cancellation remains active.'
         : 'This item returns to active views.';
-  return <div className="flex flex-wrap gap-2">
-    {!archived && active && target === 'run' ? <button onClick={() => setAction('cancel')} className="rounded-lg border border-amber-300 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-50">Cancel run</button> : null}
-    {!archived && !active ? <button onClick={() => setAction('archive')} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Archive</button> : null}
-    {archived ? <button onClick={() => setAction('restore')} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Restore</button> : null}
-    {archived && canDelete ? <button onClick={() => setAction('delete')} className="rounded-lg bg-rose-700 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-800">Permanently delete</button> : null}
+  const items = [
+    !archived && active && target === 'run' ? { label: 'Cancel run', onSelect: () => setAction('cancel') } : null,
+    !archived && !active ? { label: 'Archive', onSelect: () => setAction('archive') } : null,
+    archived ? { label: 'Restore', onSelect: () => setAction('restore') } : null,
+    archived && canDelete ? { label: 'Permanently delete', onSelect: () => setAction('delete') } : null,
+  ].filter((item): item is { label: string; onSelect: () => void } => Boolean(item));
+  return <div className="flex flex-wrap items-center gap-2">
+    {items.length ? <ActionMenu label={`${target === 'run' ? 'Classification review' : 'Document'} lifecycle actions`} items={items} /> : null}
     {error ? <p role="alert" className="w-full text-sm text-rose-700">{error}</p> : null}
     <ConfirmationDialog open={Boolean(action)} title={action === 'delete' ? `Permanently delete ${target}` : action === 'cancel' ? 'Cancel classification run' : `${action === 'archive' ? 'Archive' : 'Restore'} ${target}`} description={description} confirmLabel={action === 'delete' ? 'Permanently delete' : action === 'cancel' ? 'Request cancellation' : action === 'archive' ? 'Archive' : 'Restore'} tone={action === 'delete' ? 'destructive' : 'default'} pending={pending} onClose={() => !pending && setAction(null)} onConfirm={execute}>
       {action === 'delete' ? <label className="block text-sm font-medium text-slate-700">Confirmation ID<input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3" aria-label="Confirmation ID" /></label> : null}

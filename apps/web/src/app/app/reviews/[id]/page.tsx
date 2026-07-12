@@ -8,7 +8,7 @@ import { MemoDownloadLink } from '../../../../components/memo-download-link';
 import { ReviewActionForm } from '../../../../components/review-action-form';
 import { ReviewTabDeepLink } from '../../../../components/review-tab-deep-link';
 import { ReviewCaseHeader } from '../../../../components/review-case-header';
-import { ArtifactControls, LifecycleControls } from '../../../../components/lifecycle-controls';
+import { ArtifactControls } from '../../../../components/lifecycle-controls';
 import {
   Badge,
   EmptyState,
@@ -141,8 +141,8 @@ function OverviewTab({ run }: { run: ClassificationRunRecord }) {
           />
           <Stat label="Review paths" value={run.reviewPaths.length} />
           <Stat
-            label="Potential ECCN candidates"
-            value={run.eccnCandidates.length}
+            label="Eligible ECCN candidates"
+            value={reviewCandidates.length}
           />
           <Stat
             label="Fact issues"
@@ -380,6 +380,12 @@ function FactsTab({ run }: { run: ClassificationRunRecord }) {
 }
 
 function ReviewPathsTab({ run }: { run: ClassificationRunRecord }) {
+  const canonicalDecision = run.classificationTrace?.validatedDecision && typeof run.classificationTrace.validatedDecision === 'object' && !Array.isArray(run.classificationTrace.validatedDecision)
+    ? run.classificationTrace.validatedDecision as Record<string, unknown>
+    : null;
+  const blockedHypotheses = Array.isArray(canonicalDecision?.blocked_candidate_hypotheses)
+    ? canonicalDecision.blocked_candidate_hypotheses as Array<Record<string, unknown>>
+    : [];
   const latestReview = run.humanReviews[0];
   const { reviewCandidates, fallbackCandidates, blockedCandidates } = groupCandidates(
     run.eccnCandidates,
@@ -557,11 +563,14 @@ function ReviewPathsTab({ run }: { run: ClassificationRunRecord }) {
               </dd>
             </div>
             <div>
-              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Profiles</dt>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Canonical product / components</dt>
               <dd className="mt-1 text-sm text-slate-800">
-                {Array.isArray(run.classificationTrace.detectedProfiles)
-                  ? run.classificationTrace.detectedProfiles.join(', ').replace(/_/g, ' ')
-                  : 'Legacy run'}
+                {canonicalDecision && canonicalDecision.product_level_profile && typeof canonicalDecision.product_level_profile === 'object'
+                  ? String((canonicalDecision.product_level_profile as Record<string, unknown>).profile ?? 'unknown').replace(/_/g, ' ')
+                  : Array.isArray(run.classificationTrace.detectedProfiles) ? run.classificationTrace.detectedProfiles.join(', ').replace(/_/g, ' ') : 'Legacy run'}
+                {Array.isArray(canonicalDecision?.component_level_profiles) && canonicalDecision.component_level_profiles.length
+                  ? ` / components: ${(canonicalDecision.component_level_profiles as Array<Record<string, unknown>>).map((item) => String(item.profile).replace(/_/g, ' ')).join(', ')}`
+                  : ''}
               </dd>
             </div>
             <div>
@@ -574,7 +583,7 @@ function ReviewPathsTab({ run }: { run: ClassificationRunRecord }) {
             <div>
               <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Candidates shown</dt>
               <dd className="mt-1 text-sm text-slate-800">
-                {reviewCandidates.length} review / {fallbackCandidates.length} fallback / {blockedCandidates.length} blocked
+                {reviewCandidates.length} eligible / {blockedHypotheses.length} not yet supportable
               </dd>
             </div>
             <div>
@@ -588,6 +597,19 @@ function ReviewPathsTab({ run }: { run: ClassificationRunRecord }) {
               </dd>
             </div>
           </dl>
+          {blockedHypotheses.length ? (
+            <div className="mt-5 border-t border-slate-200 pt-4">
+              <h3 className="text-sm font-semibold text-slate-950">Specific candidates not yet supportable</h3>
+              <ul className="mt-2 space-y-2 text-sm text-slate-600">
+                {blockedHypotheses.map((item, index) => (
+                  <li key={`${String(item.eccn ?? 'hypothesis')}-${index}`}>
+                    <span className="font-mono font-medium text-slate-900">{String(item.eccn ?? 'Unspecified')}</span>
+                    {' — '}{Array.isArray(item.blockingReasons) ? item.blockingReasons.join('; ').replace(/_/g, ' ') : 'additional evidence required'}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </Panel>
       ) : null}
     </div>
@@ -654,12 +676,15 @@ function CompanyHistoryTab({ run }: { run: ClassificationRunRecord }) {
                           : 'warning'
                     }
                   >
-                    {match.matchTier} internal match
+                    {match.recordRole.replace(/_/g, ' ')} · {match.recommendedUse.replace(/_/g, ' ')}
                   </Badge>
                 </div>
                 <p className="mt-3 text-sm leading-6 text-slate-700">
-                  {match.matchReasons.join('; ')}
+                  <span className="font-medium">Agreements:</span>{' '}
+                  {match.agreements.length ? match.agreements.join('; ') : 'No material technical agreement recorded.'}
                 </p>
+                {match.materialDifferences.length ? <p className="mt-2 text-sm text-amber-800"><span className="font-medium">Material differences:</span> {match.materialDifferences.join('; ')}</p> : null}
+                {match.blockingContradictions.length ? <p className="mt-2 text-sm text-red-700"><span className="font-medium">Blocking contradictions:</span> {match.blockingContradictions.join('; ')}</p> : null}
                 <div className="mt-3 rounded-md bg-slate-50 p-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                     Evidence excerpt
@@ -1051,7 +1076,7 @@ export default async function ReviewDetailPage({
       currentPath="/app/reviews"
       title={run.document.title}
       headerContent={
-        <div className="space-y-3"><ReviewCaseHeader session={session} run={run} activeTab={activeTab} tabs={tabs} /><LifecycleControls target="run" id={run.id} archived={Boolean(run.archivedAt)} status={run.status} csrfToken={session.csrfToken} canDelete={session.membership?.role === 'OWNER' || session.membership?.role === 'ADMIN'} /></div>
+        <ReviewCaseHeader session={session} run={run} activeTab={activeTab} tabs={tabs} />
       }
     >
       <ReviewTabDeepLink />

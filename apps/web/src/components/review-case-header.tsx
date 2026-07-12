@@ -1,9 +1,9 @@
 import Link from 'next/link';
-import { ActionMenu } from './action-menu';
 import { AppShellNav } from './app-shell-nav';
 import { Icon } from './icon';
 import { Badge } from './ui';
 import { WorkspaceUserMenu } from './workspace-user-menu';
+import { LifecycleControls } from './lifecycle-controls';
 import type { AuthSessionRecord, ClassificationRunRecord } from '../lib/types';
 import { workspaceNavGroups } from '../lib/workspace-navigation';
 
@@ -44,28 +44,7 @@ export function ReviewCaseHeader({
   const isProcessing = ['pending', 'queued', 'running'].includes(run.status);
   const sourceHref = `/app/documents/${run.document.id}`;
   const tabHref = (tabId: string) => `/app/reviews/${run.id}?tab=${tabId}`;
-  const moreActions = [
-    {
-      label: 'View source document',
-      href: sourceHref,
-      icon: <Icon name="file-text" size={16} />,
-    },
-    {
-      label: 'Open memo draft',
-      href: tabHref('memo'),
-      icon: <Icon name="file-search" size={16} />,
-    },
-    {
-      label: 'View company history',
-      href: tabHref('company-history'),
-      icon: <Icon name="history" size={16} />,
-    },
-    {
-      label: 'View audit trail',
-      href: tabHref('audit'),
-      icon: <Icon name="shield-check" size={16} />,
-    },
-  ];
+  const lifecycleActions = <LifecycleControls target="run" id={run.id} archived={Boolean(run.archivedAt)} status={run.status} csrfToken={session.csrfToken} canDelete={session.membership?.role === 'OWNER' || session.membership?.role === 'ADMIN'} />;
 
   return (
     <div className="mx-auto max-w-[1480px] px-4 py-3 sm:px-6 lg:px-8">
@@ -89,7 +68,7 @@ export function ReviewCaseHeader({
             navGroups={workspaceNavGroups}
             session={session}
           />
-          <ActionMenu label="More case actions" items={moreActions} />
+          {lifecycleActions}
           <WorkspaceUserMenu session={session} compact />
         </div>
       </div>
@@ -111,7 +90,7 @@ export function ReviewCaseHeader({
             <Icon name="file-text" size={16} />
             Source document
           </Link>
-          <ActionMenu label="More case actions" items={moreActions} />
+          {lifecycleActions}
           <WorkspaceUserMenu session={session} compact />
         </div>
       </div>
