@@ -23,12 +23,17 @@ test('Company History memo section keeps comparison material separate from revie
       matchReasons: ['Shared technical evidence: secure boot'],
       retrievalMethod: 'postgres_lexical_v1',
       retrievalVersion: 'company_history_retrieval_v1',
+      supportingMatches: ['Shared technical evidence: secure boot'],
+      materialDifferences: [],
+      blockingContradictions: [],
+      similarityComponents: { lexical: 1, positiveBoost: 3, contradictionPenalty: 0 },
+      recommendedUse: 'precedent',
     },
   ]);
 
   assert.match(memo, /## Company History Comparison/);
   assert.match(memo, /prior-review\.pdf/);
-  assert.match(memo, /Internal company history only\. Not regulatory authority/);
+  assert.match(memo, /Internal precedent only — not regulatory authority/);
   assert.doesNotMatch(memo, /automatic classification approval/i);
 });
 
@@ -140,7 +145,7 @@ Use this record as internal precedent only. Do not automatically classify a new 
     assert.match(memo, /Company History Comparison/);
     assert.match(memo, /memo_AX900_ai_accelerator\.md/);
     assert.match(memo, /Related product family: AI accelerator cards/);
-    assert.match(memo, /Internal company history only\. Not regulatory authority/);
+    assert.match(memo, /Internal precedent only — not regulatory authority/);
     assert.doesNotMatch(memo, /No comparable prior company history found/);
   } finally {
     prisma.$queryRaw = originalQueryRaw;

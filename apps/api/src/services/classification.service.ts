@@ -575,27 +575,6 @@ export async function executeClassificationRun(input: {
         documentTitle: document.title,
         sourceText,
         extractedSpecs: workerOutput.extractedSpecs,
-        detectedProductProfile:
-          workerOutput.extractedSpecs.find(
-            (spec) => spec.name === 'product_profile',
-          )?.value ?? null,
-        reviewPathContext: workerOutput.reviewPaths.flatMap((reviewPath) => [
-          reviewPath.title,
-          reviewPath.scope,
-          reviewPath.whyTriggered,
-          reviewPath.technicalRiskArea ?? '',
-        ]),
-        candidateEccns: workerOutput.eccnCandidates.map(
-          (candidate) => candidate.eccn,
-        ),
-        reviewerQuestions: [
-          ...workerOutput.reviewPaths.flatMap(
-            (reviewPath) => reviewPath.reviewerQuestions,
-          ),
-          ...workerOutput.eccnCandidates.flatMap(
-            (candidate) => candidate.reviewerQuestions,
-          ),
-        ],
       });
       historyMatches = retrieval.matches;
       companyHistoryTrace = retrieval.trace;
@@ -649,6 +628,9 @@ export async function executeClassificationRun(input: {
         matchTier: match.matchTier,
         priorEccns,
         influence: 'priority_only',
+        recommendedUse: match.recommendedUse,
+        materialDifferences: match.materialDifferences,
+        blockingContradictions: match.blockingContradictions,
         warning:
           'Internal company history is comparison context, not classification authority. Compare the new product performance envelope against current thresholds.',
       };
@@ -656,7 +638,7 @@ export async function executeClassificationRun(input: {
 
     for (const candidate of workerOutput.eccnCandidates) {
       candidate.companyHistorySupport = companyHistorySignals.filter((signal) =>
-        signal.priorEccns.includes(candidate.eccn),
+        signal.priorEccns.includes(candidate.eccn) && signal.recommendedUse === 'precedent',
       );
       if (candidate.companyHistorySupport.length) {
         candidate.confidenceRationale = `${candidate.confidenceRationale} Similar internal history increases review priority but does not determine the classification.`;
@@ -1154,7 +1136,12 @@ export async function executeClassificationRun(input: {
                 ? workerOutput.runMetadata.executionJobId
                 : `local-worker-${run.id}`,
             workerVersion: 'python-local-v4',
-            rulesVersion: 'ear-review-v4',
+            rulesVersion: 'evidence_eligibility_v1',
+            pipelineVersion: 'classification_pipeline_v1',
+            decisionSchemaVersion: 'classification_decision_v1',
+            promptVersion: 'extraction_prompt_v2_untrusted_data',
+            regulatoryCorpusVersion: null,
+            retrievalIndexVersion: 'company_history_retrieval_v3',
             backendUsed:
               typeof workerOutput.runMetadata?.backendUsed === 'string'
                 ? workerOutput.runMetadata.backendUsed
@@ -1187,6 +1174,9 @@ export async function executeClassificationRun(input: {
             validationIssues: validationIssues as Prisma.InputJsonValue,
             heuristicResult: workerOutput.heuristicResult as Prisma.InputJsonValue,
             classificationTrace: workerOutput.classificationTrace as Prisma.InputJsonValue,
+            evidenceSnapshot: ((workerOutput.classificationTrace?.sourceEvidence ?? []) as Prisma.InputJsonValue),
+            contradictionSnapshot: ((workerOutput.classificationTrace?.contradictions ?? []) as Prisma.InputJsonValue),
+            decisionSnapshot: ((workerOutput.classificationTrace?.validatedDecision ?? {}) as Prisma.InputJsonValue),
             fallbackUsed,
             validationStatus,
             errorMessage:

@@ -6,11 +6,17 @@ import re
 from citations import build_current_control_text_citation, build_document_citation
 from labels import display_name_for_spec_name
 from schemas import ECCNCandidate, ExtractedSpec
+from evidence_model import (
+    contradictory_pairs,
+    detect_untrusted_instructions,
+    effective_polarity,
+    evidence_for_terms,
+)
 
 from .contradictions import detect_structural_contradictions
 from .evidence import confidence_for, missing_evidence_for
 from .history_signals import build_history_signals
-from .profiles import PROFILE_PRIORITY, PROFILE_THRESHOLDS
+from .profiles import PROFILE_CONTRACTS, PROFILE_PRIORITY, PROFILE_THRESHOLDS
 from .rules import CANDIDATE_RULES, PATH_TITLES, PROFILE_PATHS
 from .signals import SIGNAL_RULES
 
@@ -167,32 +173,34 @@ def _replace_profile_specs(specs: list[ExtractedSpec], primary: str, detected: l
 
 
 def evaluate(specs: list[ExtractedSpec], source_text: str, *, source_label: str, history_matches: list[dict] | None = None, memo_markdown: str = "") -> tuple[list[ExtractedSpec], list[ECCNCandidate], HeuristicResult]:
-    text = _search_text(specs, source_text)
     scores: dict[str, int] = {}
     matched: list[dict] = []
+    evidence_by_signal: dict[str, list] = {}
+    evidence_records: list[dict] = []
+    evidence_contradictions: list[dict] = []
     for rule in SIGNAL_RULES:
-        found = [term for term in rule.terms if _term_found(text, term)]
-        if rule.key in {"crypto", "network_security"}:
-            found = [
-                term
-                for term in found
-                if any(
-                    _term_found(f"{spec.value} {spec.source_snippet}".lower(), term)
-                    and classify_evidence_polarity(f"{spec.value} {spec.source_snippet}") == "affirmed"
-                    for spec in specs
-                ) or any(
-                    _term_found(line.lower(), term)
-                    and classify_evidence_polarity(line) == "affirmed"
-                    for line in source_text.splitlines()
-                )
-            ]
-        if not found:
+        records = evidence_for_terms(
+            fact_type=rule.key,
+            terms=rule.terms,
+            source_text=source_text,
+            specs=specs,
+        )
+        evidence_by_signal[rule.key] = records
+        evidence_records.extend(record.to_dict() for record in records)
+        evidence_contradictions.extend(
+            contradiction.to_dict()
+            for contradiction in contradictory_pairs(rule.key, records)
+        )
+        polarity = effective_polarity(records)
+        positive_records = [record for record in records if record.polarity == "present"]
+        if polarity != "present" or not positive_records:
             continue
+        found = sorted({term for record in positive_records for term in record.normalized_value})
         contribution = rule.weight + min(2, len(found) - 1)
         for profile in rule.profiles:
             scores[profile] = scores.get(profile, 0) + contribution
         supporting = _supporting_specs(specs, tuple(found), 4)
-        matched.append({"signal": rule.key, "weight": contribution, "terms": found, "profiles": list(rule.profiles), "supportingFactNames": [spec.name for spec in supporting], "supportingSnippets": [spec.source_snippet for spec in supporting], "evidencePolarity": sorted({classify_evidence_polarity(spec.source_snippet) for spec in supporting})})
+        matched.append({"signal": rule.key, "weight": contribution, "terms": found, "profiles": list(rule.profiles), "supportingFactNames": [spec.name for spec in supporting], "supportingSnippets": [record.exact_quote for record in positive_records[:4]], "supportingEvidenceIds": [record.id for record in positive_records[:8]], "evidencePolarity": ["present"]})
 
     platform_security_specs = [
         spec
@@ -234,11 +242,54 @@ def evaluate(specs: list[ExtractedSpec], source_text: str, *, source_label: str,
         ))
         existing_names.add(name)
 
-    detected = [profile for profile, score in scores.items() if score >= PROFILE_THRESHOLDS.get(profile, 6)]
+    rejected_profiles: list[dict] = []
+    detected: list[str] = []
+    relevant_profiles = {
+        *scores,
+        *(
+            profile
+            for profile, contract in PROFILE_CONTRACTS.items()
+            if any(evidence_by_signal.get(signal) for signal in (*contract.required_any, *contract.hard_exclusions))
+        ),
+    }
+    for profile in relevant_profiles:
+        score = scores.get(profile, 0)
+        contract = PROFILE_CONTRACTS.get(profile)
+        if contract is None:
+            rejected_profiles.append({"profile": profile, "eligibilityState": "missing_contract", "score": score})
+            continue
+        positive_required = [
+            signal for signal in contract.required_any
+            if effective_polarity(evidence_by_signal.get(signal, [])) == "present"
+        ]
+        absent_exclusions = [
+            signal for signal in contract.hard_exclusions
+            if effective_polarity(evidence_by_signal.get(signal, [])) == "absent"
+        ]
+        blocking = [
+            contradiction for contradiction in evidence_contradictions
+            if contradiction["subject"] in contract.required_any
+            and contradiction["severity"] == "blocking"
+            and contradiction["resolution_status"] == "unresolved"
+        ]
+        if absent_exclusions or blocking or len(positive_required) < contract.minimum_positive_evidence:
+            rejected_profiles.append({
+                "profile": profile,
+                "eligibilityState": "ineligible",
+                "score": score,
+                "positiveRequiredSignals": positive_required,
+                "absentHardExclusions": absent_exclusions,
+                "blockingContradictionIds": [item["id"] for item in blocking],
+            })
+            continue
+        if score < PROFILE_THRESHOLDS.get(profile, 6):
+            rejected_profiles.append({"profile": profile, "eligibilityState": "insufficient_score", "score": score, "positiveRequiredSignals": positive_required})
+            continue
+        detected.append(profile)
     detected.sort(key=lambda profile: (scores[profile], PROFILE_PRIORITY.get(profile, 0)), reverse=True)
     if not detected:
-        detected = ["general_electronics"]
-        scores["general_electronics"] = 1
+        detected = ["unknown"]
+        scores["unknown"] = 0
     # Zynq MPSoC evidence is more specific than the generic FPGA/PLD profile.
     # Keep a single canonical programmable-logic SoC route so the generated
     # review paths, questions, and validation evidence remain internally aligned.
@@ -269,7 +320,18 @@ def evaluate(specs: list[ExtractedSpec], source_text: str, *, source_label: str,
         for key in PROFILE_PATHS.get(profile, ()):
             if key not in path_keys:
                 path_keys.append(key)
-    if primary != "general_electronics" and "general_electronics_fallback" not in path_keys:
+    # Platform-security functions warrant a bounded Category 5 Part 2 review
+    # question without mislabeling the product itself as a crypto device.
+    if any(
+        effective_polarity(evidence_by_signal.get(signal, [])) in {"present", "ambiguous"}
+        for signal in ("platform_security", "transport_security")
+    ):
+        if "category_5_part_2_security" not in path_keys:
+            path_keys.append("category_5_part_2_security")
+    if effective_polarity(evidence_by_signal.get("radio", [])) == "ambiguous":
+        if "radio_wireless" not in path_keys:
+            path_keys.append("radio_wireless")
+    if primary not in {"general_electronics", "unknown"} and "general_electronics_fallback" not in path_keys:
         path_keys.append("general_electronics_fallback")
     missing = missing_evidence_for(detected)
     review_paths = [{"pathKey": key, "title": PATH_TITLES[key], "profiles": [p for p in detected if key in PROFILE_PATHS.get(p, ())], "whyTriggered": f"Opened from weighted {', '.join(p for p in detected if key in PROFILE_PATHS.get(p, ())) or primary} signals.", "missingInformation": missing[:8]} for key in path_keys]
@@ -286,13 +348,15 @@ def evaluate(specs: list[ExtractedSpec], source_text: str, *, source_label: str,
     candidate_specs: list[tuple[str, str, str]] = []
     for path_key in path_keys:
         for code, kind in CANDIDATE_RULES.get(path_key, ()):
+            if kind == "fallback_candidate":
+                continue
             if code == "5A002" and not crypto_supported:
                 kind = "blocked_candidate"
             item = (code, kind, path_key)
             if item not in candidate_specs:
                 candidate_specs.append(item)
-    if primary != "general_electronics" and not any(code == "3A991" for code, _, _ in candidate_specs):
-        candidate_specs.append(("3A991", "fallback_candidate", "general_electronics_fallback"))
+    # A broad fallback code is not emitted merely because another profile was
+    # selected. Absence of candidate-grade evidence is a valid abstention.
 
     candidates: list[ECCNCandidate] = []
     candidate_dicts: list[dict] = []
@@ -371,7 +435,10 @@ def evaluate(specs: list[ExtractedSpec], source_text: str, *, source_label: str,
         candidates.append(candidate)
         candidate_dicts.append({"candidateCode": code, "candidateType": kind, "confidence": numeric, "supportingFacts": candidate.matched_technical_facts, "missingFacts": candidate.missing_information, "contradictions": [], "companyHistorySupport": history_support, "whyItMayApply": why_apply, "whyItMayNotApply": why_not, "reviewerQuestions": questions, "humanReviewRequired": True, "reviewPathKey": path_key})
 
-    contradictions = detect_structural_contradictions(source_text=source_text, primary_profile=primary, review_paths=review_paths, candidates=candidate_dicts, memo_markdown=memo_markdown, history_signals=history_signals)
+    contradictions = [
+        *evidence_contradictions,
+        *detect_structural_contradictions(source_text=source_text, primary_profile=primary, review_paths=review_paths, candidates=candidate_dicts, memo_markdown=memo_markdown, history_signals=history_signals),
+    ]
     review = [item for item in candidate_dicts if item["candidateType"] == "review_candidate"]
     fallback = [item for item in candidate_dicts if item["candidateType"] == "fallback_candidate"]
     evidence_blocked = [item for item in candidate_dicts if item["candidateType"] == "blocked_candidate"]
@@ -396,6 +463,6 @@ def evaluate(specs: list[ExtractedSpec], source_text: str, *, source_label: str,
     ]
     confidence_level, confidence_numeric = confidence_for(scores[primary], len(supporting_specs), len(missing))
     blocked_labels = [item.get("candidateCode") or item.get("candidateFamily") for item in blocked]
-    trace = {"extractedFactsCount": len(specs), "detectedProfiles": detected, "profileScores": scores, "matchedSignals": matched, "reviewPathsOpened": path_keys, "candidatesGenerated": [item["candidateCode"] for item in candidate_dicts], "candidatesBlocked": blocked_labels, "candidatesFilteredOut": [], "filterReasons": [{"candidate": label, "reason": "Specific candidate blocked pending affirmative evidence and current control mapping."} for label in blocked_labels], "companyHistoryMatchCount": len(history_signals), "companyHistorySignals": history_signals, "contradictions": contradictions, "missingEvidenceChecks": missing, "rulesVersion": "hybrid_heuristics_v2"}
+    trace = {"extractedFactsCount": len(specs), "detectedProfiles": detected, "rejectedProfiles": rejected_profiles, "profileScores": scores, "matchedSignals": matched, "sourceEvidence": evidence_records, "reviewPathsOpened": path_keys, "candidatesGenerated": [item["candidateCode"] for item in candidate_dicts], "candidatesBlocked": blocked_labels, "candidatesFilteredOut": [], "filterReasons": [{"candidate": label, "reason": "Specific candidate blocked pending affirmative evidence and current control mapping."} for label in blocked_labels], "companyHistoryMatchCount": len(history_signals), "companyHistorySignals": history_signals, "contradictions": contradictions, "missingEvidenceChecks": missing, "untrustedDocumentInstructions": detect_untrusted_instructions(source_text), "abstentionReason": "No eligible profile has sufficient positive source evidence." if primary == "unknown" else None, "rulesVersion": "evidence_eligibility_v1", "pipelineVersion": "classification_decision_v1"}
     result = HeuristicResult(detected, primary, scores, matched, review_paths, review, fallback, blocked, [], missing, contradictions, [question for item in [*candidate_dicts, *blocked] for question in item["reviewerQuestions"]], history_signals, {"level": confidence_level, "score": confidence_numeric, "humanReviewRequired": True}, trace)
     return specs, candidates, result

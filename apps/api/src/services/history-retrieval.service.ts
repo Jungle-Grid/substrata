@@ -1,22 +1,13 @@
 import { Prisma, prisma } from '@substrata/db';
 
-const RETRIEVAL_METHOD = 'postgres_fts_or_v2';
+const RETRIEVAL_METHOD = 'postgres_source_fact_v3';
 const KEYWORD_FALLBACK_METHOD = 'postgres_keyword_fallback_v1';
-const RETRIEVAL_VERSION = 'company_history_retrieval_v2';
+const RETRIEVAL_VERSION = 'company_history_retrieval_v3';
 const DEFAULT_TOP_K = 3;
 const PRIMARY_CANDIDATE_LIMIT = 50;
 const DEBUG_RESULT_LIMIT = 10;
 
-const DEFAULT_KEYWORD_FALLBACK_TERMS = [
-  'accelerator',
-  'AI accelerator',
-  'TOPS',
-  'HBM',
-  'PCIe',
-  'ECCN',
-  '3A090',
-  '3A991',
-];
+const DEFAULT_KEYWORD_FALLBACK_TERMS: string[] = [];
 
 const QUERY_STOP_WORDS = new Set([
   'the',
@@ -44,6 +35,8 @@ type CurrentFact = {
   name: string;
   value: string;
   sourceSnippet?: string | null;
+  category?: string | null;
+  valueType?: string | null;
 };
 
 type TechnicalConcept = {
@@ -83,12 +76,6 @@ const TECHNICAL_CONCEPTS: TechnicalConcept[] = [
     label: 'firmware-signing or attestation note',
     currentPattern: /\b(?:firmware\s+signing|remote\s+attestation|secure\s+boot)\b/i,
     historyPattern: /\b(?:firmware\s+signing|remote\s+attestation|secure\s+boot)\b/i,
-  },
-  {
-    key: 'category_3_review',
-    label: 'Category 3 or advanced-computing review relevance',
-    currentPattern: /\b(?:category\s*3|advanced\s+computing|3a09\d|3a991)\b/i,
-    historyPattern: /\b(?:category\s*3|advanced\s+computing|3a09\d|3a991)\b/i,
   },
 ];
 
@@ -141,6 +128,11 @@ export type RetrievedCompanyHistoryMatch = {
   matchReasons: string[];
   retrievalMethod: string;
   retrievalVersion: string;
+  supportingMatches: string[];
+  materialDifferences: string[];
+  blockingContradictions: string[];
+  similarityComponents: Record<string, number>;
+  recommendedUse: 'precedent' | 'contrast' | 'irrelevant';
 };
 
 export type CompanyHistoryRetrievalResult = {
@@ -152,10 +144,6 @@ function unique(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
 
-function exactEccnStrings(text: string) {
-  return unique(Array.from(text.matchAll(/\b[0-9][A-E][0-9]{3}(?:\.[A-Za-z0-9]+|[A-Za-z0-9]*)\b/g), (match) => match[0]));
-}
-
 function searchableTokens(value: string) {
   return (value.match(/[A-Za-z0-9][A-Za-z0-9_.-]{1,}/g) ?? [])
     .filter((token) => !QUERY_STOP_WORDS.has(token.toLowerCase()));
@@ -164,8 +152,15 @@ function searchableTokens(value: string) {
 function sourceTechnicalTerms(sourceText: string) {
   return sourceText
     .split(/(?:\r?\n){1,}|(?<=[.!?])\s+/)
-    .filter((segment) => /accelerator|hbm|pcie|tops|tflops|performance|firmware|attestation|security|eccn|category\s*3|advanced\s+computing/i.test(segment))
+    .filter((segment) => /accelerator|hbm|pcie|tops|tflops|performance|firmware|attestation|security|processor|radio|wireless|ethernet|memory|sensor|fpga|encryption/i.test(segment))
     .flatMap(searchableTokens);
+}
+
+function isSourceFact(spec: CurrentFact) {
+  return spec.category !== 'profile_detection' &&
+    spec.category !== 'normalized_technical_signal' &&
+    !spec.name.startsWith('heuristic_signal_') &&
+    !['product_profile', 'profile_confidence', 'profile_rationale', 'secondary_product_profile'].includes(spec.name);
 }
 
 function valuesFor(input: CurrentFact[], pattern: RegExp) {
@@ -181,35 +176,29 @@ function querySignals(input: {
   candidateEccns?: string[];
   reviewerQuestions?: string[];
 }) {
+  const sourceFacts = input.extractedSpecs.filter(isSourceFact);
   const currentProductText = [
-    input.title,
     input.sourceText,
-    ...input.extractedSpecs.flatMap((spec) => [spec.name, spec.value]),
-    input.detectedProductProfile ?? '',
-    ...(input.reviewPathContext ?? []),
-    ...(input.candidateEccns ?? []),
-    ...(input.reviewerQuestions ?? []),
+    ...sourceFacts.flatMap((spec) => [spec.name, spec.value, spec.sourceSnippet ?? '']),
   ].join('\n');
   const identifiers = unique(
-    input.extractedSpecs
+    sourceFacts
       .filter((spec) => ['part_number', 'product_name', 'manufacturer', 'model', 'sku'].includes(spec.name))
       .map((spec) => spec.value),
   );
-  const productFamilies = unique(valuesFor(input.extractedSpecs, /(?:^|_)product_family$/));
-  const performance = unique(valuesFor(input.extractedSpecs, /performance|tops|tflops|throughput|compute/));
-  const memory = unique(valuesFor(input.extractedSpecs, /memory|hbm|cache/));
-  const interfaces = unique(valuesFor(input.extractedSpecs, /interface|pcie|interconnect|io$/));
-  const securityNotes = unique(valuesFor(input.extractedSpecs, /security|crypto|encryption|firmware|attestation|boot/));
+  const productFamilies = unique(valuesFor(sourceFacts, /(?:^|_)product_family$/));
+  const performance = unique(valuesFor(sourceFacts, /performance|tops|tflops|throughput|compute/));
+  const memory = unique(valuesFor(sourceFacts, /memory|hbm|cache/));
+  const interfaces = unique(valuesFor(sourceFacts, /interface|pcie|interconnect|io$/));
+  const securityNotes = unique(valuesFor(sourceFacts, /security|crypto|encryption|firmware|attestation|boot/));
   const technicalFacts = unique(
-    input.extractedSpecs
+    sourceFacts
       .filter((spec) => !['part_number', 'product_name', 'manufacturer', 'model', 'sku', 'product_family'].includes(spec.name))
       .flatMap((spec) => [spec.value]),
   );
-  const extractedProfile = valuesFor(input.extractedSpecs, /(?:^|_)product_profile$/);
-  const eccns = unique([
-    ...exactEccnStrings(`${input.title}\n${input.sourceText}\n${input.extractedSpecs.map((spec) => spec.value).join('\n')}`),
-    ...(input.candidateEccns ?? []),
-  ]);
+  // Generated profiles, paths, reviewer prose, and candidate ECCNs are
+  // hypotheses and are prohibited from this primary source-fact query.
+  const eccns: string[] = [];
   const queryParts = [
     ...productFamilies,
     ...identifiers,
@@ -217,14 +206,8 @@ function querySignals(input: {
     ...memory,
     ...interfaces,
     ...securityNotes,
-    ...eccns,
-    input.detectedProductProfile ?? '',
-    ...extractedProfile,
-    ...(input.reviewPathContext ?? []),
-    ...(input.reviewerQuestions ?? []),
     ...technicalFacts,
     ...sourceTechnicalTerms(input.sourceText),
-    ...searchableTokens(input.title),
   ];
   const queryTerms = unique(queryParts.flatMap(searchableTokens)).slice(0, 48);
   const keywordFallbackTerms = unique([
@@ -232,21 +215,15 @@ function querySignals(input: {
     ...interfaces,
     ...memory,
     ...performance,
-    ...eccns,
     ...DEFAULT_KEYWORD_FALLBACK_TERMS,
   ]).slice(0, 24);
   const query = unique([
-    input.title,
     ...identifiers,
     ...productFamilies,
-    input.detectedProductProfile ?? '',
     ...performance,
     ...memory,
     ...interfaces,
     ...securityNotes,
-    ...eccns,
-    ...(input.reviewPathContext ?? []),
-    ...(input.reviewerQuestions ?? []),
   ]).join('; ');
   const technicalConcepts = TECHNICAL_CONCEPTS.filter((concept) =>
     concept.currentPattern.test(currentProductText),
@@ -261,6 +238,7 @@ function querySignals(input: {
     queryTerms,
     keywordFallbackTerms,
     technicalConcepts,
+    currentProductText,
   };
 }
 
@@ -290,6 +268,20 @@ function matchedTerms(row: LexicalChunkRow, terms: string[], technicalConcepts: 
   ]).slice(0, 12);
 }
 
+function capabilityPolarity(text: string, pattern: RegExp) {
+  const segments = text
+    .split(/(?:\r?\n)+|(?<=[.!?])\s+/)
+    .filter((segment) => pattern.test(segment));
+  if (!segments.length) return 'unknown' as const;
+  const absent = segments.some((segment) =>
+    /\b(?:no|without|disabled|unpopulated|not included|not available|excludes?)\b/i.test(segment),
+  );
+  const present = segments.some((segment) =>
+    !/\b(?:no|without|disabled|unpopulated|not included|not available|excludes?)\b/i.test(segment),
+  );
+  return absent && present ? 'ambiguous' as const : absent ? 'absent' as const : 'present' as const;
+}
+
 function scoreCompanyHistoryResult(input: {
   row: LexicalChunkRow;
   identifiers: string[];
@@ -297,10 +289,14 @@ function scoreCompanyHistoryResult(input: {
   technicalFacts: string[];
   eccns: string[];
   technicalConcepts: TechnicalConcept[];
+  currentProductText: string;
 }) {
   const haystack = `${input.row.title}\n${input.row.fileName}\n${input.row.content}\n${normalizedMetadataStrings(input.row.metadata).join('\n')}`.toLowerCase();
   const reasons: string[] = [];
   let boost = 0;
+  let contradictionPenalty = 0;
+  const materialDifferences: string[] = [];
+  const blockingContradictions: string[] = [];
 
   const exactIdentifiers = input.identifiers.filter((value) => value.length >= 3 && haystack.includes(value.toLowerCase()));
   if (exactIdentifiers.length) {
@@ -320,16 +316,28 @@ function scoreCompanyHistoryResult(input: {
     reasons.push(`Shared technical evidence: ${factMatches.slice(0, 3).join(', ')}`);
   }
 
-  const eccnMatches = input.eccns.filter((value) => haystack.includes(value.toLowerCase()));
-  if (eccnMatches.length) {
-    boost += 1.5;
-    reasons.push(`Exact ECCN-looking string appears in both records: ${eccnMatches.slice(0, 2).join(', ')}`);
-  }
-
   const conceptMatches = input.technicalConcepts.filter((concept) => concept.historyPattern.test(haystack));
   if (conceptMatches.length) {
     boost += Math.min(3.5, conceptMatches.length * 0.65);
     reasons.push(`Shared product characteristics: ${conceptMatches.slice(0, 5).map((concept) => concept.label).join('; ')}`);
+  }
+
+  for (const concept of TECHNICAL_CONCEPTS) {
+    const currentPolarity = capabilityPolarity(input.currentProductText, concept.currentPattern);
+    const historyPolarity = capabilityPolarity(haystack, concept.historyPattern);
+    if (currentPolarity === 'absent' && historyPolarity === 'present') {
+      contradictionPenalty += 12;
+      blockingContradictions.push(
+        `${concept.label} is explicitly absent in the current source but present in history.`,
+      );
+    } else if (
+      currentPolarity !== 'unknown' &&
+      historyPolarity !== 'unknown' &&
+      currentPolarity !== historyPolarity
+    ) {
+      contradictionPenalty += 4;
+      materialDifferences.push(`${concept.label} has different evidence polarity.`);
+    }
   }
 
   if (!reasons.length) {
@@ -343,9 +351,22 @@ function scoreCompanyHistoryResult(input: {
       : 'weak';
 
   return {
-    score: input.row.baseScore + boost,
-    matchTier,
+    score: input.row.baseScore + boost - contradictionPenalty,
+    matchTier: blockingContradictions.length ? 'weak' : matchTier,
     matchReasons: reasons,
+    supportingMatches: reasons,
+    materialDifferences,
+    blockingContradictions,
+    similarityComponents: {
+      lexical: input.row.baseScore,
+      positiveBoost: boost,
+      contradictionPenalty: -contradictionPenalty,
+    },
+    recommendedUse: blockingContradictions.length
+      ? 'contrast'
+      : matchTier === 'weak'
+        ? 'irrelevant'
+        : 'precedent',
   } as const;
 }
 
@@ -501,6 +522,11 @@ export async function retrieveCompanyHistoryWithTrace(input: {
     matchReasons: result.matchReasons,
     retrievalMethod,
     retrievalVersion: RETRIEVAL_VERSION,
+    supportingMatches: result.supportingMatches,
+    materialDifferences: result.materialDifferences,
+    blockingContradictions: result.blockingContradictions,
+    similarityComponents: result.similarityComponents,
+    recommendedUse: result.recommendedUse,
   }));
 
   return {
@@ -555,11 +581,13 @@ export function appendCompanyHistoryComparison(
         header,
         '- Similar company history found. These are internal reference materials for qualified reviewer comparison, not regulatory authority.',
         ...matches.flatMap((match) => [
-          `- **${match.matchTier === 'direct' ? 'Similar company history found' : match.matchTier === 'partial' ? 'Partially similar company history found' : 'Potentially related company history'} — ${match.sourceFileName}**`,
+          `- **${match.recommendedUse === 'precedent' ? (match.matchTier === 'direct' ? 'Similar company history found' : 'Partially similar company history found') : match.recommendedUse === 'contrast' ? 'Contrast record — material differences' : 'Potentially related company history'} — ${match.sourceFileName}**`,
           `  - Match reason: ${match.matchReasons.join('; ')}`,
+          ...(match.materialDifferences.length ? [`  - Material differences: ${match.materialDifferences.join('; ')}`] : []),
+          ...(match.blockingContradictions.length ? [`  - Blocking contradictions: ${match.blockingContradictions.join('; ')}`] : []),
           `  - Source excerpt: “${match.excerpt.replace(/\s+/g, ' ').slice(0, 900)}”`,
         ]),
-        '- Internal company history only. Not regulatory authority; reviewer confirmation remains required.',
+        '- Internal precedent only — not regulatory authority. Reviewer confirmation remains required.',
       ].join('\n')
     : [
         header,

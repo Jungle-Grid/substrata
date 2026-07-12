@@ -107,7 +107,7 @@ class ExecutionModeStabilityTests(unittest.TestCase):
         self.assertNotIn("No broader review paths were recorded", memo)
         self.assertIn("Substrata recommends qualified review of the 3A090 and 4A090", memo)
         self.assertIn("5A002 path remains blocked", memo)
-        self.assertIn("3A991 remains a fallback only", memo)
+        self.assertNotIn("3A991 remains a fallback only", memo)
         self.assertNotIn("3A090 — 3A090", memo)
         self.assertNotIn("Heuristic Signal Ai Accelerator Identity", memo)
 

@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 SUPPORTED_PRODUCT_PROFILES = {
+    "unknown",
     "ai_accelerator",
     "gpu_accelerator",
     "advanced_computing_hardware",

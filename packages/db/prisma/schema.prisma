@@ -427,6 +427,11 @@ model ClassificationRun {
   workerJobId           String?
   workerVersion         String?
   rulesVersion          String?
+  pipelineVersion       String?
+  decisionSchemaVersion String?
+  promptVersion         String?
+  regulatoryCorpusVersion String?
+  retrievalIndexVersion String?
   backendUsed           String?
   backendReason         String?
   underlyingProvider    String?
@@ -440,6 +445,9 @@ model ClassificationRun {
   validationIssues      Json?
   heuristicResult       Json?
   classificationTrace   Json?
+  evidenceSnapshot      Json?
+  contradictionSnapshot Json?
+  decisionSnapshot      Json?
   fallbackUsed          Boolean                  @default(false)
   validationStatus      String                   @default("pending")
   errorMessage          String?

@@ -20,6 +20,7 @@ from extract_specs import extract_specs
 from extract_text import extract_text
 from ingest import load_input
 from memo import generate_memo
+from decision import build_classification_decision, validate_memo_against_decision
 from schemas import (
     AIExtractionResult,
     CandidateFactMapping,
@@ -901,6 +902,14 @@ def run(payload_path: str) -> WorkerOutput:
         )
     )
     capability_signals = derive_capability_signals(specs)
+    decision = build_classification_decision(
+        run_id=str(worker_input.document_metadata.get("classificationRunId", worker_input.document_id)),
+        document_id=worker_input.document_id,
+        specs=specs,
+        candidates=candidates,
+        heuristic_result=heuristic_result,
+    )
+    heuristic_result.classification_trace["validatedDecision"] = decision.to_dict()
     memo_markdown = generate_memo(
         worker_input.document_id,
         worker_input.document_title,
@@ -911,6 +920,8 @@ def run(payload_path: str) -> WorkerOutput:
         capability_signals,
         heuristic_result.review_paths,
     )
+    decision.validation_results.extend(validate_memo_against_decision(memo_markdown, decision))
+    heuristic_result.classification_trace["validatedDecision"] = decision.to_dict()
     _, _, validated_heuristic_result = evaluate_classification_heuristics(
         specs,
         text,

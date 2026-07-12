@@ -407,7 +407,7 @@ function ReviewPathsTab({ run }: { run: ClassificationRunRecord }) {
         <div className="mt-3"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Supporting facts</p><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">{candidate.matchedTechnicalFacts.slice(0, 5).map((fact) => <li key={fact}>{fact}</li>)}</ul></div>
       ) : null}
       {candidate.missingInformation.length ? <div className="mt-3 rounded-md bg-amber-50 p-3 text-sm text-amber-900"><span className="font-medium">Missing evidence:</span> {candidate.missingInformation.slice(0, 4).join('; ')}</div> : null}
-      {candidate.companyHistorySupport?.length ? <div className="mt-3 rounded-md bg-sky-50 p-3 text-sm text-sky-900"><span className="font-medium">Company history influence:</span> Similar internal material increases review priority only; it is not classification authority.</div> : null}
+      {candidate.companyHistorySupport?.length ? <div className="mt-3 rounded-md bg-sky-50 p-3 text-sm text-sky-900"><span className="font-medium">Internal precedent only — not regulatory authority.</span> Similar internal material may guide reviewer comparison but cannot satisfy candidate eligibility.</div> : null}
       {candidate.reviewerQuestions.length ? <p className="mt-3 text-sm text-slate-700"><span className="font-medium">Reviewer action:</span> {candidate.reviewerQuestions[0]}</p> : null}
     </div>
   );
@@ -674,7 +674,7 @@ function CompanyHistoryTab({ run }: { run: ClassificationRunRecord }) {
         </Panel>
       )}
       <InlineNotice tone="default">
-        Internal company history supports reviewer comparison only. Qualified
+        Internal precedent only — not regulatory authority. Qualified
         reviewer confirmation remains required.
       </InlineNotice>
     </div>
