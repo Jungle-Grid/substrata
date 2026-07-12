@@ -1,7 +1,7 @@
 {
   "document_id": "doc_sample_adc12dj5200rf",
   "document_title": "Texas Instruments ADC12DJ5200RF Datasheet Sample",
-  "file_path": "/home/invinc/code/substrata/workers/classifier/samples/sample-datasheet.txt",
+  "file_path": "workers/classifier/samples/sample-datasheet.txt",
   "organization_id": "org_demo",
   "document_metadata": {
     "fileName": "sample-datasheet.txt",

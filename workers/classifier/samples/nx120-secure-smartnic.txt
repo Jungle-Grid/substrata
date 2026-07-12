@@ -1,0 +1,10 @@
+FICTIONAL DEMO DATA — NOT LEGAL ADVICE
+
+Northstar NX120 Secure SmartNIC Product Brief (fictional)
+Revision 1.0 — demonstration fixture only
+
+The NX120 is a PCI Express 5.0 x16 SmartNIC for data-center network and storage acceleration. It provides two 100 GbE ports with aggregate line-rate packet processing up to 200 Gbit/s. The adapter includes programmable packet processing, SR-IOV, RoCEv2, IPsec, TLS 1.3, and AES-256-GCM acceleration.
+
+The product brief does not state cryptographic key-management architecture, user-accessible cryptographic programmability, encryption throughput by mode, or whether cryptographic functions are limited to data-in-motion networking. It also does not include an existing company classification, an official commodity-classification ruling, or current regulatory text.
+
+This synthetic document is intentionally incomplete so Substrata can demonstrate uncertainty flags, missing-evidence checks, reviewer questions, networking and information-security review paths, and conservative candidate treatment.

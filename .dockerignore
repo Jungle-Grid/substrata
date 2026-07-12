@@ -1,4 +1,5 @@
 .git
+.github
 .env
 .env.*
 !.env.example
@@ -12,3 +13,20 @@ tmp
 **/tmp
 coverage
 *.log
+artifacts
+uploads
+.playwright-mcp
+*.tsbuildinfo
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+service-account*.json
+docs/investor-deck
+docs/submission/pitch-deck
+docs/submission/*.pdf
