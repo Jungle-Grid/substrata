@@ -213,4 +213,4 @@ Keep source evidence, uncertainty, human-review boundaries, and organization sco
 
 ## License
 
-No license file is currently present. Public visibility does not grant permission to use, modify, or redistribute the code. The repository owner must select and add a license before representing Substrata as open source.
+Substrata is available under the [MIT License](LICENSE).
