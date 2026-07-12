@@ -208,13 +208,13 @@ def evaluate(specs: list[ExtractedSpec], source_text: str, *, source_label: str,
         if spec.category == "security_cryptography"
         and any(term in f"{spec.name} {spec.value} {spec.source_snippet}".lower() for term in PLATFORM_SECURITY_TERMS)
     ]
-    if platform_security_specs and "encryption_or_crypto_device" not in scores:
-        scores["encryption_or_crypto_device"] = 4
+    if platform_security_specs and "firmware_or_security_software" not in scores:
+        scores["firmware_or_security_software"] = 2
         matched.append({
             "signal": "platform_security_evidence",
             "weight": 4,
             "terms": ["platform security evidence"],
-            "profiles": ["encryption_or_crypto_device", "firmware_or_security_software"],
+            "profiles": ["firmware_or_security_software"],
             "supportingFactNames": [spec.name for spec in platform_security_specs],
             "supportingSnippets": [spec.source_snippet for spec in platform_security_specs],
             "evidencePolarity": sorted({classify_evidence_polarity(spec.source_snippet) for spec in platform_security_specs}),

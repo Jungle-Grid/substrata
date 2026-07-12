@@ -49,7 +49,9 @@ class BackendExecutionError(RuntimeError):
 
 def _entity_intake_output(worker_input: Any, text: str, qualification: Any, payload_path: str) -> WorkerOutput:
     """Return a non-classification intake report for unsafe upstream sources."""
-    entities = qualification.entities
+    entities = [entity for entity in qualification.entities if entity.entityType == "product" and entity.independentlyClassifiable]
+    attributes = [entity for entity in qualification.entities if entity.entityType == "technical_attribute"]
+    history_references = [entity for entity in qualification.entities if entity.entityType == "history_record"]
     entity_lines = [
         f"{index}. {entity.productName or entity.partNumbers[0]} ({', '.join(entity.partNumbers)}) — {entity.relationshipToDocument}"
         for index, entity in enumerate(entities, 1)
@@ -62,6 +64,9 @@ def _entity_intake_output(worker_input: Any, text: str, qualification: Any, payl
         *[f"- {reason}" for reason in qualification.reasons],
         "", "## Detected product entities",
         *(entity_lines or ["- No coherent product entity was detected."]),
+        "", "## Attached context",
+        *([f"- Technical attribute: {entity.canonicalName}" for entity in attributes] or ["- No entity-scoped technical attributes were retained."]),
+        *([f"- Internal history reference: {entity.canonicalName}" for entity in history_references] or []),
         "", "## Classification outcome",
         "- No single-product ECCN review memo was generated.",
         "- No technical facts, review paths, candidate hypotheses, or company-history query were generated from this document.",
@@ -81,7 +86,7 @@ def _entity_intake_output(worker_input: Any, text: str, qualification: Any, payl
     trace = {
         "documentQualification": qualification.to_dict(),
         "validatedDecision": None,
-        "entityIsolation": {"status": "blocked_before_extraction", "entityCount": len(entities)},
+        "entityIsolation": {"status": "blocked_before_extraction", "entityCount": qualification.independentProductEntityCount},
     }
     output = WorkerOutput(
         document_id=worker_input.document_id,
@@ -100,7 +105,7 @@ def _entity_intake_output(worker_input: Any, text: str, qualification: Any, payl
         classification_trace=trace,
     )
     output_path.write_text(json.dumps(output.to_dict(), indent=2))
-    _log_worker_event("worker.entity_intake_finalized", document_id=worker_input.document_id, document_role=qualification.documentRole, classifiability=qualification.classifiability, entity_count=len(entities))
+    _log_worker_event("worker.entity_intake_finalized", document_id=worker_input.document_id, document_role=qualification.documentRole, classifiability=qualification.classifiability, entity_count=qualification.independentProductEntityCount)
     return output
 
 
@@ -340,6 +345,10 @@ def _first_snippet(extraction: AIExtractionResult) -> str:
 def _identity_specs(extraction: AIExtractionResult) -> list[ExtractedSpec]:
     identity = extraction.product_identity
     snippet = _first_snippet(extraction)
+    candidate_snippets = [
+        *extraction.product_profile.supporting_snippets,
+        *(fact.source_snippet for fact in extraction.extracted_facts),
+    ]
     source_quotes = "\n".join(
         [*extraction.product_profile.supporting_snippets, *(fact.source_snippet for fact in extraction.extracted_facts)]
     ).lower()
@@ -363,15 +372,21 @@ def _identity_specs(extraction: AIExtractionResult) -> list[ExtractedSpec]:
             # Platform/workspace/provider identity is prompt context, not product
             # manufacturer evidence. Unverified identity remains unknown.
             continue
+        value_text = str(value).strip()
+        direct_snippet = next(
+            (quote for quote in candidate_snippets if value_text.lower() in quote.lower()),
+            None,
+        )
         specs.append(
             ExtractedSpec(
                 name=name,
-                value=str(value).strip(),
+                value=value_text,
                 unit=None,
-                source_snippet=snippet,
+                source_snippet=direct_snippet or snippet,
                 importance=AI_IDENTITY_IMPORTANCE[name],
                 category="profile_detection" if name.startswith("profile_") or name == "product_profile" else "product_identity",
-                confidence=extraction.product_profile.confidence if name.startswith("profile_") or name == "product_profile" else "medium",
+                confidence=extraction.product_profile.confidence if name.startswith("profile_") or name == "product_profile" else ("medium" if direct_snippet else "low"),
+                extraction_rationale="Direct source-span match." if direct_snippet else "Inferred identity metadata; source span did not contain the exact value.",
             )
         )
     return specs
@@ -887,8 +902,22 @@ def run(payload_path: str) -> WorkerOutput:
         document_id=worker_input.document_id,
         document_role=qualification.documentRole,
         classifiability=qualification.classifiability,
-        entity_count=len(qualification.entities),
+        product_mention_count=qualification.productMentionCount,
+        independent_product_entity_count=qualification.independentProductEntityCount,
+        history_reference_count=qualification.historyReferenceCount,
+        comparison_reference_count=qualification.comparisonReferenceCount,
     )
+    for entity in qualification.entities:
+        if entity.entityType == "product" and entity.relationshipToDocument not in {"primary_subject", "secondary_subject"}:
+            _log_worker_event(
+                "entity.reference_resolved",
+                document_id=worker_input.document_id,
+                mention=entity.canonicalName,
+                relationship=entity.relationshipToDocument,
+                independently_classifiable=entity.independentlyClassifiable,
+                source_evidence_id=(entity.referenceEvidenceIds or entity.sourceSpanIds)[0] if (entity.referenceEvidenceIds or entity.sourceSpanIds) else None,
+                reason_codes=entity.reasonCodes,
+            )
     if qualification.classifiability != "single_product_classifiable":
         return _entity_intake_output(worker_input, text, qualification, payload_path)
     source_label = _document_source_label(worker_input.document_metadata.get("sourceType"))
@@ -1009,8 +1038,8 @@ def run(payload_path: str) -> WorkerOutput:
         backend_provider=selected_provider or selected_backend,
         prior_stage_candidates=prior_stage_candidates,
         target_entity={
-            "id": qualification.entities[0].id,
-            "relationshipToDocument": qualification.entities[0].relationshipToDocument,
+            "id": next(entity.id for entity in qualification.entities if entity.relationshipToDocument == "primary_subject" and entity.classificationEligible),
+            "relationshipToDocument": "primary_subject",
         },
     )
     canonical_profile = decision.product_level_profile["profile"]

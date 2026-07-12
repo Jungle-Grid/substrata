@@ -303,10 +303,34 @@ def generate_canonical_memo(
         and not spec.name.startswith("heuristic_signal_")
         and spec.name != "manufacturer"
     ]
-    fact_lines = [
-        f'- **{display_name_for_spec_name(spec.name)}**: {spec.value}{f" {spec.unit}" if spec.unit else ""}\n  - Source: “{spec.source_snippet}”'
-        for spec in source_specs
-    ]
+    grouped_source_specs: dict[tuple[str, str, str | None], list[ExtractedSpec]] = {}
+    for spec in source_specs:
+        normalized_name = re.sub(r"[^a-z0-9]+", "", spec.name.lower())
+        key = (normalized_name, spec.value.strip().lower(), spec.unit)
+        grouped_source_specs.setdefault(key, []).append(spec)
+    fact_lines = []
+    for grouped in grouped_source_specs.values():
+        spec = grouped[0]
+        quotes = list(dict.fromkeys(item.source_snippet for item in grouped))
+        fact_lines.append(
+            f'- **{display_name_for_spec_name(spec.name)}**: {spec.value}{f" {spec.unit}" if spec.unit else ""}\n'
+            f'  - Source: ' + "; ".join(f'“{quote}”' for quote in quotes) + '\n'
+            f'  - Confidence: {spec.confidence}; support: {"direct" if any(spec.value.lower() in quote.lower() for quote in quotes) else "inferred"}'
+        )
+    rendered_evidence_ids = set()
+    for fact in decision.source_facts:
+        evidence_id = str(fact.get("id") or "")
+        if not evidence_id or evidence_id in rendered_evidence_ids:
+            continue
+        rendered_evidence_ids.add(evidence_id)
+        quote = str(fact.get("exact_quote") or fact.get("raw_value") or "Not retained")
+        fact_lines.append(
+            f'- **{str(fact.get("fact_type") or "source fact").replace("_", " ")}**: '
+            f'{fact.get("normalized_value") or fact.get("raw_value") or "present"}\n'
+            f'  - Evidence ID: `{evidence_id}`; polarity: {fact.get("polarity") or "unknown"}; '
+            f'configuration scope: {fact.get("configuration_scope") or "unspecified"}; support: direct\n'
+            f'  - Exact quote: “{quote}”'
+        )
     decisive_negative_facts = [
         fact for fact in decision.source_facts
         if fact.get("polarity") == "absent"
@@ -338,14 +362,18 @@ def generate_canonical_memo(
         f'### {item["eccn"]} — {item["title"]}\n- Status: eligible\n- Triggering evidence IDs: {", ".join(item["triggeringEvidenceIds"])}'
         for item in decision.eligible_candidates
     ]
-    blocked_sections = [
-        f'### {item["eccn"]} — {item["title"]}\n'
-        f'- Status: specific candidate not yet supportable\n'
-        f'- Positive path evidence IDs: {", ".join(item["triggeringEvidenceIds"]) or "none"}\n'
-        f'- Blocking reasons: {", ".join(item["blockingReasons"]) or "none"}\n'
-        f'- Missing evidence: {", ".join(item.get("missing_information", [])) or "See the open review path requirements."}'
-        for item in decision.blocked_candidate_hypotheses
-    ]
+    path_by_key = {str(path["pathKey"]): path for path in decision.open_review_paths}
+    blocked_sections = []
+    for item in decision.blocked_candidate_hypotheses:
+        path = path_by_key.get(str(item.get("review_path_id") or item.get("review_path_key") or ""), {})
+        missing = path.get("missingEvidence") or item.get("missing_information", [])
+        blocked_sections.append(
+            f'### {item["eccn"]} — {item["title"]}\n'
+            f'- Status: specific candidate not yet supportable\n'
+            f'- Positive path evidence IDs: {", ".join(item["triggeringEvidenceIds"]) or "none"}\n'
+            f'- Blocking reasons:\n' + "\n".join(f'  - {reason}' for reason in item["blockingReasons"]) + '\n'
+            f'- Missing evidence:\n' + "\n".join(f'  - {requirement}' for requirement in missing)
+        )
     resolution_lines = [
         f'- {item["proposedByStage"]} proposed `{item["proposedProfile"]}`; canonical decision uses '
         f'`{item["canonicalProfile"]}` because {item["reason"]}'

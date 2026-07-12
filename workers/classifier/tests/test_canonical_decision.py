@@ -68,6 +68,37 @@ class CanonicalDecisionTests(unittest.TestCase):
         self.assertTrue(decision.blocked_candidate_hypotheses)
         self.assertNotIn("does not affirm network cryptography", memo.lower())
 
+    def test_secure_network_card_keeps_complete_product_identity_and_two_paths(self):
+        _, decision, _ = canonical(
+            "SmartNIC network interface card for data-center traffic offload with 2 x 200GbE ports, "
+            "MACsec, TLS offload, secure boot, signed firmware, and web and CLI management.",
+            provider_profile="secure_networking_hardware",
+        )
+        self.assertIn(decision.exported_product_form["value"], {"smartnic", "network_interface_card"})
+        self.assertEqual(decision.product_level_profile["profile"], "secure_networking_hardware")
+        self.assertIn("networking_telecom", {item["pathKey"] for item in decision.open_review_paths})
+        self.assertIn("category_5_part_2_security", {item["pathKey"] for item in decision.open_review_paths})
+        self.assertFalse(decision.eligible_candidates)
+        self.assertNotEqual(decision.product_level_profile["profile"], "encryption_or_crypto_device")
+
+    def test_network_security_capabilities_are_not_limited_to_device_integrity(self):
+        _, decision, memo = canonical(
+            "SmartNIC network interface card with 200GbE Ethernet, MACsec, TLS offload, secure boot, and signed firmware."
+        )
+        capabilities = {item["key"]: item["presence"] for item in decision.capabilities}
+        self.assertEqual(capabilities["network_confidentiality"], "present")
+        self.assertEqual(capabilities["transport_security"], "present")
+        self.assertEqual(capabilities["platform_integrity"], "present")
+        self.assertNotEqual(capabilities.get("device_integrity_only"), "present")
+        self.assertNotIn("remote_attestation", capabilities)
+        self.assertIn("Evidence ID:", memo)
+        results = semantic_validation_results(
+            decision=decision, memo=memo, specs=extract_specs(
+                "SmartNIC network interface card with 200GbE Ethernet, MACsec, TLS offload, secure boot, and signed firmware."
+            ), backend_proposed_profile=None, prior_stage_candidates=[],
+        )
+        self.assertNotIn("CAPABILITY_EXCLUSIVITY_CONTRADICTION", {item["code"] for item in results if not item["passed"]})
+
     def test_regulatory_unavailability_is_system_owned_and_negative_evidence_is_rendered(self):
         _, decision, memo = canonical("Industrial gateway supports MQTT over TLS. No AI accelerator is included.")
         self.assertTrue(any(item["code"] == "OFFICIAL_REGULATORY_TEXT_UNAVAILABLE" and item["resolutionOwner"] == "system" for item in decision.system_limitations))

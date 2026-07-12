@@ -58,11 +58,16 @@ SYSTEM_LIMITATION = {
 }
 
 FORM_RULES = (
+    ("smartnic", re.compile(r"\bsmart\s*nic\b", re.I)),
+    ("network_interface_card", re.compile(r"\b(?:network interface card|network adapter|ethernet adapter|nic)\b", re.I)),
+    ("networking_card", re.compile(r"\bnetworking\s+card\b", re.I)),
     ("evaluation_kit", re.compile(r"\b(?:evaluation|development)\s+(?:kit|board)\b", re.I)),
     ("gateway", re.compile(r"\bgateway\b", re.I)),
     ("router", re.compile(r"\brouter\b", re.I)),
     ("network_switch", re.compile(r"\b(?:network|ethernet)\s+switch\b", re.I)),
     ("server", re.compile(r"\b(?:rack|gpu|compute)?\s*server\b", re.I)),
+    ("security_appliance", re.compile(r"\b(?:security|encryption)\s+appliance\b", re.I)),
+    ("cryptographic_module", re.compile(r"\b(?:hardware security module|hsm|cryptographic module|key vault)\b", re.I)),
     ("appliance", re.compile(r"\bappliance\b", re.I)),
     ("accelerator_card", re.compile(r"\baccelerator\s+card\b", re.I)),
     ("module", re.compile(r"\bmodule\b", re.I)),
@@ -71,12 +76,17 @@ FORM_RULES = (
 )
 
 PRODUCT_PROFILE_BY_FORM = {
+    "smartnic": "secure_networking_hardware",
+    "network_interface_card": "secure_networking_hardware",
+    "networking_card": "secure_networking_hardware",
     "gateway": "sensor_gateway",
     "router": "networking_hardware",
     "network_switch": "networking_hardware",
     "server": "server_or_compute_appliance",
     "appliance": "server_or_compute_appliance",
     "accelerator_card": "ai_accelerator",
+    "cryptographic_module": "encryption_or_crypto_device",
+    "security_appliance": "encryption_or_crypto_device",
     "evaluation_kit": "evaluation_kit",
 }
 
@@ -171,6 +181,61 @@ def _component_profiles(heuristic_profiles: list[str], product_profile: str) -> 
         for profile in heuristic_profiles
         if profile in component_types and profile != product_profile
     ]
+
+
+def _capabilities(evidence: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    """Keep complete-product identity separate from granular security functions."""
+    aliases = {
+        "network_security": ("network_confidentiality", "link_layer_encryption"),
+        "transport_security": ("transport_security", "cryptographic_offload"),
+        "platform_security": ("platform_integrity",),
+    }
+    output: list[dict[str, Any]] = []
+    for fact_type, records in evidence.items():
+        keys = aliases.get(fact_type, (fact_type,))
+        presence = "present" if any(item.get("polarity") == "present" for item in records) else "configuration_dependent" if any(item.get("polarity") == "ambiguous" for item in records) else "absent" if any(item.get("polarity") == "absent" for item in records) else "unknown"
+        for key in keys:
+            output.append({
+                "key": key,
+                "presence": presence,
+                "implementation": "unknown",
+                "userAccessibility": "unknown",
+                "classificationSignificance": "unresolved" if key in {"network_confidentiality", "link_layer_encryption", "transport_security", "cryptographic_offload"} else "unknown",
+                "evidenceIds": [item["id"] for item in records],
+            })
+        if fact_type == "platform_security":
+            explicit_capabilities = {
+                "secure_boot": "secure boot",
+                "firmware_signing": "firmware signing",
+                "remote_attestation": "remote attestation",
+            }
+            for capability, term in explicit_capabilities.items():
+                supporting = [item for item in records if term in str(item.get("exact_quote", "")).lower()]
+                if supporting:
+                    output.append({
+                        "key": capability,
+                        "presence": "present",
+                        "implementation": "unknown",
+                        "userAccessibility": "unknown",
+                        "classificationSignificance": "unknown",
+                        "evidenceIds": [item["id"] for item in supporting],
+                    })
+    has_network_confidentiality = any(
+        item["key"] in {"network_confidentiality", "link_layer_encryption", "transport_security"}
+        and item["presence"] in {"present", "configuration_dependent"}
+        for item in output
+    )
+    if not has_network_confidentiality and any(item["key"] == "platform_integrity" and item["presence"] == "present" for item in output):
+        platform_evidence = next(item["evidenceIds"] for item in output if item["key"] == "platform_integrity")
+        output.append({
+            "key": "device_integrity_only",
+            "presence": "present",
+            "implementation": "unknown",
+            "userAccessibility": "unknown",
+            "classificationSignificance": "unknown",
+            "evidenceIds": platform_evidence,
+        })
+    return output
 
 
 def _requirement_assessments(required: tuple[str, ...], evidence: dict[str, list[dict[str, Any]]], source_text: str) -> tuple[list[dict[str, Any]], list[str]]:
@@ -347,17 +412,7 @@ def build_classification_decision(
         {"capability": item["fact_type"], "evidenceId": item["id"], "configurationScope": item.get("configuration_scope")}
         for item in source_facts if item.get("polarity") == "ambiguous"
     ]
-    capabilities = [
-        {
-            "key": fact_type,
-            "presence": "present" if any(item.get("polarity") == "present" for item in records) else "configuration_dependent" if any(item.get("polarity") == "ambiguous" for item in records) else "absent" if any(item.get("polarity") == "absent" for item in records) else "unknown",
-            "implementation": "unknown",
-            "userAccessibility": "unknown",
-            "classificationSignificance": "unknown",
-            "evidenceIds": [item["id"] for item in records],
-        }
-        for fact_type, records in evidence.items()
-    ]
+    capabilities = _capabilities(evidence)
     missing = list(dict.fromkeys(item for path in paths for item in path["missingEvidence"]))
     limitations: list[dict[str, Any]] = []
     if any("current_regulatory_text_unavailable" in item.get("blockingReasons", []) for item in blocked):
@@ -440,9 +495,39 @@ def semantic_validation_results(
     tls_present = any(item["key"] == "transport_security" and item["presence"] in {"present", "configuration_dependent"} for item in decision.capabilities)
     denies_network_crypto = bool(re.search(r"does not affirm (?:network )?crypt", memo, re.I))
     add("MEMO_CAPABILITY_POLARITY_CONSISTENT", not (tls_present and denies_network_crypto), "memo.capabilities", {"transportSecurityPresent": tls_present})
+    integrity_only = any(item["key"] == "device_integrity_only" and item["presence"] == "present" for item in decision.capabilities)
+    network_crypto = any(item["key"] in {"network_confidentiality", "link_layer_encryption", "transport_security"} and item["presence"] in {"present", "configuration_dependent"} for item in decision.capabilities)
+    add("CAPABILITY_EXCLUSIVITY_CONTRADICTION", not (integrity_only and network_crypto), "decision.capabilities", {"deviceIntegrityOnly": integrity_only, "networkCryptography": network_crypto})
+    unsupported_capabilities = [
+        item["key"] for item in decision.capabilities
+        if item["presence"] == "present" and not item.get("evidenceIds")
+    ]
+    add("UNSUPPORTED_CAPABILITY", not unsupported_capabilities, "decision.capabilities", {"capabilities": unsupported_capabilities})
+    network_forms = {"smartnic", "network_interface_card", "networking_card", "router", "network_switch"}
+    network_form = decision.exported_product_form.get("value") in network_forms
+    add("NETWORK_PRODUCT_FORM_UNRESOLVED", not (any("network interface card" in str(item.get("exact_quote", "")).lower() or "smartnic" in str(item.get("exact_quote", "")).lower() for item in decision.source_facts) and decision.exported_product_form.get("value") == "unknown"), "decision.exportedProductForm", {"form": decision.exported_product_form.get("value")})
+    add("CAPABILITY_PROFILE_PROMOTED_TO_PRODUCT", not (network_form and canonical_profile == "encryption_or_crypto_device"), "decision.productLevelProfile", {"form": decision.exported_product_form.get("value"), "profile": canonical_profile})
+    has_network_evidence = any(item.get("key") in {"networking", "high_speed_ethernet"} and item.get("presence") in {"present", "configuration_dependent"} for item in decision.capabilities)
+    add("NETWORK_PATH_MISSING", not (network_form and has_network_evidence and "networking_telecom" not in open_keys), "decision.openReviewPaths", {"openPaths": sorted(open_keys)})
     manufacturers = [spec for spec in specs if spec.name == "manufacturer"]
     valid_manufacturer = all(spec.value.lower() in spec.source_snippet.lower() for spec in manufacturers)
     add("MANUFACTURER_HAS_SOURCE_PROVENANCE", valid_manufacturer, "facts.manufacturer", {"values": [spec.value for spec in manufacturers]})
+    identity_specs = [
+        spec for spec in specs
+        if spec.name in {"product_name", "product_family", "part_number", "document_number", "document_type"}
+        and spec.confidence in {"high", "medium"}
+    ]
+    unsupported_identity = [
+        spec.name for spec in identity_specs
+        if spec.value.lower() not in spec.source_snippet.lower()
+    ]
+    add("FACT_PROVENANCE_UNSUPPORTED", not unsupported_identity, "facts.identity", {"factNames": unsupported_identity})
+    material_evidence_ids = {
+        str(item.get("id")) for item in decision.source_facts
+        if item.get("id") and item.get("polarity") in {"present", "ambiguous", "absent"}
+    }
+    omitted_evidence_ids = sorted(evidence_id for evidence_id in material_evidence_ids if evidence_id not in memo)
+    add("MATERIAL_EVIDENCE_OMITTED", not omitted_evidence_ids, "memo.sourceFacts", {"evidenceIds": omitted_evidence_ids})
     incomplete_paths = [item["pathKey"] for item in decision.open_review_paths if not item.get("missingEvidence")]
     add("OPEN_PATH_MISSING_EVIDENCE_COMPLETE", not incomplete_paths, "decision.openReviewPaths", {"paths": incomplete_paths})
     satisfied_as_missing = [
