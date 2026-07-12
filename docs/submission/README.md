@@ -4,6 +4,8 @@
 
 This package is the judge-readable guide to the product, demo, technical design, and operating boundaries.
 
+- [Track 3 pitch deck](PITCH_DECK.md)
+- [Editable HTML presentation](pitch-deck/index.html)
 - [Submission narrative](SUBMISSION.md)
 - [Demo script](DEMO_SCRIPT.md)
 - [Product brief](PRODUCT_BRIEF.md)
