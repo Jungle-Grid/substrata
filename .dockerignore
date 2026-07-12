@@ -29,6 +29,3 @@ uploads
 *.pfx
 credentials*.json
 service-account*.json
-docs/investor-deck
-docs/submission/pitch-deck
-docs/submission/*.pdf

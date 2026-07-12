@@ -190,7 +190,7 @@ The repository contains a hackathon prototype for model-assisted extraction on A
 
 - [`infra/jungle-grid-image/Dockerfile`](infra/jungle-grid-image/Dockerfile) packages the classifier entrypoint for a Jungle Grid worker image.
 - The image metadata and runtime contract identify ROCm and AMD GPU execution, while the Python backend records provider/model provenance returned by Jungle Grid.
-- [`docs/hackathon-demo-runbook.md`](docs/hackathon-demo-runbook.md) and [`docs/submission/AMD_INTEGRATION.md`](docs/submission/AMD_INTEGRATION.md) describe the prototype/manual notebook path and its boundaries.
+- [`docs/JUNGLE_GRID_INTEGRATION.md`](docs/JUNGLE_GRID_INTEGRATION.md) describes the managed-execution direction and its current boundaries.
 
 The public Docker quick start is CPU-compatible and does **not** require AMD hardware, ROCm, Jungle Grid, or cloud credentials. The AMD/Jungle Grid path is an optional hackathon execution path, not a claim that every local run uses AMD compute or that a production AMD deployment exists.
 

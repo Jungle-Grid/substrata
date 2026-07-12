@@ -37,6 +37,14 @@ packages/db/generated
 substrata-*.png
 /*_AUDIT_REPORT.md
 /*_TEST_RESULTS.md
+/docs/investor-deck/
+/docs/submission/
+/docs/hackathon-demo-runbook.md
+/docs/*_REPORT.md
+/docs/CLASSIFICATION_PIPELINE_AUDIT.md
+/docs/CLASSIFICATION_PIPELINE_IMPLEMENTATION_PLAN.md
+/docs/CLASSIFICATION_PIPELINE_RESEARCH.md
+/docs/CLASSIFICATION_PIPELINE_VERIFICATION.md
 
 # Production deployment secrets
 infra/.env.production

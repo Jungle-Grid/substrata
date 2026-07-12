@@ -13,15 +13,14 @@ This documentation explains how Substrata turns source packages and company hist
 ## Start here
 
 - [Repository README](../README.md) — local setup and project overview
-- [Submission package](submission/README.md) — product narrative, demo script, and judge-readable materials
 - [Architecture](ARCHITECTURE.md) — application, API, worker, storage, and tenancy boundaries
 - [Execution modes](EXECUTION_MODES.md) — Local Gemma execution and Remote provider routing
 
 ## Product and workflow
 
 - [Product](PRODUCT.md) — product thesis, user workflow, and MVP boundaries
-- [Company history workflow](submission/COMPANY_HISTORY_WORKFLOW.md) — internal precedent as reviewer comparison context
-- [Evidence model](submission/EVIDENCE_MODEL.md) — source document through human signoff and audit record
+- [Evidence and decision model](EVIDENCE_AND_DECISION_MODEL.md) — source document through human signoff and audit record
+- [Hybrid classification engine](HYBRID_CLASSIFICATION_ENGINE.md) — deterministic review routing and optional model assistance
 - [Human review policy](HUMAN_REVIEW_POLICY.md) — mandatory qualified review requirements
 - [Compliance scope](COMPLIANCE_SCOPE.md) — product boundaries and operating assumptions
 
@@ -32,13 +31,11 @@ This documentation explains how Substrata turns source packages and company hist
 - [Worker design](WORKER_DESIGN.md) — classifier worker pipeline
 - [Security](SECURITY.md) — sensitive-document handling assumptions
 - [Jungle Grid integration](JUNGLE_GRID_INTEGRATION.md) — managed execution direction
-- [AMD/Jungle Grid runbook](hackathon-demo-runbook.md) — prototype preflight and verification
 
 ## Planning and validation
 
 - [Roadmap](ROADMAP.md) — staged product evolution
 - [Validation plan](VALIDATION_PLAN.md) — one-week market validation plan
-- [Submission validation notes](submission/VALIDATION_NOTES.md) — target users, insights, and risks
 - [Public demo runbook](PUBLIC_DEMO_RUNBOOK.md) — controlled public-sharing workflow
 
 Human review is required for every classification output. Substrata prepares review-ready workups; it does not replace qualified compliance judgment.
