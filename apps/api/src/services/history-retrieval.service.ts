@@ -48,10 +48,34 @@ type TechnicalConcept = {
 
 const TECHNICAL_CONCEPTS: TechnicalConcept[] = [
   {
+    key: 'network_card_form',
+    label: 'networking-card or SmartNIC product form',
+    currentPattern: /\b(?:smartnic|network interface card|network adapter|networking card)\b/i,
+    historyPattern: /\b(?:smartnic|network interface card|network adapter|networking card)\b/i,
+  },
+  {
     key: 'networking',
     label: 'Ethernet or networking capability',
     currentPattern: /\b(?:ethernet|router|gateway|network interface)\b/i,
     historyPattern: /\b(?:ethernet|router|gateway|network interface)\b/i,
+  },
+  {
+    key: 'high_speed_ethernet',
+    label: 'high-speed Ethernet interface',
+    currentPattern: /\b(?:25|40|50|100|200|400)\s*(?:g|gb)e\b|\b(?:25|40|50|100|200|400)gbe\b/i,
+    historyPattern: /\b(?:25|40|50|100|200|400)\s*(?:g|gb)e\b|\b(?:25|40|50|100|200|400)gbe\b/i,
+  },
+  {
+    key: 'macsec',
+    label: 'MACsec link-layer encryption',
+    currentPattern: /\bmacsec\b/i,
+    historyPattern: /\bmacsec\b/i,
+  },
+  {
+    key: 'tls_offload',
+    label: 'TLS offload or transport-security capability',
+    currentPattern: /\b(?:tls offload|tls transport|https transport)\b/i,
+    historyPattern: /\b(?:tls offload|tls transport|https transport)\b/i,
   },
   {
     key: 'transport_security',
@@ -93,6 +117,7 @@ const TECHNICAL_CONCEPTS: TechnicalConcept[] = [
 
 type LexicalChunkRow = {
   chunkId: string;
+  chunkOrdinal: number;
   historyDocumentId: string;
   content: string;
   baseScore: number;
@@ -133,6 +158,14 @@ export type RetrievedCompanyHistoryMatch = {
   companyHistoryChunkId: string;
   sourceFileName: string;
   sourceTitle: string;
+  recordLocator?: string;
+  recordLocatorMetadata?: {
+    kind: 'csv_row' | 'json_object' | 'document_chunk';
+    rowNumber?: number;
+    jsonPointer?: string;
+    recordId?: string;
+    chunkOrdinal: number;
+  };
   importedAt: Date;
   excerpt: string;
   rank: number;
@@ -178,6 +211,47 @@ export type CompanyHistoryRetrievalResult = {
   trace: CompanyHistoryRetrievalTrace;
 };
 
+export type HistoryProjectionValidationIssue = {
+  code:
+    | 'HISTORY_ROLE_SECTION_MISMATCH'
+    | 'STRUCTURED_HISTORY_RECORD_LEAKAGE'
+    | 'STRUCTURED_HISTORY_LOCATOR_MISMATCH'
+    | 'STRUCTURED_HISTORY_CONTAINER_EXCERPT'
+    | 'CANONICAL_HISTORY_RENDER_MISMATCH';
+  message: string;
+};
+
+/** Validates the immutable API-side history projection before memo persistence. */
+export function validateHistoryProjection(
+  pools: Pick<CanonicalHistoryPools, 'productPrecedents' | 'technicalComparisons' | 'counselGuidance' | 'internalPolicy'>,
+) {
+  const issues: HistoryProjectionValidationIssue[] = [];
+  const assertPool = (matches: RetrievedCompanyHistoryMatch[], allowed: HistoryDocumentRole[], pool: string) => {
+    for (const match of matches) {
+      if (!allowed.includes(match.recordRole)) {
+        issues.push({ code: 'HISTORY_ROLE_SECTION_MISMATCH', message: `${match.sourceFileName} (${match.recordRole}) is not allowed in ${pool}.` });
+      }
+      if (match.recordLocatorMetadata?.kind === 'csv_row') {
+        if (!match.recordLocatorMetadata.rowNumber || !match.recordLocator?.startsWith('CSV row ')) {
+          issues.push({ code: 'STRUCTURED_HISTORY_LOCATOR_MISMATCH', message: `${match.sourceFileName} lost its CSV row locator.` });
+        }
+        const ids = match.excerpt.match(/(?:record[ _-]?id|case[ _-]?id|^id)\s*:\s*[^\n]+/gim) ?? [];
+        if (ids.length > 1) {
+          issues.push({ code: 'STRUCTURED_HISTORY_RECORD_LEAKAGE', message: `${match.sourceFileName} CSV excerpt contains multiple logical records.` });
+        }
+        if (match.recordLocatorMetadata.recordId && !match.excerpt.toLowerCase().includes(match.recordLocatorMetadata.recordId.toLowerCase())) {
+          issues.push({ code: 'STRUCTURED_HISTORY_LOCATOR_MISMATCH', message: `${match.sourceFileName} excerpt does not contain its selected record ID.` });
+        }
+      }
+    }
+  };
+  assertPool(pools.productPrecedents, ['product_precedent', 'classification_memo', 'review_worksheet'], 'productPrecedents');
+  assertPool(pools.technicalComparisons, ['technical_source', 'classification_memo', 'product_precedent', 'review_worksheet'], 'contrastRecords');
+  assertPool(pools.counselGuidance, ['counsel_guidance'], 'counselGuidance');
+  assertPool(pools.internalPolicy, ['internal_policy'], 'internalPolicy');
+  return issues;
+}
+
 function unique(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
@@ -213,6 +287,7 @@ function querySignals(input: {
   reviewPathContext?: string[];
   candidateEccns?: string[];
   reviewerQuestions?: string[];
+  historyRecordHints?: string[];
 }) {
   const sourceFacts = input.extractedSpecs.filter(isSourceFact);
   const currentProductText = [
@@ -246,6 +321,9 @@ function querySignals(input: {
     ...securityNotes,
     ...technicalFacts,
     ...sourceTechnicalTerms(input.sourceText),
+    // Explicit internal-record references are retrieval hints, never source
+    // facts or candidate evidence. They are supplied only after entity typing.
+    ...(input.historyRecordHints ?? []),
   ];
   const queryTerms = unique(queryParts.flatMap(searchableTokens)).slice(0, 48);
   const keywordFallbackTerms = unique([
@@ -322,15 +400,31 @@ function capabilityPolarity(text: string, pattern: RegExp) {
 
 function recordRole(row: LexicalChunkRow): HistoryDocumentRole {
   const text = `${row.fileName}\n${row.title}\n${row.content}`.toLowerCase();
+  const heading = `${row.fileName}\n${row.title}`.toLowerCase();
+  const structuredContainer = /\.(?:csv|json)$/i.test(row.fileName)
+    || /^\s*(?:record[ _-]?id|product(?:[ _-]?name)?)\s*:/im.test(row.content) && /\b(?:prior[_ -]?eccn|review[_ -]?status|classification[_ -]?basis)\s*:/i.test(row.content);
   if (/\breadme\b/.test(text)) return 'dataset_readme';
-  if (/\b(?:policy|procedure|human review required)\b/.test(text)) return 'internal_policy';
-  if (/\b(?:outside counsel|counsel guidance|legal guidance)\b/.test(text)) return 'counsel_guidance';
-  if (/\b(?:administrative|upload instructions|index manifest)\b/.test(text)) return 'administrative';
+  // Ingestion record type is authoritative. A prior memo may say that human
+  // review is required without becoming an internal policy document.
   if (row.recordType === 'prior_memo' || row.recordType === 'approval_record') return 'classification_memo';
   if (row.recordType === 'review_note') return 'review_worksheet';
-  if (row.recordType === 'datasheet' || row.recordType === 'technical_spec' || row.recordType === 'catalog') return 'product_precedent';
+  if (row.recordType === 'datasheet' || row.recordType === 'technical_spec' || row.recordType === 'catalog' || row.recordType === 'spreadsheet') return 'product_precedent';
   if (row.recordType === 'regulatory_material') return 'regulatory_material';
   if (row.recordType === 'technical_source') return 'technical_source';
+  // Legacy uploads were persisted as `other`; deterministic container/document
+  // structure is stronger than disclaimer prose for those records.
+  if (structuredContainer) return 'product_precedent';
+  if (/\b(?:internal )?classification memo\b/.test(heading)) return 'classification_memo';
+  if (/\b(?:classification review worksheet|review worksheet)\b/.test(heading)) return 'review_worksheet';
+  if (/\b(?:data ?sheet|technical (?:source|spec(?:ification)?))\b/.test(heading)) return 'technical_source';
+  // A generic disclaimer is not a semantic role. Counsel and policy documents
+  // need positive structural evidence, so a product memo mentioning counsel or
+  // human review cannot be silently re-routed.
+  if (/\b(?:counsel review summary|outside counsel (?:memorandum|memo)|legal opinion|legal guidance|counsel findings|attorney review conclusions)\b/.test(heading)
+    || /\b(?:purpose|summary)\s*:\s*(?:legal|counsel)\s+(?:guidance|advice|review)\b/.test(text)) return 'counsel_guidance';
+  if (/\b(?:internal (?:export )?policy|policy excerpt|review policy|company[- ]wide (?:policy|procedure))\b/.test(heading)
+    || /\b(?:policy|procedure)\s*:\s*.+\b(?:must|shall|required)\b/i.test(text)) return 'internal_policy';
+  if (/\b(?:administrative|upload instructions|index manifest)\b/.test(text)) return 'administrative';
   return 'unclassified';
 }
 
@@ -349,6 +443,14 @@ function scoreCompanyHistoryResult(input: {
   let contradictionPenalty = 0;
   const materialDifferences: string[] = [];
   const blockingContradictions: string[] = [];
+  const currentNetworking = /\b(?:smartnic|network interface|network adapter|ethernet|router|switch|traffic offload)\b/i.test(input.currentProductText);
+  const historyNetworking = /\b(?:smartnic|network interface|network adapter|ethernet|router|switch|traffic offload)\b/i.test(haystack);
+  const currentAccelerator = /\b(?:ai accelerator|accelerator card|inference|training|hbm|tops|tflops)\b/i.test(input.currentProductText);
+  const historyAccelerator = /\b(?:ai accelerator|accelerator card|inference|training|hbm|tops|tflops)\b/i.test(haystack);
+  if ((currentNetworking && historyAccelerator) || (currentAccelerator && historyNetworking)) {
+    contradictionPenalty += 10;
+    materialDifferences.push('Different complete-product form and primary function.');
+  }
 
   const exactIdentifiers = input.identifiers.filter((value) => value.length >= 3 && haystack.includes(value.toLowerCase()));
   if (exactIdentifiers.length) {
@@ -405,7 +507,7 @@ function scoreCompanyHistoryResult(input: {
   const productRole = ['product_precedent', 'classification_memo', 'review_worksheet', 'technical_source'].includes(role);
   const recommendedUse = !productRole
     ? role === 'dataset_readme' || role === 'administrative' ? 'irrelevant' : 'context'
-    : blockingContradictions.length
+      : blockingContradictions.length || contradictionPenalty >= 10
       ? 'contrast'
       : matchTier === 'direct'
         ? 'precedent'
@@ -432,11 +534,17 @@ function scoreCompanyHistoryResult(input: {
 }
 
 function asMatch(result: ReturnType<typeof scoreCompanyHistoryResult> & { row: LexicalChunkRow }, rank: number, retrievalMethod: string): RetrievedCompanyHistoryMatch {
+  const isSpreadsheetRow = result.row.recordType === 'spreadsheet' || /\.csv$/i.test(result.row.fileName);
+  const recordId = result.row.content.match(/^(?:record[ _-]?id|id|case[ _-]?id)\s*:\s*([^\n]+)/im)?.[1]?.trim();
   return {
     companyHistoryDocumentId: result.row.historyDocumentId,
     companyHistoryChunkId: result.row.chunkId,
     sourceFileName: result.row.fileName,
     sourceTitle: result.row.title,
+    recordLocator: isSpreadsheetRow ? `CSV row ${result.row.chunkOrdinal + 2}` : `record ${result.row.chunkOrdinal + 1}`,
+    recordLocatorMetadata: isSpreadsheetRow
+      ? { kind: 'csv_row', rowNumber: result.row.chunkOrdinal + 2, recordId, chunkOrdinal: result.row.chunkOrdinal }
+      : { kind: 'document_chunk', chunkOrdinal: result.row.chunkOrdinal },
     importedAt: result.row.importedAt,
     excerpt: result.row.content,
     rank,
@@ -507,6 +615,7 @@ async function findPrimaryCandidates(input: { organizationId: string; ftsQuery: 
   return prisma.$queryRaw<LexicalChunkRow[]>(Prisma.sql`
     SELECT
       chunk."id" AS "chunkId",
+      chunk."ordinal" AS "chunkOrdinal",
       history."id" AS "historyDocumentId",
       chunk."content" AS "content",
       ts_rank_cd(to_tsvector('simple', chunk."content"), websearch_to_tsquery('simple', ${input.ftsQuery}))::float8 AS "baseScore",
@@ -537,6 +646,7 @@ async function findKeywordFallbackCandidates(input: { organizationId: string; te
   return prisma.$queryRaw<LexicalChunkRow[]>(Prisma.sql`
     SELECT
       chunk."id" AS "chunkId",
+      chunk."ordinal" AS "chunkOrdinal",
       history."id" AS "historyDocumentId",
       chunk."content" AS "content",
       0::float8 AS "baseScore",
@@ -567,6 +677,7 @@ export async function retrieveCompanyHistoryWithTrace(input: {
   reviewPathContext?: string[];
   candidateEccns?: string[];
   reviewerQuestions?: string[];
+  historyRecordHints?: string[];
   limit?: number;
 }): Promise<CompanyHistoryRetrievalResult> {
   const signals = querySignals({
@@ -577,6 +688,7 @@ export async function retrieveCompanyHistoryWithTrace(input: {
     reviewPathContext: input.reviewPathContext,
     candidateEccns: input.candidateEccns,
     reviewerQuestions: input.reviewerQuestions,
+    historyRecordHints: input.historyRecordHints,
   });
   const topK = input.limit ?? DEFAULT_TOP_K;
   const candidateChunksBeforeFiltering = await prisma.companyHistoryChunk.count({
@@ -670,6 +782,7 @@ export async function retrieveCompanyHistory(input: {
   reviewPathContext?: string[];
   candidateEccns?: string[];
   reviewerQuestions?: string[];
+  historyRecordHints?: string[];
   limit?: number;
 }): Promise<RetrievedCompanyHistoryMatch[]> {
   return (await retrieveCompanyHistoryWithTrace(input)).matches;
@@ -677,26 +790,32 @@ export async function retrieveCompanyHistory(input: {
 
 export function appendCompanyHistoryComparison(
   memoMarkdown: string,
-  matches: RetrievedCompanyHistoryMatch[],
+  pools: Pick<CanonicalHistoryPools, 'productPrecedents' | 'technicalComparisons' | 'counselGuidance' | 'internalPolicy'>,
 ) {
   const header = '## Company History Comparison';
   const beforeExisting = memoMarkdown.split(`\n${header}`)[0]?.trimEnd() ?? memoMarkdown.trimEnd();
-  const productMatches = matches.filter((match) => ['product_precedent', 'technical_source', 'classification_memo', 'review_worksheet'].includes(match.recordRole));
-  const policyMatches = matches.filter((match) => match.recordRole === 'internal_policy');
-  const counselMatches = matches.filter((match) => match.recordRole === 'counsel_guidance');
+  const precedentMatches = pools.productPrecedents.filter((match) => match.recommendedUse !== 'contrast');
+  const contrastMatches = [
+    ...pools.productPrecedents.filter((match) => match.recommendedUse === 'contrast'),
+    ...pools.technicalComparisons.filter((match) => match.recommendedUse === 'contrast'),
+  ];
+  const policyMatches = pools.internalPolicy;
+  const counselMatches = pools.counselGuidance;
   const renderMatch = (match: RetrievedCompanyHistoryMatch) => [
     `- **${match.recommendedUse === 'precedent' ? 'Similar company history found' : match.recommendedUse === 'partial_precedent' ? 'Partially similar company history found' : match.recommendedUse === 'contrast' ? 'Contrast record — material differences' : 'Context record'} — ${match.sourceFileName}**`,
     `  - Agreements: ${match.agreements.join('; ') || 'none'}`,
     ...(match.materialDifferences.length ? [`  - Material differences: ${match.materialDifferences.join('; ')}`] : []),
     ...(match.blockingContradictions.length ? [`  - Blocking contradictions: ${match.blockingContradictions.join('; ')}`] : []),
+    ...(match.recordLocator ? [`  - Locator: ${match.recordLocator}`] : []),
     `  - Source excerpt: “${match.excerpt.replace(/\s+/g, ' ').slice(0, 900)}”`,
   ];
-  const section = matches.length
+  const section = precedentMatches.length || contrastMatches.length || policyMatches.length || counselMatches.length
     ? [
         header,
-        ...(productMatches.length ? ['### Similar company history', ...productMatches.flatMap(renderMatch)] : []),
-        ...(policyMatches.length ? ['### Relevant internal policy', ...policyMatches.flatMap(renderMatch)] : []),
+        ...(precedentMatches.length ? ['### Product precedents', ...precedentMatches.flatMap(renderMatch)] : []),
+        ...(contrastMatches.length ? ['### Contrast records', ...contrastMatches.flatMap(renderMatch)] : []),
         ...(counselMatches.length ? ['### Relevant counsel guidance', ...counselMatches.flatMap(renderMatch)] : []),
+        ...(policyMatches.length ? ['### Relevant internal policy', ...policyMatches.flatMap(renderMatch)] : []),
         '- Internal precedent only — not regulatory authority. Reviewer confirmation remains required.',
       ].join('\n')
     : [

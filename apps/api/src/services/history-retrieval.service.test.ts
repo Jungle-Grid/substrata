@@ -6,10 +6,12 @@ import {
   appendCompanyHistoryComparison,
   retrieveCompanyHistory,
   retrieveCompanyHistoryWithTrace,
+  validateHistoryProjection,
 } from './history-retrieval.service';
 
 test('Company History memo section keeps comparison material separate from review candidates', () => {
-  const memo = appendCompanyHistoryComparison('# Draft ECCN Review Memo\n\n## 2. Extracted Technical Facts\n- Secure boot', [
+  const memo = appendCompanyHistoryComparison('# Draft ECCN Review Memo\n\n## 2. Extracted Technical Facts\n- Secure boot', {
+    productPrecedents: [
     {
       companyHistoryDocumentId: 'history_doc_1',
       companyHistoryChunkId: 'chunk_1',
@@ -32,12 +34,116 @@ test('Company History memo section keeps comparison material separate from revie
       agreements: ['Shared technical evidence: secure boot'],
       configurationDifferences: [],
     },
-  ]);
+    ],
+    technicalComparisons: [],
+    counselGuidance: [],
+    internalPolicy: [],
+  });
 
   assert.match(memo, /## Company History Comparison/);
   assert.match(memo, /prior-review\.pdf/);
   assert.match(memo, /Internal precedent only — not regulatory authority/);
   assert.doesNotMatch(memo, /automatic classification approval/i);
+});
+
+test('runtime role precedence keeps product memos out of counsel and policy sections', async () => {
+  const originalQueryRaw = prisma.$queryRaw;
+  const originalCount = prisma.companyHistoryChunk.count;
+  prisma.companyHistoryChunk.count = (async () => 4) as typeof prisma.companyHistoryChunk.count;
+  prisma.$queryRaw = (async () => [
+    {
+      chunkId: 'memo_chunk', chunkOrdinal: 0, historyDocumentId: 'memo_document',
+      content: 'Product: NX100 Secure Network Interface Card\nOutside counsel was consulted. Human review required. Not legal advice.',
+      baseScore: 1, fileName: 'prior-product-review.md', title: 'Internal Classification Memo',
+      importedAt: new Date(), metadata: null, recordType: 'prior_memo',
+    },
+    {
+      chunkId: 'counsel_chunk', chunkOrdinal: 0, historyDocumentId: 'counsel_document',
+      content: 'Counsel findings concerning customer-accessible encryption.',
+      baseScore: 1, fileName: 'q3-review.pdf', title: 'Counsel Review Summary',
+      importedAt: new Date(), metadata: null, recordType: 'other',
+    },
+    {
+      chunkId: 'policy_chunk', chunkOrdinal: 0, historyDocumentId: 'policy_document',
+      content: 'All reviewers must obtain approval before finalization.',
+      baseScore: 1, fileName: 'review-rules.txt', title: 'Internal Export Policy',
+      importedAt: new Date(), metadata: null, recordType: 'other',
+    },
+  ]) as typeof prisma.$queryRaw;
+  try {
+    const retrieval = await retrieveCompanyHistoryWithTrace({
+      organizationId: 'org_roles', documentTitle: 'NX100 product brief', sourceText: 'NX100 Secure Network Interface Card',
+      extractedSpecs: [{ name: 'product_name', value: 'NX100' }],
+    });
+    assert.equal(retrieval.pools.productPrecedents[0]?.recordRole, 'classification_memo');
+    assert.equal(retrieval.pools.counselGuidance[0]?.recordRole, 'counsel_guidance');
+    assert.equal(retrieval.pools.internalPolicy[0]?.recordRole, 'internal_policy');
+    const memo = appendCompanyHistoryComparison('# Memo', {
+      productPrecedents: retrieval.pools.productPrecedents,
+      technicalComparisons: retrieval.pools.technicalComparisons,
+      counselGuidance: retrieval.pools.counselGuidance,
+      internalPolicy: retrieval.pools.internalPolicy,
+    });
+    const precedents = memo.split('### Product precedents')[1]?.split('### Relevant counsel guidance')[0] ?? '';
+    const counsel = memo.split('### Relevant counsel guidance')[1]?.split('### Relevant internal policy')[0] ?? '';
+    const policy = memo.split('### Relevant internal policy')[1] ?? '';
+    assert.match(precedents, /prior-product-review\.md/);
+    assert.doesNotMatch(precedents, /q3-review\.pdf|review-rules\.txt/);
+    assert.match(counsel, /q3-review\.pdf/);
+    assert.doesNotMatch(counsel, /prior-product-review\.md|review-rules\.txt/);
+    assert.match(policy, /review-rules\.txt/);
+    assert.doesNotMatch(policy, /prior-product-review\.md|q3-review\.pdf/);
+  } finally {
+    prisma.$queryRaw = originalQueryRaw;
+    prisma.companyHistoryChunk.count = originalCount;
+  }
+});
+
+test('spreadsheet retrieval retains the selected row locator and never renders the container', async () => {
+  const originalQueryRaw = prisma.$queryRaw;
+  const originalCount = prisma.companyHistoryChunk.count;
+  const selectedRow = 'Record ID: AS-2025-002\nProduct: NX100 Secure Network Interface Card\nPorts: 2x 200GbE\nECCN: 5A991';
+  prisma.companyHistoryChunk.count = (async () => 2) as typeof prisma.companyHistoryChunk.count;
+  prisma.$queryRaw = (async () => [{
+    chunkId: 'csv_nx100', chunkOrdinal: 1, historyDocumentId: 'prior_csv', content: selectedRow,
+    baseScore: 1, fileName: 'prior-classifications.csv', title: 'Prior classifications', importedAt: new Date(),
+    metadata: null, recordType: 'spreadsheet',
+  }]) as typeof prisma.$queryRaw;
+  try {
+    const retrieval = await retrieveCompanyHistoryWithTrace({
+      organizationId: 'org_csv', documentTitle: 'NX120 networking brief', sourceText: 'NX100 Secure Network Interface Card with 200GbE',
+      extractedSpecs: [{ name: 'product_name', value: 'NX100' }],
+    });
+    const match = retrieval.pools.productPrecedents[0]!;
+    assert.equal(match.recordLocator, 'CSV row 3');
+    assert.deepEqual(match.recordLocatorMetadata, { kind: 'csv_row', rowNumber: 3, recordId: 'AS-2025-002', chunkOrdinal: 1 });
+    assert.equal(match.excerpt, selectedRow);
+    const memo = appendCompanyHistoryComparison('# Memo', {
+      productPrecedents: retrieval.pools.productPrecedents,
+      technicalComparisons: [], counselGuidance: [], internalPolicy: [],
+    });
+    assert.match(memo, /Locator: CSV row 3/);
+    assert.match(memo, /AS-2025-002/);
+    assert.doesNotMatch(memo, /AX900|AS-2025-001/);
+  } finally {
+    prisma.$queryRaw = originalQueryRaw;
+    prisma.companyHistoryChunk.count = originalCount;
+  }
+});
+
+test('history projection validation rejects role-routing and multi-record CSV leakage', () => {
+  const issues = validateHistoryProjection({
+    productPrecedents: [{
+      companyHistoryDocumentId: 'document', companyHistoryChunkId: 'chunk', sourceFileName: 'history.csv', sourceTitle: 'History',
+      recordLocator: 'CSV row 3', recordLocatorMetadata: { kind: 'csv_row', rowNumber: 3, recordId: 'R-2', chunkOrdinal: 1 },
+      importedAt: new Date(), excerpt: 'Record ID: R-1\nRecord ID: R-2', rank: 1, score: 1, matchTier: 'direct',
+      matchReasons: [], retrievalMethod: 'test', retrievalVersion: 'test', supportingMatches: [], materialDifferences: [],
+      blockingContradictions: [], similarityComponents: {}, recommendedUse: 'precedent', recordRole: 'counsel_guidance', agreements: [], configurationDifferences: [],
+    }],
+    technicalComparisons: [], counselGuidance: [], internalPolicy: [],
+  });
+  assert.ok(issues.some((issue) => issue.code === 'HISTORY_ROLE_SECTION_MISMATCH'));
+  assert.ok(issues.some((issue) => issue.code === 'STRUCTURED_HISTORY_RECORD_LEAKAGE'));
 });
 
 test('history retrieval passes the active organization into its lexical query', async () => {
@@ -59,6 +165,58 @@ test('history retrieval passes the active organization into its lexical query', 
     });
     assert.deepEqual(matches, []);
     assert.ok(values.includes('org_history_only'));
+  } finally {
+    prisma.$queryRaw = originalQueryRaw;
+    prisma.companyHistoryChunk.count = originalCount;
+  }
+});
+
+test('validated internal record references are retrieval hints, not product facts', async () => {
+  const originalQueryRaw = prisma.$queryRaw;
+  const originalCount = prisma.companyHistoryChunk.count;
+  let values: unknown[] = [];
+  prisma.$queryRaw = (async (query: { values?: unknown[] }) => {
+    values = query.values ?? [];
+    return [];
+  }) as typeof prisma.$queryRaw;
+  prisma.companyHistoryChunk.count = (async () => 0) as typeof prisma.companyHistoryChunk.count;
+  try {
+    await retrieveCompanyHistoryWithTrace({
+      organizationId: 'org_history_hint',
+      documentTitle: 'Technical source',
+      sourceText: 'ZX100 accelerator with 128 GB HBM memory.',
+      extractedSpecs: [{ name: 'product_name', value: 'ZX100 accelerator' }],
+      historyRecordHints: ['CASE-2026-019'],
+    });
+    const query = values.find((value): value is string => typeof value === 'string' && value.includes(' OR '));
+    assert.match(query ?? '', /CASE-2026-019/);
+  } finally {
+    prisma.$queryRaw = originalQueryRaw;
+    prisma.companyHistoryChunk.count = originalCount;
+  }
+});
+
+test('explicit comparison-product references are organization-scoped retrieval hints', async () => {
+  const originalQueryRaw = prisma.$queryRaw;
+  const originalCount = prisma.companyHistoryChunk.count;
+  let values: unknown[] = [];
+  prisma.$queryRaw = (async (query: { values?: unknown[] }) => {
+    values = query.values ?? [];
+    return [];
+  }) as typeof prisma.$queryRaw;
+  prisma.companyHistoryChunk.count = (async () => 0) as typeof prisma.companyHistoryChunk.count;
+  try {
+    await retrieveCompanyHistoryWithTrace({
+      organizationId: 'org_comparison_hint_only',
+      documentTitle: 'Current network adapter technical brief',
+      sourceText: 'Current adapter has secure boot and 200GbE ports.',
+      extractedSpecs: [{ name: 'product_name', value: 'Current network adapter' }],
+      historyRecordHints: ['Prior network adapter memo'],
+    });
+    assert.ok(values.includes('org_comparison_hint_only'));
+    const query = values.find((value): value is string => typeof value === 'string' && value.includes(' OR '));
+    assert.match(query ?? '', /Prior/);
+    assert.match(query ?? '', /network/);
   } finally {
     prisma.$queryRaw = originalQueryRaw;
     prisma.companyHistoryChunk.count = originalCount;
@@ -145,7 +303,12 @@ Use this record as internal precedent only. Do not automatically classify a new 
     assert.match(primaryFtsQuery, /HBM3E/i);
     assert.match(primaryFtsQuery, /PCIe/i);
 
-    const memo = appendCompanyHistoryComparison('# Draft ECCN Review Memo', retrieval.matches);
+    const memo = appendCompanyHistoryComparison('# Draft ECCN Review Memo', {
+      productPrecedents: retrieval.pools.productPrecedents,
+      technicalComparisons: retrieval.pools.technicalComparisons,
+      counselGuidance: retrieval.pools.counselGuidance,
+      internalPolicy: retrieval.pools.internalPolicy,
+    });
     assert.match(memo, /Company History Comparison/);
     assert.match(memo, /memo_AX900_ai_accelerator\.md/);
     assert.match(memo, /Related product family: AI accelerator cards/);

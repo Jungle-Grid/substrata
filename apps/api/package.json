@@ -7,7 +7,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "lint": "eslint src --ext .ts",
-    "test": "node --import tsx --test src/**/*.test.ts",
+    "test": "node --import tsx --test src/config/**/*.test.ts src/lib/**/*.test.ts src/routes/**/*.test.ts src/services/**/*.test.ts",
+    "test:integration": "node --import tsx --test src/integration-tests/**/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

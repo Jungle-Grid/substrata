@@ -1,8 +1,54 @@
 # Substrata Final Readiness Verdict
 
-Overall verdict: **NOT READY**
+Overall verdict: **READY FOR MANUAL VALIDATION**
+
+> Final readiness verification (2026-07-11): callback delivery is **NOT
+> APPLICABLE**. Repository-wide inspection found no worker/provider callback route,
+> webhook, completion endpoint, callback signature/secret, or reconciliation callback;
+> execution is an in-process queued task and the managed backend polls the provider.
+> The lifecycle integration suite passes 72/72, API regression 18/18, worker tests
+> 32/32, lint/typechecks/builds/Prisma/configuration checks pass, all 15 migrations
+> deploy to an isolated database, and zero disposable databases remain. Storage paths
+> are no longer returned in document/run presenters. The only remaining requirement is
+> the authenticated browser walkthrough in `docs/AUTHENTICATED_LIFECYCLE_VALIDATION.md`.
+
+> Lifecycle integration expansion (2026-07-11): reusable isolated-database,
+> ephemeral-server, cookie/auth, fixture, controlled-storage, and controlled remote
+> cancellation helpers are implemented. Dedicated document, run, cancellation, and
+> artifact deletion/retry suites now contain 68 lifecycle tests plus the preserved
+> four smoke tests. The first complete run executed 72 tests (67 passed, 5 failed);
+> all five failures were test-authoring defects, and the corrected document/run files
+> reran 39/39. Two production defects were identified and fixed: archived active runs
+> could be cancelled, and permanent-deletion storage failures surfaced as unsanitized
+> 500 errors rather than honest 502 cleanup failures. **NOT READY remains required**:
+> no worker callback endpoint/boundary exists, so the required callback/cancellation
+> race integration category is still zero. The post-fix complete integration suite
+> passes 72/72, API regression passes, and worker regression passes 32/32. Browser validation remains
+> explicitly unperformed.
 
 > Deletion and retention follow-up (2026-07-11): the API now supports a consistent, organization-scoped `lifecycle=active|archived|all` list filter, with active as the default. The web workspace has active/archived document and run views plus document/run confirmation controls. Artifact deletion/retry controls are integrated into the run-detail audit panel with explicit deletion confirmation and server-driven pending/failure/retry state. Lifecycle and artifact-manifest responses do not expose storage keys. Artifact route ownership verifies both authenticated organization and parent run. Migration deploy/status was rerun successfully: 15 migrations and schema up to date. This remains **NOT READY** because dedicated lifecycle/CSRF/IDOR/storage failure/cancellation-race tests and authenticated frontend manual validation are not complete; remote cancellation remains safely unresolved without provider confirmation.
+
+> Test-hardening follow-up: unauthorized run lifecycle mutations now return
+> explicit `403` HTTP errors rather than a generic server error, and artifact
+> retry is restricted to persisted failed-cleanup state. API typecheck and the
+> 60-test regression suite pass. Dedicated persisted lifecycle/CSRF/isolation/
+> storage/race coverage and authenticated browser validation are still absent,
+> therefore the deletion and retention verdict remains **NOT READY**.
+
+> Integration-test assessment: `createApp()` is importable without binding a
+> listener, while `server.ts` binds the production listener. Prisma selects its
+> database at process start, enabling a separate test process to use an isolated
+> `TEST_DATABASE_URL`. A dedicated harness and executable lifecycle integration
+> suite are still pending. A manual authenticated validation handoff is provided
+> in `docs/AUTHENTICATED_LIFECYCLE_VALIDATION.md`; it is not evidence of a
+> completed browser walkthrough.
+
+> Integration harness implemented: `apps/api/src/integration-tests/integration-smoke.test.ts`
+> creates and drops an isolated temporary PostgreSQL database, applies the
+> migration chain, starts the real Express app on an ephemeral port, and proves
+> real session cookies, CSRF middleware, Prisma archive persistence, audit event
+> persistence, and cross-organization denial (4/4 smoke tests passing). The
+> full lifecycle matrix and storage-adapter injection remain follow-up work.
 
 ## Executive Summary
 

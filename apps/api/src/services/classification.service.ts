@@ -24,6 +24,8 @@ import { runLocalWorker } from './worker-runtime';
 import {
   retrieveCompanyHistoryWithTrace,
   appendCompanyHistoryComparison,
+  validateHistoryProjection,
+  type CanonicalHistoryPools,
   type CompanyHistoryRetrievalTrace,
   type RetrievedCompanyHistoryMatch,
 } from './history-retrieval.service';
@@ -569,9 +571,15 @@ export async function executeClassificationRun(input: {
     });
 
     let historyMatches: RetrievedCompanyHistoryMatch[] = [];
+    let historyPools: CanonicalHistoryPools = {
+      productPrecedents: [], technicalComparisons: [], counselGuidance: [], internalPolicy: [], regulatoryContext: [], excludedAdministrative: [],
+    };
     let companyHistoryTrace: CompanyHistoryRetrievalTrace | null = null;
-    const documentQualification = workerOutput.classificationTrace?.documentQualification as { classifiability?: string; entities?: Array<{ id?: string; partNumbers?: string[] }> } | undefined;
+    const documentQualification = workerOutput.classificationTrace?.documentQualification as { classifiability?: string; entities?: Array<{ id?: string; entityType?: string; canonicalName?: string; historyRetrievalEligible?: boolean }> } | undefined;
     const historyRetrievalAllowed = !documentQualification || documentQualification.classifiability === 'single_product_classifiable';
+    const historyRecordHints = (documentQualification?.entities ?? [])
+      .filter((entity) => (entity.entityType === 'history_record' || entity.historyRetrievalEligible) && typeof entity.canonicalName === 'string')
+      .map((entity) => entity.canonicalName!);
     try {
       if (!historyRetrievalAllowed) {
         console.info('Company History retrieval skipped for non-classifiable document', {
@@ -584,9 +592,39 @@ export async function executeClassificationRun(input: {
         documentTitle: document.title,
         sourceText,
         extractedSpecs: workerOutput.extractedSpecs,
+        historyRecordHints,
       });
       historyMatches = retrieval.matches;
+      historyPools = retrieval.pools;
       companyHistoryTrace = retrieval.trace;
+      if (process.env.CLASSIFICATION_HISTORY_DIAGNOSTICS === '1') {
+        for (const match of historyMatches) {
+          const destinationPool = match.recordRole === 'counsel_guidance' ? 'counselGuidance'
+            : match.recordRole === 'internal_policy' ? 'internalPolicy'
+            : match.recommendedUse === 'contrast' ? 'contrastRecords'
+            : ['product_precedent', 'classification_memo', 'review_worksheet'].includes(match.recordRole) ? 'productPrecedents'
+            : match.recordRole === 'technical_source' ? 'technicalComparisons' : 'excluded';
+          console.info('company_history.runtime_resolution', {
+            history_document_id: match.companyHistoryDocumentId,
+            history_chunk_id: match.companyHistoryChunkId,
+            filename: match.sourceFileName,
+            persisted_document_role: null,
+            chunk_role: null,
+            explicit_role: null,
+            heuristic_role: match.recordRole,
+            final_role: match.recordRole,
+            role_reason_codes: ['runtime_record_role'],
+            record_locator: match.recordLocatorMetadata ?? match.recordLocator ?? null,
+            source_excerpt_hash: createHash('sha256').update(match.excerpt).digest('hex'),
+            destination_pool: destinationPool,
+            destination_memo_section: destinationPool,
+            retrieval_cache: 'fresh_database_query',
+            runtime_source: 'typescript',
+            role_model_version: 'history-role-v1-phase1',
+            retrieval_version: match.retrievalVersion,
+          });
+        }
+      }
       console.info('Company History retrieval completed', {
         reviewRunId: run.id,
         organizationId: input.organizationId,
@@ -667,12 +705,15 @@ export async function executeClassificationRun(input: {
         return summary;
       }, {});
       const finalizedHistory = {
-        productPrecedents: historyMatches.filter((match) => ['product_precedent', 'classification_memo', 'review_worksheet'].includes(match.recordRole)),
-        technicalComparisons: historyMatches.filter((match) => match.recordRole === 'technical_source'),
-        counselGuidance: historyMatches.filter((match) => match.recordRole === 'counsel_guidance'),
-        internalPolicy: historyMatches.filter((match) => match.recordRole === 'internal_policy'),
-        regulatoryContext: historyMatches.filter((match) => match.recordRole === 'regulatory_material'),
-        excludedResults: [],
+        productPrecedents: historyPools.productPrecedents.filter((match) => match.recommendedUse !== 'contrast'),
+        contrastRecords: [
+          ...historyPools.productPrecedents.filter((match) => match.recommendedUse === 'contrast'),
+          ...historyPools.technicalComparisons.filter((match) => match.recommendedUse === 'contrast'),
+        ],
+        counselGuidance: historyPools.counselGuidance,
+        internalPolicy: historyPools.internalPolicy,
+        regulatoryContext: historyPools.regulatoryContext,
+        excludedResults: historyPools.excludedAdministrative,
         retrievalMetadata: {
           queryVersion: companyHistoryTrace?.retrievalMethod ?? 'unavailable',
           retrievedAt: new Date().toISOString(),
@@ -685,8 +726,32 @@ export async function executeClassificationRun(input: {
       // It is deliberately the sole point at which role-filtered history enters
       // the decision that the memo renderer exposes.
       decisionSnapshot.company_history_matches = finalizedHistory;
-      const renderableHistory = historyMatches.filter((match) => match.recommendedUse !== 'irrelevant');
-      workerOutput.memoMarkdown = appendCompanyHistoryComparison(workerOutput.memoMarkdown, renderableHistory);
+      const memoHistoryPools = {
+        productPrecedents: finalizedHistory.productPrecedents,
+        technicalComparisons: finalizedHistory.contrastRecords,
+        counselGuidance: finalizedHistory.counselGuidance,
+        internalPolicy: finalizedHistory.internalPolicy,
+      };
+      const historyProjectionIssues = validateHistoryProjection(memoHistoryPools);
+      if (historyProjectionIssues.length) {
+        workerOutput.validationIssues.push(...historyProjectionIssues.map((issue) => ({
+          ...issue,
+          severity: 'error' as const,
+          path: 'companyHistory',
+          supportingFactNames: [],
+          supportingCitationLabels: [],
+        })));
+        throw new Error(`History projection validation failed: ${historyProjectionIssues.map((issue) => issue.code).join(', ')}`);
+      }
+      if (process.env.CLASSIFICATION_HISTORY_DIAGNOSTICS === '1') {
+        console.info('company_history.memo_input', {
+          review_run_id: run.id,
+          canonical_history_shape: Object.fromEntries(Object.entries(memoHistoryPools).map(([key, value]) => [key, value.length])),
+          memo_renderer: 'api.appendCompanyHistoryComparison',
+          worker_memo_renderer_receives_history: false,
+        });
+      }
+      workerOutput.memoMarkdown = appendCompanyHistoryComparison(workerOutput.memoMarkdown, memoHistoryPools);
       const memoHash = createHash('sha256').update(workerOutput.memoMarkdown).digest('hex');
       const decisionForHash = { ...decisionSnapshot, memoHash };
       const decisionHash = createHash('sha256').update(JSON.stringify(decisionForHash)).digest('hex');

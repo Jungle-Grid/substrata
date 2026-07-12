@@ -11,7 +11,7 @@ import { HttpError } from '../lib/errors';
 import { canCreateClassification } from '../lib/authz';
 import { requireCsrf } from '../middleware/auth';
 import { canManageWorkspace } from '../lib/authz';
-import { createStorageDriver } from '../services/storage';
+import { createStorageDriver, type StorageDriver } from '../services/storage';
 import { archiveDocument, permanentlyDeleteDocument, restoreDocument } from '../services/lifecycle.service';
 import {
   createDocument,
@@ -28,9 +28,7 @@ import {
 import { extractTextFromStoredFile } from '../services/text-extraction.service';
 import { presentDocument, presentRun } from '../services/presenters';
 
-export const documentsRouter = Router();
 const workerClient = createWorkerClient();
-const storage = createStorageDriver();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -50,6 +48,10 @@ function deriveTitleFromFileName(fileName: string) {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+export function createDocumentsRouter(deps: { storage?: StorageDriver } = {}) {
+const documentsRouter = Router();
+const storage = deps.storage ?? createStorageDriver();
 
 documentsRouter.post('/', requireCsrf, async (req, res) => {
   const input = parseBody(documentCreateSchema, req);
@@ -320,3 +322,8 @@ documentsRouter.post('/:id/classification-runs', requireCsrf, async (req, res) =
 
   return res.status(202).json(presentRun(run));
 });
+
+return documentsRouter;
+}
+
+export const documentsRouter = createDocumentsRouter();

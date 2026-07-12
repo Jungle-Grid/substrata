@@ -9,6 +9,7 @@ import {
 } from '@substrata/shared';
 import { canManagePublicDemo, canSubmitReview } from '../lib/authz';
 import { parseBody } from '../lib/http';
+import { HttpError } from '../lib/errors';
 import {
   claimClassificationRun,
   getClassificationRun,
@@ -25,14 +26,14 @@ import {
   updateReviewPathRecord,
 } from '../services/classification.service';
 import { presentRun } from '../services/presenters';
-import { createStorageDriver } from '../services/storage';
+import { createStorageDriver, type StorageDriver } from '../services/storage';
 import { requireCsrf } from '../middleware/auth';
 import { canManageWorkspace } from '../lib/authz';
-import { archiveRun, cancelRun, deleteArtifact, permanentlyDeleteRun, restoreRun } from '../services/lifecycle.service';
-
-const storage = createStorageDriver();
+import { archiveRun, cancelRun, deleteArtifact, permanentlyDeleteRun, restoreRun, type RemoteCancellationClient } from '../services/lifecycle.service';
 
 type ClassificationRunsRouterDeps = {
+  storage?: StorageDriver;
+  remoteCancellation?: RemoteCancellationClient;
   loadClassificationRun?: typeof getClassificationRun;
   listRuns?: typeof listClassificationRuns;
   listQueue?: typeof listReviewQueue;
@@ -52,6 +53,7 @@ export function createClassificationRunsRouter(
   deps: ClassificationRunsRouterDeps = {},
 ) {
   const classificationRunsRouter = Router();
+  const storage = deps.storage ?? createStorageDriver();
   const loadClassificationRun = deps.loadClassificationRun ?? getClassificationRun;
   const listRuns = deps.listRuns ?? listClassificationRuns;
   const listQueue = deps.listQueue ?? listReviewQueue;
@@ -117,35 +119,35 @@ export function createClassificationRunsRouter(
 
   classificationRunsRouter.post('/:id/archive', requireCsrf, async (req, res) => {
     const { organization, user, membership } = req.authContext!;
-    if (!canSubmitReview(membership.role)) throw new Error('Forbidden');
+    if (!canSubmitReview(membership.role)) throw new HttpError(403, 'You do not have access to archive classification runs.');
     const run = await archiveRun({ organizationId: organization.id, runId: String(req.params.id), actorUserId: user.id });
     return res.json({ id: run.id, archivedAt: run.archivedAt, lifecycle: 'archived' });
   });
   classificationRunsRouter.post('/:id/restore', requireCsrf, async (req, res) => {
     const { organization, user, membership } = req.authContext!;
-    if (!canSubmitReview(membership.role)) throw new Error('Forbidden');
+    if (!canSubmitReview(membership.role)) throw new HttpError(403, 'You do not have access to restore classification runs.');
     const run = await restoreRun({ organizationId: organization.id, runId: String(req.params.id), actorUserId: user.id });
     return res.json({ id: run.id, archivedAt: run.archivedAt, lifecycle: 'active' });
   });
   classificationRunsRouter.post('/:id/cancel', requireCsrf, async (req, res) => {
     const { organization, user, membership } = req.authContext!;
-    if (!canSubmitReview(membership.role)) throw new Error('Forbidden');
-    const run = await cancelRun({ organizationId: organization.id, runId: String(req.params.id), actorUserId: user.id });
+    if (!canSubmitReview(membership.role)) throw new HttpError(403, 'You do not have access to cancel classification runs.');
+    const run = await cancelRun({ organizationId: organization.id, runId: String(req.params.id), actorUserId: user.id, remoteCancellation: deps.remoteCancellation });
     return res.json({ id: run.id, status: run.status, cancellationRequestedAt: run.cancellationRequestedAt, cancelledAt: run.cancelledAt, cancellationFailureReason: run.cancellationFailureReason });
   });
   classificationRunsRouter.delete('/:id/artifacts/:artifactId', requireCsrf, async (req, res) => {
     const { organization, user, membership } = req.authContext!;
-    if (!canManageWorkspace(membership.role)) throw new Error('Forbidden');
+    if (!canManageWorkspace(membership.role)) throw new HttpError(403, 'Only organization administrators may delete artifacts.');
     return res.json(await deleteArtifact({ organizationId: organization.id, runId: String(req.params.id), artifactId: String(req.params.artifactId), actorUserId: user.id, storage }));
   });
   classificationRunsRouter.post('/:id/artifacts/:artifactId/retry-deletion', requireCsrf, async (req, res) => {
     const { organization, user, membership } = req.authContext!;
-    if (!canManageWorkspace(membership.role)) throw new Error('Forbidden');
-    return res.json(await deleteArtifact({ organizationId: organization.id, runId: String(req.params.id), artifactId: String(req.params.artifactId), actorUserId: user.id, storage }));
+    if (!canManageWorkspace(membership.role)) throw new HttpError(403, 'Only organization administrators may retry artifact deletion.');
+    return res.json(await deleteArtifact({ organizationId: organization.id, runId: String(req.params.id), artifactId: String(req.params.artifactId), actorUserId: user.id, storage, retry: true }));
   });
   classificationRunsRouter.delete('/:id/permanent', requireCsrf, async (req, res) => {
     const { organization, user, membership } = req.authContext!;
-    if (!canManageWorkspace(membership.role)) throw new Error('Forbidden');
+    if (!canManageWorkspace(membership.role)) throw new HttpError(403, 'Only organization administrators may permanently delete classification runs.');
     const input = z.object({ confirmation: z.string().trim().min(1) }).parse(req.body);
     return res.json(await permanentlyDeleteRun({ organizationId: organization.id, runId: String(req.params.id), actorUserId: user.id, confirmation: input.confirmation, storage }));
   });

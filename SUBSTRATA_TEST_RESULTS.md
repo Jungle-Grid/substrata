@@ -2,6 +2,75 @@
 
 Audit date: 2026-07-11
 
+## Lifecycle integration expansion
+
+### Final readiness verification
+
+| Command | Working directory | Exit | Duration | Status | Sanitized result |
+|---|---|---:|---:|---|---|
+| `corepack pnpm lint` | repository root | 0 | 7.72s | PASS | All workspace lint tasks passed. |
+| `corepack pnpm --filter @substrata/api typecheck` | repository root | 0 | 10.05s | PASS | API typecheck passed. |
+| `corepack pnpm --filter @substrata/web typecheck` | repository root | 0 | 3.63s | PASS | Web typecheck passed after the production build completed. |
+| `corepack pnpm --filter @substrata/api build` | repository root | 0 | 15.99s | PASS | API build passed. |
+| `corepack pnpm --filter @substrata/web build` | repository root | 0 | <60s | PASS | Next production build and build verifier passed. |
+| `TEST_DATABASE_URL="$DATABASE_URL" corepack pnpm --filter @substrata/api test:integration` | repository root | 0 | 19.03s | PASS | 72/72 passed; harness applied 15 migrations and removed its temporary database. |
+| `WEB_APP_URL=http://localhost:3000 corepack pnpm --filter @substrata/api test` | repository root | 0 | 4.39s | PASS | API regression 18/18 passed. |
+| `python3 -m py_compile $(rg --files workers/classifier/src -g '*.py')` | repository root | 0 | 0.11s | PASS | Python syntax passed. |
+| `python3 -m unittest discover -s workers/classifier/tests -v` | repository root | 0 | 0.23s | PASS | Worker tests 32/32 passed. |
+| `corepack pnpm --filter @substrata/db prisma:generate` | repository root | 0 | 6.41s | PASS | Prisma client generated. |
+| `prisma validate --schema prisma/schema.prisma` | repository root | 0 | 5.69s | PASS | Prisma schema valid. |
+| Validated `substrata_test_verify_*` `prisma migrate deploy` + `migrate status` | repository root | 0 | 4.55s | PASS | All 15 migrations applied; temporary database dropped; zero disposable databases remained. |
+| `prisma migrate status --schema prisma/schema.prisma` | repository root | 0 | 5.69s | PASS | Configured non-test schema up to date with 15 migrations. |
+| `psql ... SELECT 1` | repository root | 0 | 5.69s | PASS | Read-only configured database connectivity passed. |
+| dotenv parse of `infra/.env.production` | `apps/api` | 0 | 0.96s | PASS | Production dotenv parsed without rendering values. |
+| `docker-compose -f infra/docker-compose.prod.yml --env-file infra/.env.production config --quiet` | repository root | 0 | 0.81s | PASS | Production Compose parse passed outside the sandbox Snap confinement limitation. |
+| `git diff --check` | repository root | 0 | <1s | PASS | No whitespace errors. |
+
+Callback architecture: **NOT APPLICABLE**. There is no production worker/provider
+callback or webhook boundary. Status changes happen through the in-process execution
+service after enqueue, with Jungle Grid provider polling; no artificial callback
+architecture was introduced.
+
+Exact coverage method: the test runner reports 72 named integration tests: smoke 4,
+document 20, run 19, cancellation 13, artifact lifecycle 16. Action counts overlap
+where one named isolation test exercises both artifact deletion and retry: artifact
+deletion 11, artifact retry 6. There are 27 CSRF assertion cases, 11 organization-
+isolation assertion cases, 13 storage-failure cases, and 11 concurrency/idempotency
+cases. The detailed mapping is in `docs/INTEGRATION_TESTING.md`.
+
+Regression assertions cover archived-active cancellation 409; document/run cleanup
+failure 502; unauthorized run lifecycle 403; retry-without-failure 409; unresolved
+remote cancellation 409 with unchanged status; and storage uncertainty without false
+deletion success. Final security review found no auth/CSRF bypass, request-supplied
+ownership/storage-key trust, test-only production route, destructive migration, or
+remaining presenter storage-path exposure in the lifecycle responses.
+
+| Command | Working directory | Exit | Duration | Tests | Status | Sanitized result |
+|---|---|---:|---:|---:|---|---|
+| `TEST_DATABASE_URL="$DATABASE_URL" corepack pnpm --filter @substrata/api test:integration` | repository root | 1 | 110.65s | 72 | FAIL | 67 passed, 5 failed; every temporary database was removed. Failures were test code (one reference-equality assertion and four invalid email fixture labels). |
+| `TEST_DATABASE_URL="$DATABASE_URL" node --import tsx --test --test-concurrency=1 --test-reporter=spec src/integration-tests/document-lifecycle.integration.test.ts src/integration-tests/run-lifecycle.integration.test.ts` | `apps/api` | 0 | 26.39s | 39 | PASS | Corrected document/run suites passed 39/39; teardown completed. |
+| `corepack pnpm --filter @substrata/api typecheck` | repository root | 0 | 6.9s | — | PASS | API and integration TypeScript compiled before the final 502 error-mapping edit; rerun still required. |
+| `TEST_DATABASE_URL="$DATABASE_URL" corepack pnpm --filter @substrata/api test:integration` (final) | repository root | 0 | 18.64s | 72 | PASS | 72/72 passed; zero skips and zero failures. |
+| `WEB_APP_URL=http://localhost:3000 corepack pnpm --filter @substrata/api test` | repository root | 0 | 4.05s | 18 files | PASS | Existing API regression suite passed. |
+| `corepack pnpm --filter @substrata/api typecheck` / `corepack pnpm --filter @substrata/web typecheck` | repository root | 0 / 0 | <10s | — | PASS | API and web typechecks passed after production fixes. |
+| `python3 -m unittest discover -s workers/classifier/tests -v` | repository root | 0 | 0.12s | 32 | PASS | Worker suite passed 32/32. |
+| `git diff --check` | repository root | 0 | <1s | — | PASS | No whitespace errors. |
+
+Current executable counts: smoke 4, document 21, run 18, cancellation 13,
+artifact deletion/retry 16; total 72. Storage-failure cases are nonzero and controlled
+at the real storage interface. All nine lifecycle mutations have missing, invalid,
+and valid CSRF requests distributed through the dedicated suites. Representative
+organization isolation exists for document, run, cancellation, artifact deletion,
+and retry, but the requested independently named 10+ security matrix is incomplete.
+The final complete suite passes 72/72. Cancellation/callback race count is zero because the application has no worker
+callback route or adapter and direct Prisma mutation was not misrepresented as an
+integration callback.
+
+Defects discovered/fixed: (1) archived active runs accepted cancellation; now 409.
+(2) document/run storage cleanup failures returned generic 500 responses; now sanitized
+502 responses without deletion success. Manual frontend validation remains pending at
+`docs/AUTHENTICATED_LIFECYCLE_VALIDATION.md`.
+
 All commands used existing dependencies, services, credentials, and fixtures. No install, package download, model pull, container pull, migration application, reseed, destructive database action, or application-code modification was performed.
 
 ## Command Results
@@ -259,3 +328,69 @@ test runner beyond static server-render tests, and dedicated API lifecycle CSRF,
 organization-isolation, storage-failure/retry, and cancellation-race tests have
 not been added in this pass. No manual authenticated browser walkthrough was
 performed in this environment.
+
+## Lifecycle test-hardening follow-up
+
+| Command | Working directory | Exit | Status | Result |
+|---|---|---:|---|---|
+| `corepack pnpm --filter @substrata/api typecheck` | repository root | 0 | PASS | Lifecycle authorization and retry-eligibility hardening typechecks. |
+| `WEB_APP_URL=http://localhost:3000 corepack pnpm test` | repository root | 0 | PASS | Existing API suite remains 60/60. |
+
+### Defects found and fixed
+
+- Run lifecycle routes previously threw a generic `Error` for unauthorized
+  archive, restore, cancel, artifact, and permanent-delete requests. They now
+  return the established sanitized `HttpError(403, ...)` contract.
+- Artifact retry previously accepted any terminal artifact. Retry now requires
+  the persisted failed-cleanup state, returning `409` otherwise. This preserves
+  the API’s server-side lifecycle truth and prevents retry abuse.
+
+### Dedicated coverage and authenticated frontend validation
+
+No dedicated document, run, cancellation, artifact, lifecycle-CSRF,
+organization-isolation, storage-failure, or cancellation-race test file has
+been added. The present API test helper invokes individual route handlers and
+does not provision authenticated sessions, CSRF middleware, isolated database
+records, or injectable lifecycle/storage dependencies. Adding assertions around
+that helper would not verify the required persisted effects and would violate
+the test-quality requirement.
+
+Authenticated frontend lifecycle validation was **BLOCKED**: this environment
+does not provide a browser interaction runner or screenshot facility, and no
+safe authenticated audit-only session was available to exercise destructive UI
+flows. No manual action was represented as passed.
+
+**Verdict: NOT READY.** The explicit dedicated lifecycle test categories and
+authenticated manual validation remain blockers.
+
+## Integration-test bootstrap assessment
+
+Testability map: test process → `DATABASE_URL` selected before module import →
+`createApp()` (no listener) → real session/auth and CSRF middleware → route
+authorization → lifecycle services → Prisma → storage driver → audit events.
+`apps/api/src/server.ts` is the listener-only entry point. The local PostgreSQL
+role has permission to create a uniquely named temporary database, so an
+integration harness can safely use `TEST_DATABASE_URL` and run the existing
+migration chain without touching the configured development database.
+
+The harness has not yet been implemented. No integration test was executed
+against a temporary database in this pass. The user-executable authenticated
+frontend validation package is available at
+[`docs/AUTHENTICATED_LIFECYCLE_VALIDATION.md`](docs/AUTHENTICATED_LIFECYCLE_VALIDATION.md);
+it intentionally does not mark manual validation complete.
+
+## API integration harness
+
+`apps/api/src/integration-tests/integration-smoke.test.ts` creates a unique
+temporary PostgreSQL database from `TEST_DATABASE_URL`, applies all 15 Prisma
+migrations, sets `DATABASE_URL` before dynamically importing Prisma-dependent
+modules, starts `createApp()` on port 0, and drops only that temporary database
+at teardown. The command is:
+
+`TEST_DATABASE_URL="$DATABASE_URL" corepack pnpm --filter @substrata/api test:integration`
+
+The executed smoke suite passed **4/4**: real health/Prisma startup; real
+password session cookies; missing/invalid/valid CSRF archive behavior with
+persisted `archivedAt`, `archivedByUserId`, and audit event; and real
+cross-organization archive denial with unchanged target data. See
+`docs/INTEGRATION_TESTING.md` for safety guards and extension guidance.

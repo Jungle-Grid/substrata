@@ -9,8 +9,10 @@ import {
 import { errorHandler } from './middleware/error-handler';
 import { requestLogger } from './middleware/request-logger';
 import { healthRouter } from './routes/health';
-import { documentsRouter } from './routes/documents';
-import { classificationRunsRouter } from './routes/classification-runs';
+import { createDocumentsRouter } from './routes/documents';
+import { createClassificationRunsRouter } from './routes/classification-runs';
+import type { StorageDriver } from './services/storage';
+import type { RemoteCancellationClient } from './services/lifecycle.service';
 import { authRouter } from './routes/auth';
 import { organizationsRouter } from './routes/organizations';
 import { invitesRouter } from './routes/invites';
@@ -30,7 +32,7 @@ export function buildCorsOptions() {
   };
 }
 
-export function createApp() {
+export function createApp(deps: { storage?: StorageDriver; remoteCancellation?: RemoteCancellationClient } = {}) {
   const app = express();
   const v1 = express.Router();
 
@@ -48,8 +50,8 @@ export function createApp() {
   v1.use('/invites', invitesRouter);
   v1.use('/audit-log', auditLogRouter);
   v1.use(requireAuth);
-  v1.use('/documents', documentsRouter);
-  v1.use('/classification-runs', classificationRunsRouter);
+  v1.use('/documents', createDocumentsRouter({ storage: deps.storage }));
+  v1.use('/classification-runs', createClassificationRunsRouter({ storage: deps.storage, remoteCancellation: deps.remoteCancellation }));
   v1.use('/history', historyRouter);
   v1.use('/debug', debugRouter);
 

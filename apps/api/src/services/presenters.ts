@@ -369,6 +369,9 @@ function presentFactIssue(issue: FactIssue) {
 }
 
 function presentCompanyHistoryMatch(match: CompanyHistoryMatchWithRelations) {
+  const structured = match.matchReasons && typeof match.matchReasons === 'object' && !Array.isArray(match.matchReasons)
+    ? match.matchReasons as Record<string, unknown>
+    : null;
   return {
     id: match.id,
     rank: match.rank,
@@ -378,7 +381,13 @@ function presentCompanyHistoryMatch(match: CompanyHistoryMatchWithRelations) {
       ? match.matchReasons.filter(
           (reason): reason is string => typeof reason === 'string',
         )
-      : [],
+      : Array.isArray(structured?.agreements) ? structured.agreements.filter((reason): reason is string => typeof reason === 'string') : [],
+    agreements: Array.isArray(structured?.agreements) ? structured.agreements.filter((reason): reason is string => typeof reason === 'string') : [],
+    materialDifferences: Array.isArray(structured?.materialDifferences) ? structured.materialDifferences.filter((reason): reason is string => typeof reason === 'string') : [],
+    blockingContradictions: Array.isArray(structured?.blockingContradictions) ? structured.blockingContradictions.filter((reason): reason is string => typeof reason === 'string') : [],
+    configurationDifferences: Array.isArray(structured?.configurationDifferences) ? structured.configurationDifferences.filter((reason): reason is string => typeof reason === 'string') : [],
+    recordRole: typeof structured?.recordRole === 'string' ? structured.recordRole : 'technical_source',
+    recommendedUse: typeof structured?.recommendedUse === 'string' ? structured.recommendedUse : 'context',
     retrievalMethod: match.retrievalMethod,
     retrievalVersion: match.retrievalVersion,
     createdAt: match.createdAt,
@@ -518,9 +527,6 @@ export function presentRun(run: RunWithRelations) {
     conclusionDisclaimer:
       run.conclusionDisclaimer ??
       'Classification support, not legal advice. Requires qualified reviewer confirmation.',
-    extractedTextPath: run.extractedTextPath,
-    structuredOutputPath: run.structuredOutputPath,
-    memoArtifactPath: run.memoArtifactPath,
     capabilitySignals: presentCapabilitySignals(run.capabilitySignals),
     validationIssues: presentValidationIssues(run.validationIssues),
     heuristicResult: run.heuristicResult ?? null,
@@ -581,7 +587,6 @@ export function presentRun(run: RunWithRelations) {
       displayFileName: run.document.displayFileName,
       mimeType: run.document.mimeType,
       sizeBytes: run.document.sizeBytes,
-      storagePath: run.document.storagePath,
       sourceType: run.document.sourceType,
       documentType: run.document.documentType,
       manufacturer: run.document.manufacturer,
@@ -725,7 +730,6 @@ export function presentDocument(document: DocumentWithRunRelations) {
     displayFileName: document.displayFileName,
     mimeType: document.mimeType,
     sizeBytes: document.sizeBytes,
-    storagePath: document.storagePath,
     sourceType: document.sourceType,
     documentType: document.documentType,
     manufacturer: document.manufacturer,

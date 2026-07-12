@@ -368,6 +368,17 @@ def _identity_specs(extraction: AIExtractionResult) -> list[ExtractedSpec]:
     for name, value in values:
         if value is None or not str(value).strip():
             continue
+        # A document-type qualifier (for example, "Draft Product Brief") is
+        # not a publication/document identifier. Keep weak family-overview
+        # metadata out of reviewer-facing facts unless it is affirmative.
+        if name == "is_family_overview" and str(value).strip().lower() == "false":
+            continue
+        if name == "document_number" and not re.search(
+            r"\b(?:document|drawing|spec(?:ification)?|publication|revision|doc)\s*(?:number|no\.?|id)?\s*[:#-]?\s*[A-Z0-9][A-Z0-9_.-]{2,}\b",
+            str(value),
+            flags=re.IGNORECASE,
+        ) and not re.fullmatch(r"(?:DS|UG|PG|WP|XAPP)\d{3,5}[A-Z]?", str(value).strip(), flags=re.IGNORECASE):
+            continue
         if name == "manufacturer" and str(value).strip().lower() not in source_quotes:
             # Platform/workspace/provider identity is prompt context, not product
             # manufacturer evidence. Unverified identity remains unknown.

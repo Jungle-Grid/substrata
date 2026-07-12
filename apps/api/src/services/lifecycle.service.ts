@@ -4,15 +4,23 @@ import { recordAuditEvent } from './audit.service';
 import type { StorageDriver } from './storage';
 
 const ACTIVE_RUN_STATUSES = new Set(['pending', 'queued', 'running', 'unknown']);
+export type RemoteCancellationResult = { outcome: 'timeout'|'rejected'|'unknown_job'|'unresolved'; reason?: string };
+export interface RemoteCancellationClient { cancel(externalJobId: string): Promise<RemoteCancellationResult>; }
+export const unresolvedRemoteCancellationClient: RemoteCancellationClient = { async cancel() { return { outcome: 'unresolved' }; } };
 
-export async function cancelRun(input: { organizationId: string; runId: string; actorUserId: string }) {
+export async function cancelRun(input: { organizationId: string; runId: string; actorUserId: string; remoteCancellation?: RemoteCancellationClient }) {
   const run = await prisma.classificationRun.findFirst({ where: { id: input.runId, organizationId: input.organizationId }, include: { executionJob: true } });
   if (!run) throw new HttpError(404, 'Classification run not found');
   if (run.status === 'cancelled') return run;
+  if (run.archivedAt) throw new HttpError(409, 'Restore the archived classification run before cancellation.');
   if (!ACTIVE_RUN_STATUSES.has(run.status)) throw new HttpError(409, 'Only active classification runs can be cancelled.');
   if (run.executionJob?.externalJobId) {
-    await prisma.classificationRun.update({ where: { id: run.id }, data: { cancellationRequestedAt: new Date(), cancellationFailureReason: 'Remote cancellation requires provider confirmation and is not available in this API process.' } });
-    await recordAuditEvent({ organizationId: input.organizationId, actorUserId: input.actorUserId, actor: 'user', action: 'classification_run.cancellation_failed', entityType: 'ClassificationRun', entityId: run.id, metadata: { result: 'unconfirmed_remote_cancellation' } });
+    let result: RemoteCancellationResult;
+    try { result = await (input.remoteCancellation ?? unresolvedRemoteCancellationClient).cancel(run.executionJob.externalJobId); }
+    catch { result = { outcome: 'unresolved' }; }
+    const failureReason = `Remote cancellation was not confirmed (${result.outcome}).`;
+    await prisma.classificationRun.update({ where: { id: run.id }, data: { cancellationRequestedAt: new Date(), cancellationFailureReason: failureReason } });
+    await recordAuditEvent({ organizationId: input.organizationId, actorUserId: input.actorUserId, actor: 'user', action: 'classification_run.cancellation_failed', entityType: 'ClassificationRun', entityId: run.id, metadata: { result: 'unconfirmed_remote_cancellation', outcome: result.outcome } });
     throw new HttpError(409, 'Remote cancellation could not be confirmed; the run remains active.');
   }
   const cancelled = await prisma.classificationRun.update({ where: { id: run.id }, data: { status: 'cancelled', cancellationRequestedAt: new Date(), cancelledAt: new Date(), errorMessage: 'Cancelled by authorized user.' } });
@@ -20,10 +28,11 @@ export async function cancelRun(input: { organizationId: string; runId: string; 
   return cancelled;
 }
 
-export async function deleteArtifact(input: { organizationId: string; runId: string; artifactId: string; actorUserId: string; storage: StorageDriver }) {
+export async function deleteArtifact(input: { organizationId: string; runId: string; artifactId: string; actorUserId: string; storage: StorageDriver; retry?: boolean }) {
   const artifact = await prisma.artifact.findFirst({ where: { id: input.artifactId, organizationId: input.organizationId, classificationRunId: input.runId }, include: { classificationRun: true } });
   if (!artifact) throw new HttpError(404, 'Artifact not found');
   if (artifact.classificationRun && ACTIVE_RUN_STATUSES.has(artifact.classificationRun.status)) throw new HttpError(409, 'Artifacts for active runs cannot be deleted.');
+  if (input.retry && !artifact.deletionFailureReason) throw new HttpError(409, 'Artifact deletion is not eligible for retry.');
   await prisma.artifact.update({ where: { id: artifact.id }, data: { deletionRequestedAt: new Date(), deletionAttemptCount: { increment: 1 }, deletionFailureReason: null } });
   try {
     const cleanup = await input.storage.delete(artifact.storagePath);
@@ -101,7 +110,7 @@ export async function permanentlyDeleteRun(input: { organizationId: string; runI
     return { id: run.id, cleanup };
   } catch (error) {
     await recordAuditEvent({ organizationId: input.organizationId, actorUserId: input.actorUserId, actor: 'user', action: 'classification_run.deletion_failed', entityType: 'ClassificationRun', entityId: run.id, metadata: { result: 'failed', reason: error instanceof Error ? error.message.slice(0, 200) : 'cleanup_failed' } });
-    throw error;
+    throw new HttpError(502, 'Run artifact storage cleanup failed; deletion was not completed.');
   }
 }
 
@@ -120,6 +129,6 @@ export async function permanentlyDeleteDocument(input: { organizationId: string;
     return { id: document.id, cleanup };
   } catch (error) {
     await recordAuditEvent({ organizationId: input.organizationId, actorUserId: input.actorUserId, actor: 'user', action: 'document.deletion_failed', entityType: 'Document', entityId: document.id, metadata: { result: 'failed', reason: error instanceof Error ? error.message.slice(0, 200) : 'cleanup_failed' } });
-    throw error;
+    throw new HttpError(502, 'Document storage cleanup failed; deletion was not completed.');
   }
 }
