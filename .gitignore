@@ -35,6 +35,8 @@ service-account*.json
 packages/db/generated
 .playwright-mcp/
 substrata-*.png
+/*_AUDIT_REPORT.md
+/*_TEST_RESULTS.md
 
 # Production deployment secrets
 infra/.env.production
