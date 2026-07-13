@@ -18,6 +18,8 @@
     "worker:sample": "python3 workers/classifier/src/main.py workers/classifier/samples/sample-input.json",
     "worker:run-sample": "corepack pnpm worker:sample",
     "worker:validate-sample": "node scripts/validate-worker-output.mjs workers/classifier/samples/output-sample.json --min-specs=8",
+    "validate:production-env": "node scripts/validate-production-env.mjs --env-file infra/.env.production",
+    "test:production-env": "node --test scripts/validate-production-env.test.mjs",
     "smoke:api": "node scripts/smoke-api.mjs"
   },
   "devDependencies": {
