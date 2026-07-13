@@ -33,6 +33,15 @@ A new NX120 classification run requires at least one configured execution provid
 
 The main demo fixture is [`workers/classifier/samples/nx120-secure-smartnic.txt`](workers/classifier/samples/nx120-secure-smartnic.txt). It is fictional and intentionally incomplete so reviewers can see networking and cryptography review paths, missing evidence, uncertainty, and conservative candidate handling.
 
+### Hosted hackathon demo
+
+Open [substrata.junglegrid.dev](https://substrata.junglegrid.dev) and use the public, demo-only account:
+
+- **Work email:** `demo@junglegrid.dev`
+- **Password:** `IamAWinner.AMD`
+
+These credentials are intended only for the public hackathon demo. Do not reuse them for another environment or account.
+
 ### Recommended Fireworks path
 
 Add these values to the local `.env` after copying [`.env.example`](.env.example):
