@@ -91,7 +91,7 @@ services:
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Substrata}
       EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
       STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
-      LOCAL_STORAGE_ROOT: ${LOCAL_STORAGE_ROOT:-/app/tmp/storage}
+      LOCAL_STORAGE_ROOT: /app/tmp/storage
       AI_MAX_INPUT_CHARS: ${AI_MAX_INPUT_CHARS:-120000}
       AI_FALLBACK_TO_HEURISTIC: ${AI_FALLBACK_TO_HEURISTIC:-false}
       SUBSTRATA_MIN_OWNED_PRODUCT_EVIDENCE: ${SUBSTRATA_MIN_OWNED_PRODUCT_EVIDENCE:-1}
@@ -129,7 +129,7 @@ services:
     ports:
       - '127.0.0.1:${API_PORT:-4100}:${API_PORT:-4100}'
     volumes:
-      - substrata-storage:${LOCAL_STORAGE_ROOT:-/app/tmp/storage}
+      - substrata-storage:/app/tmp/storage
     depends_on:
       migrate:
         condition: service_completed_successfully
