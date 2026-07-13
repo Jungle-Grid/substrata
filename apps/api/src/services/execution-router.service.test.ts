@@ -1,10 +1,25 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { NoRemoteProviderAvailable, selectExecutionProvider } from './execution-router.service';
+import {
+  NoRemoteProviderAvailable,
+  selectExecutionProvider,
+} from './execution-router.service';
 
-const keys = ['LOCAL_GEMMA_ENABLED', 'FIREWORKS_ENABLED', 'FIREWORKS_API_KEY', 'JUNGLEGRID_ENABLED', 'JUNGLE_GRID_API_KEY', 'AMD_NOTEBOOK_MANUAL_ENABLED', 'REMOTE_PROVIDER_PRIORITY'] as const;
+const keys = [
+  'LOCAL_GEMMA_ENABLED',
+  'FIREWORKS_ENABLED',
+  'FIREWORKS_API_KEY',
+  'JUNGLE_GRID_ENABLED',
+  'JUNGLEGRID_ENABLED',
+  'JUNGLE_GRID_API_KEY',
+  'AMD_NOTEBOOK_MANUAL_ENABLED',
+  'REMOTE_PROVIDER_PRIORITY',
+] as const;
 
-function withEnv(values: Partial<Record<(typeof keys)[number], string>>, run: () => void) {
+function withEnv(
+  values: Partial<Record<(typeof keys)[number], string>>,
+  run: () => void,
+) {
   const original = new Map(keys.map((key) => [key, process.env[key]]));
   try {
     for (const key of keys) {
@@ -15,25 +30,73 @@ function withEnv(values: Partial<Record<(typeof keys)[number], string>>, run: ()
   } finally {
     for (const key of keys) {
       const value = original.get(key);
-      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
     }
   }
 }
 
 test('local mode always selects Gemma Local', () => {
-  withEnv({ LOCAL_GEMMA_ENABLED: 'true', FIREWORKS_ENABLED: 'true', FIREWORKS_API_KEY: 'configured' }, () => {
-    assert.equal(selectExecutionProvider('local').selectedProvider, 'gemma_local');
-  });
+  withEnv(
+    {
+      LOCAL_GEMMA_ENABLED: 'true',
+      FIREWORKS_ENABLED: 'true',
+      FIREWORKS_API_KEY: 'configured',
+    },
+    () => {
+      assert.equal(
+        selectExecutionProvider('local').selectedProvider,
+        'gemma_local',
+      );
+    },
+  );
 });
 
 test('remote mode follows configured provider priority', () => {
-  withEnv({ JUNGLEGRID_ENABLED: 'true', JUNGLE_GRID_API_KEY: 'configured', FIREWORKS_ENABLED: 'true', FIREWORKS_API_KEY: 'configured' }, () => {
-    assert.equal(selectExecutionProvider('remote').selectedProvider, 'junglegrid');
-  });
+  withEnv(
+    {
+      JUNGLE_GRID_ENABLED: 'true',
+      JUNGLE_GRID_API_KEY: 'configured',
+      FIREWORKS_ENABLED: 'true',
+      FIREWORKS_API_KEY: 'configured',
+    },
+    () => {
+      assert.equal(
+        selectExecutionProvider('remote').selectedProvider,
+        'junglegrid',
+      );
+    },
+  );
+});
+
+test('legacy Jungle Grid enabled alias remains supported', () => {
+  withEnv(
+    {
+      JUNGLE_GRID_ENABLED: undefined,
+      JUNGLEGRID_ENABLED: 'true',
+      JUNGLE_GRID_API_KEY: 'configured',
+    },
+    () => {
+      assert.equal(
+        selectExecutionProvider('remote').selectedProvider,
+        'junglegrid',
+      );
+    },
+  );
 });
 
 test('remote mode fails clearly when no provider is configured', () => {
-  withEnv({ JUNGLEGRID_ENABLED: 'false', FIREWORKS_ENABLED: 'false', AMD_NOTEBOOK_MANUAL_ENABLED: 'false' }, () => {
-    assert.throws(() => selectExecutionProvider('remote'), NoRemoteProviderAvailable);
-  });
+  withEnv(
+    {
+      JUNGLEGRID_ENABLED: 'false',
+      FIREWORKS_ENABLED: 'false',
+      AMD_NOTEBOOK_MANUAL_ENABLED: 'false',
+    },
+    () => {
+      assert.throws(
+        () => selectExecutionProvider('remote'),
+        NoRemoteProviderAvailable,
+      );
+    },
+  );
 });

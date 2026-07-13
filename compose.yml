@@ -1,19 +1,22 @@
 name: substrata
 
+x-database-url: &database-url >-
+  postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}?schema=public
+
 services:
   postgres:
     image: postgres:16-bookworm
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-substrata}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     ports:
-      - "127.0.0.1:5433:5432"
+      - '127.0.0.1:${POSTGRES_PORT:-5433}:5432'
     volumes:
       - substrata-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
       interval: 5s
       timeout: 5s
       retries: 20
@@ -24,25 +27,40 @@ services:
       dockerfile: infra/Dockerfile
       target: api
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-substrata}?schema=public
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: *database-url
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["pnpm", "--filter", "@substrata/db", "exec", "prisma", "migrate", "deploy", "--schema", "prisma/schema.prisma"]
-    restart: "no"
+    command:
+      [
+        'pnpm',
+        '--filter',
+        '@substrata/db',
+        'exec',
+        'prisma',
+        'migrate',
+        'deploy',
+        '--schema',
+        'prisma/schema.prisma',
+      ]
+    restart: 'no'
 
   seed:
+    profiles: ['manual']
     build:
       context: .
       dockerfile: infra/Dockerfile
       target: api
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-substrata}?schema=public
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: *database-url
     depends_on:
       migrate:
         condition: service_completed_successfully
-    command: ["pnpm", "--filter", "@substrata/db", "exec", "tsx", "prisma/seed.ts"]
-    restart: "no"
+    command:
+      ['pnpm', '--filter', '@substrata/db', 'exec', 'tsx', 'prisma/seed.ts']
+    restart: 'no'
 
   api:
     build:
@@ -51,32 +69,76 @@ services:
       target: api
     restart: unless-stopped
     environment:
-      NODE_ENV: development
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-substrata}?schema=public
-      API_PORT: 4000
-      API_URL: ${API_URL:-http://localhost:4000}
-      APP_URL: ${APP_URL:-http://localhost:3000}
-      WEB_APP_URL: ${WEB_APP_URL:-http://localhost:3000}
-      API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000}
-      SESSION_SECRET: ${SESSION_SECRET:-local-demo-only-replace-before-any-shared-deployment}
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: *database-url
+      API_PORT: ${API_PORT:-4100}
+      API_URL: ${API_URL:?API_URL is required}
+      APP_URL: ${APP_URL:?APP_URL is required}
+      WEB_APP_URL: ${WEB_APP_URL:?WEB_APP_URL is required}
+      API_CORS_ORIGIN: ${API_CORS_ORIGIN:?API_CORS_ORIGIN is required}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-substrata_session}
-      EMAIL_PROVIDER: console
-      LOCAL_STORAGE_ROOT: /app/tmp/storage
-      AI_FALLBACK_TO_HEURISTIC: "true"
-      LOCAL_GEMMA_ENABLED: "false"
-      FIREWORKS_ENABLED: "false"
-      JUNGLEGRID_ENABLED: "false"
+      SESSION_COOKIE_DOMAIN: ${SESSION_COOKIE_DOMAIN:-}
+      PUBLIC_DEMO_ADMIN_EMAILS: ${PUBLIC_DEMO_ADMIN_EMAILS:-}
+      GOOGLE_OAUTH_ENABLED: ${GOOGLE_OAUTH_ENABLED:-false}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:?EMAIL_PROVIDER is required}
+      ZEPTOMAIL_SEND_MAIL_TOKEN: ${ZEPTOMAIL_SEND_MAIL_TOKEN:-}
+      ZEPTO_MAIL_API_TOKEN: ${ZEPTO_MAIL_API_TOKEN:-}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Substrata}
+      EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      LOCAL_STORAGE_ROOT: ${LOCAL_STORAGE_ROOT:-/app/tmp/storage}
+      AI_MAX_INPUT_CHARS: ${AI_MAX_INPUT_CHARS:-120000}
+      AI_FALLBACK_TO_HEURISTIC: ${AI_FALLBACK_TO_HEURISTIC:-false}
+      SUBSTRATA_MIN_OWNED_PRODUCT_EVIDENCE: ${SUBSTRATA_MIN_OWNED_PRODUCT_EVIDENCE:-1}
+      LOCAL_GEMMA_ENABLED: ${LOCAL_GEMMA_ENABLED:-false}
+      LOCAL_GEMMA_RUNTIME: ${LOCAL_GEMMA_RUNTIME:-ollama}
+      LOCAL_GEMMA_MODEL: ${LOCAL_GEMMA_MODEL:-gemma4:e2b}
+      LOCAL_GEMMA_BASE_URL: ${LOCAL_GEMMA_BASE_URL:-}
+      OLLAMA_HOST: ${OLLAMA_HOST:-}
+      LOCAL_GEMMA_DEVICE: ${LOCAL_GEMMA_DEVICE:-cuda}
+      LOCAL_GEMMA_ATTENTION: ${LOCAL_GEMMA_ATTENTION:-eager}
+      LOCAL_GEMMA_MAX_NEW_TOKENS: ${LOCAL_GEMMA_MAX_NEW_TOKENS:-1024}
+      LOCAL_GEMMA_TEMPERATURE: ${LOCAL_GEMMA_TEMPERATURE:-0}
+      GEMMA_MODEL: ${GEMMA_MODEL:-gemma4:e2b}
+      FIREWORKS_ENABLED: ${FIREWORKS_ENABLED:-false}
+      FIREWORKS_API_KEY: ${FIREWORKS_API_KEY:-}
+      FIREWORKS_MODEL: ${FIREWORKS_MODEL:-accounts/fireworks/models/gpt-oss-120b}
+      FIREWORKS_BASE_URL: ${FIREWORKS_BASE_URL:-https://api.fireworks.ai/inference/v1}
+      FIREWORKS_TIMEOUT_SECONDS: ${FIREWORKS_TIMEOUT_SECONDS:-90}
+      FIREWORKS_MAX_RETRIES: ${FIREWORKS_MAX_RETRIES:-3}
+      FIREWORKS_INPUT_TOKEN_USD: ${FIREWORKS_INPUT_TOKEN_USD:-0.0000018}
+      FIREWORKS_OUTPUT_TOKEN_USD: ${FIREWORKS_OUTPUT_TOKEN_USD:-0.0000030}
+      JUNGLE_GRID_ENABLED: ${JUNGLE_GRID_ENABLED:-}
+      JUNGLEGRID_ENABLED: ${JUNGLEGRID_ENABLED:-}
+      JUNGLE_GRID_API_URL: ${JUNGLE_GRID_API_URL:-https://api.junglegrid.dev}
+      JUNGLE_GRID_API_KEY: ${JUNGLE_GRID_API_KEY:-}
+      JUNGLE_GRID_IMAGE: ${JUNGLE_GRID_IMAGE:-ghcr.io/jungle-grid/substrata-jungle-grid-inference:rocm}
+      JUNGLE_GRID_MODEL: ${JUNGLE_GRID_MODEL:-gemma4:12b}
+      JUNGLE_GRID_RUNTIME_BACKEND: ${JUNGLE_GRID_RUNTIME_BACKEND:-rocm}
+      JUNGLE_GRID_GPU_VENDOR: ${JUNGLE_GRID_GPU_VENDOR:-AMD}
+      REMOTE_PROVIDER_PRIORITY: ${REMOTE_PROVIDER_PRIORITY:-junglegrid,fireworks,amd_notebook_manual}
+      AMD_NOTEBOOK_MANUAL_ENABLED: ${AMD_NOTEBOOK_MANUAL_ENABLED:-false}
+      CLASSIFICATION_HISTORY_DIAGNOSTICS: ${CLASSIFICATION_HISTORY_DIAGNOSTICS:-0}
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - 'host.docker.internal:host-gateway'
     ports:
-      - "127.0.0.1:4000:4000"
+      - '127.0.0.1:${API_PORT:-4100}:${API_PORT:-4100}'
     volumes:
-      - substrata-storage:/app/tmp/storage
+      - substrata-storage:${LOCAL_STORAGE_ROOT:-/app/tmp/storage}
     depends_on:
-      seed:
+      migrate:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(''http://127.0.0.1:'' + process.env.API_PORT + ''/v1/health'').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"',
+        ]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -87,21 +149,26 @@ services:
       dockerfile: infra/Dockerfile
       target: web
       args:
-        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:4000}
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:?NEXT_PUBLIC_API_BASE_URL is required}
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      PORT: 3000
+      WEB_PORT: ${WEB_PORT:-3100}
+      PORT: ${WEB_PORT:-3100}
       HOSTNAME: 0.0.0.0
-      API_URL: http://api:4000
-      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:4000}
+      API_URL: http://api:${API_PORT:-4100}
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:?NEXT_PUBLIC_API_BASE_URL is required}
     ports:
-      - "127.0.0.1:3000:3000"
+      - '127.0.0.1:${WEB_PORT:-3100}:${WEB_PORT:-3100}'
     depends_on:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(''http://127.0.0.1:'' + process.env.PORT).then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"',
+        ]
       interval: 5s
       timeout: 5s
       retries: 30

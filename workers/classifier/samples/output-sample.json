@@ -364,6 +364,6 @@
     "classificationMode": "heuristic_fallback",
     "aiProvider": "none",
     "aiEnabled": false,
-    "fallbackReason": "AI_ENABLED is false or unset"
+    "fallbackReason": "No assisted execution provider was enabled"
   }
 }
